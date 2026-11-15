@@ -9,7 +9,7 @@ Murmur is a fork of [Handy](https://github.com/cjpais/Handy) by CJ Pais.
 ## What it does
 
 - **Dictation.** Hold or tap a global shortcut, talk, and the transcript is pasted where your cursor is.
-- **Meetings.** Records your microphone and the computer's audio as two tracks, then transcribes both. Computer audio works on Linux today, see [macOS](#macos).
+- **Meetings.** Records your microphone and the computer's audio as two tracks, then transcribes both. On a Mac the computer's audio needs macOS 14.2 or newer.
 - **Speaker labels.** Your side is labelled as you. The other side is split into speakers, which you can rename. Splitting needs a speaker model that is not installed at first: until you download it, the other side stays one speaker and a notice after the meeting offers the download.
 - **Notes to Obsidian.** Set a vault in Settings and each finished meeting is written there as a note, in the `Meetings` folder by default. A note is written once and never overwritten.
 - **Local models.** Models are downloaded in the app and run on your CPU or GPU. Parakeet Ultra covers 25 European languages. Whisper and other models can be picked in Settings > Models.
@@ -20,35 +20,32 @@ Downloads are on the [Releases page](https://github.com/MaryanPrydatko/murmur/re
 
 ### Linux
 
-Debian and Ubuntu: download the `.deb` and install it with APT, so its dependencies come with it:
+Ubuntu 26.04 or newer: download the `.deb` and install it with APT, so its dependencies come with it:
 
 ```bash
 sudo apt install ./Murmur_*_amd64.deb
 ```
 
-Other distributions: download the `.AppImage`, make it executable and run it:
+The `.deb` needs glibc 2.43, which older systems do not have. On any other system, build Murmur from source, see [BUILD.md](BUILD.md).
 
-```bash
-chmod +x Murmur_*_amd64.AppImage
-./Murmur_*_amd64.AppImage
-```
-
-The `.deb` adds Murmur to the app grid. The AppImage is a single file you start yourself. Either way Murmur sits in the system tray while it runs.
+The `.deb` adds Murmur to the app grid. Murmur sits in the system tray while it runs.
 
 Pasting needs a helper tool that the packages do not install. Which one depends on your desktop, see [Linux notes](docs/troubleshooting.md#linux-notes).
 
 ### macOS
 
-A release that has a macOS build ships it as a `.dmg`. Until the first one is out there is nothing to download for macOS, and you can [build from source](#build-from-source).
+Download the `.dmg`. It is for Apple Silicon Macs. On an Intel Mac, [build from source](#build-from-source).
 
-The `.dmg` is not signed with an Apple developer certificate, so macOS blocks the first launch. To allow it once:
+Murmur is not signed with a paid Apple developer certificate, so macOS blocks the first launch. To allow it once:
 
 1. Open the `.dmg` and drag Murmur to Applications.
 2. Open Murmur. macOS says it cannot be opened. Close that dialog.
 3. Go to System Settings > Privacy & Security, scroll down to the message about Murmur and click **Open Anyway**.
 4. Confirm with your password. After that Murmur opens like any other app.
 
-Murmur asks for microphone and accessibility access on first run. Recording the computer's audio in a meeting is coming with the first macOS build.
+macOS then asks for three permissions: the microphone, Accessibility (to paste the text where your cursor is) and system audio recording (to record the computer's audio in a meeting). Because Murmur is not signed with a paid certificate, macOS asks for them again after each update.
+
+Meetings need macOS 14.2 or newer. Dictation also works on older versions.
 
 ## Use
 
@@ -70,7 +67,7 @@ When you stop, the recording is transcribed and shows up on the Meetings page, w
 
 ### Command line
 
-The `.deb` installs the command as `murmur`. With the AppImage there is no installed command: run the AppImage file with the same flags. These flags are sent to the running app:
+The `.deb` installs the command as `murmur`. These flags are sent to the running app:
 
 ```bash
 murmur --toggle-transcription    # start or stop dictation
