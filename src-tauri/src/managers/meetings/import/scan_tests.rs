@@ -106,6 +106,10 @@ fn skips_a_wispr_line_cut_off_at_the_end_but_not_in_the_middle() {
     assert_eq!(scan.unreadable, Vec::<String>::new());
     assert_eq!(scan.meetings[0].segments.len(), 4);
 
+    // Ended by a newline, a bad last line was written whole.
+    fs::write(&live, format!("{lines}\n")).unwrap();
+    assert_eq!(wispr::scan(tmp.path()).unreadable.len(), 1);
+
     fs::write(&live, lines + "\n{\"segment\": 4}\n").unwrap();
     let scan = wispr::scan(tmp.path());
     assert!(scan.meetings.is_empty());

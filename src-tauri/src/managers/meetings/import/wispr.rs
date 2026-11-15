@@ -181,6 +181,7 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
         Err(e) if absent(&e) => String::new(),
         Err(e) => return Err(e.into()),
     };
+    let cut_off = !live.is_empty() && !live.ends_with('\n');
     let live: Vec<(usize, &str)> = live
         .lines()
         .enumerate()
@@ -189,7 +190,7 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
     for (i, &(n, text)) in live.iter().enumerate() {
         let line = serde_json::from_str::<Line>(text);
         // Wispr appends as it hears: its last line can be cut off.
-        if line.is_err() && i + 1 == live.len() {
+        if line.is_err() && cut_off && i + 1 == live.len() {
             continue;
         }
         let line = line
