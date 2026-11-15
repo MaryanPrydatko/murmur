@@ -473,7 +473,21 @@
         "output": "Keluaran",
         "transcription": "Transkripsi",
         "history": "Riwayat",
+        "meetingNotes": "Meeting Notes",
         "experimental": "Eksperimental"
+      },
+      "meetingNotes": {
+        "vault": {
+          "title": "Obsidian Vault",
+          "description": "Each transcribed meeting gets a note in this vault, written once and never overwritten. Leave it empty for no notes.",
+          "placeholder": "Path to your vault",
+          "browse": "Browse"
+        },
+        "folder": {
+          "title": "Notes Folder",
+          "description": "The folder in the vault the notes go into.",
+          "placeholder": "Meetings"
+        }
       },
       "experimentalToggle": {
         "label": "Fitur Eksperimental",
