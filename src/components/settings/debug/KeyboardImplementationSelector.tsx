@@ -11,7 +11,7 @@ const KEYBOARD_IMPLEMENTATION_OPTIONS: DropdownOption[] = [
   { value: "tauri", label: "Tauri Global Shortcut" },
   { value: "handy_keys", label: "Handy Keys" },
   // Linux only: for Wayland, where the compositor owns keybindings and
-  // triggers Handy via `handy --toggle-transcription`.
+  // triggers Handy via `murmur --toggle-transcription`.
   ...(type() === "linux" ? [{ value: "none", label: "None" }] : []),
 ];
 

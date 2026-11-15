@@ -59,7 +59,7 @@ fn change_meeting(app: &AppHandle, change: impl FnOnce(&MeetingManager) + Send +
 /// (transcription with post-processing) is only handled on macOS: on Linux,
 /// WebKitGTK's JavaScriptCore garbage collector sends SIGUSR1 to its own
 /// threads to suspend them, so handling it caused phantom recordings on every
-/// GC cycle (#1660). Linux users should use `handy --toggle-post-process`
+/// GC cycle (#1660). Linux users should use `murmur --toggle-post-process`
 /// instead. SIGTERM saves a meeting being recorded, then quits.
 #[cfg(unix)]
 pub fn setup_signal_handler(app_handle: AppHandle) {
