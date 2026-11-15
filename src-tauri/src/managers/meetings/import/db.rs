@@ -116,3 +116,18 @@ pub fn insert(conn: &mut Connection, planned: &Planned, meeting: &Meeting) -> Re
     }
     Ok(tx.commit()?)
 }
+
+/// The meeting the planned meeting's records were imported into.
+pub fn meeting_of(conn: &Connection, planned: &Planned) -> Result<Option<String>> {
+    let mut stmt = conn
+        .prepare("SELECT meeting_id FROM meeting_sources WHERE source = ?1 AND source_id = ?2")?;
+    for (source, source_id) in planned.records() {
+        let id = stmt
+            .query_row(params![source.as_str(), source_id], |row| row.get(0))
+            .optional()?;
+        if id.is_some() {
+            return Ok(id);
+        }
+    }
+    Ok(None)
+}

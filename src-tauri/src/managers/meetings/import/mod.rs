@@ -443,7 +443,15 @@ pub fn run(
                 }
                 continue;
             }
-            Outcome::AlreadyImported => report.already_imported += 1,
+            Outcome::AlreadyImported => {
+                report.already_imported += 1;
+                // Imported before without a note, or transcribed since.
+                if let (Some(folder), false) = (notes_folder, dry_run) {
+                    if let Some(id) = db::meeting_of(conn, meeting)? {
+                        write_note(conn, &id, folder, &mut report);
+                    }
+                }
+            }
             Outcome::NotAMeeting => report.not_meetings += 1,
             Outcome::NoAudio => report.no_audio += 1,
             Outcome::Import => {}
@@ -469,15 +477,8 @@ pub fn run(
             }
             Ok(saved) => {
                 report.imported += 1;
-                let Some(folder) = notes_folder else {
-                    continue;
-                };
-                let note = store::get(conn, &saved.id)?
-                    .ok_or_else(|| anyhow!("Meeting {} wasn't saved", saved.id))
-                    .and_then(|detail| notes::export(conn, &detail, folder));
-                match note {
-                    Ok(_) => report.notes += 1,
-                    Err(e) => report.errors.push(format!("{} note: {e:#}", saved.id)),
+                if let Some(folder) = notes_folder {
+                    write_note(conn, &saved.id, folder, &mut report);
                 }
             }
             Err(e) => {
@@ -487,6 +488,22 @@ pub fn run(
         }
     }
     Ok((report, queued))
+}
+
+/// Writes meeting `id`'s note when it's transcribed and has none: a note
+/// the user deleted stays deleted, and a deleted meeting gets none.
+fn write_note(conn: &Connection, id: &str, folder: &Path, report: &mut ImportReport) {
+    let note = store::get(conn, id).and_then(|detail| match detail {
+        Some(d) if d.meeting.status.as_deref() == Some("done") && d.meeting.note_path.is_none() => {
+            notes::export(conn, &d, folder).map(Some)
+        }
+        _ => Ok(None),
+    });
+    match note {
+        Ok(Some(_)) => report.notes += 1,
+        Ok(None) => {}
+        Err(e) => report.errors.push(format!("{id} note: {e:#}")),
+    }
 }
 
 /// Copies the meeting's audio and summary into its folder, then saves it.

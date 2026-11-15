@@ -119,13 +119,22 @@ fn write_json(meeting: &Meeting) -> Result<()> {
 }
 
 fn import(world: &World, conn: &mut Connection, dry_run: bool) -> (ImportReport, Vec<String>) {
+    import_notes(world, conn, dry_run, true)
+}
+
+fn import_notes(
+    world: &World,
+    conn: &mut Connection,
+    dry_run: bool,
+    notes: bool,
+) -> (ImportReport, Vec<String>) {
     let vault = world.vault();
     run(
         conn,
         &world.roots,
         &world.meetings_dir(),
         dry_run,
-        Some(&vault),
+        notes.then_some(vault.as_path()),
         &mut write_json,
     )
     .unwrap()
@@ -328,6 +337,38 @@ fn a_second_run_writes_nothing_and_a_deleted_meeting_stays_deleted() {
     assert_eq!(after_delete.imported + after_delete.to_transcribe, 0);
     assert_eq!(after_delete.already_imported, 4);
     assert_eq!(count(&conn, "meetings"), 3);
+}
+
+#[test]
+fn a_later_run_with_notes_writes_the_notes_still_missing() {
+    let world = world();
+    let mut conn = db();
+    let (first, _) = import_notes(&world, &mut conn, false, false);
+    assert_eq!((first.imported, first.notes), (3, 0));
+    assert!(!world.vault().exists());
+
+    let (with_notes, queued) = import(&world, &mut conn, false);
+    assert_eq!(with_notes.imported + with_notes.to_transcribe, 0);
+    assert!(queued.is_empty());
+    assert_eq!(with_notes.notes, 3);
+    assert!(with_notes.errors.is_empty());
+
+    // Only Spokenly had the call: its note waits until it's transcribed.
+    let call = meeting_id((T0_SECS + 3 * DAY) * 1000 + 250, Source::Spokenly);
+    conn.execute(
+        "UPDATE meetings SET status = 'done', asr_model = 'parakeet-ultra-Q8_0' WHERE id = ?1",
+        [&call],
+    )
+    .unwrap();
+    let (transcribed, _) = import(&world, &mut conn, false);
+    assert_eq!(transcribed.notes, 1);
+    assert!(detail_note(&conn, &call).exists());
+
+    // A note the user deleted stays deleted.
+    fs::remove_file(detail_note(&conn, &call)).unwrap();
+    let (again, _) = import(&world, &mut conn, false);
+    assert_eq!(again.notes, 0);
+    assert_eq!(fs::read_dir(world.vault()).unwrap().count(), 3);
 }
 
 #[test]

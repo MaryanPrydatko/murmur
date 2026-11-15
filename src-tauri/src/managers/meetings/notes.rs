@@ -46,11 +46,12 @@ pub fn on_done(app: &AppHandle, id: &str) {
     }
 }
 
-/// An imported meeting gets its note only when asked for.
+/// A meeting transcribed here, as is one only Spokenly had. One imported
+/// with its transcript gets its note only when asked for.
 fn wants_note(meeting: &MeetingRow) -> bool {
     meeting.status.as_deref() == Some("done")
         && meeting.note_path.is_none()
-        && meeting.source == "murmur"
+        && (meeting.source == "murmur" || meeting.asr_model.is_some())
 }
 
 /// `<vault>/<notes folder>`, once a vault is set, with `~/` under `home`.
@@ -386,13 +387,16 @@ mod tests {
     }
 
     #[test]
-    fn only_a_finished_meeting_recorded_here_gets_a_note_on_its_own() {
+    fn only_a_finished_meeting_transcribed_here_gets_a_note_on_its_own() {
         let tmp = tempfile::tempdir().unwrap();
         let mut conn = db();
         let mut row = transcribed(&mut conn, "m1", tmp.path(), None).meeting;
         assert!(wants_note(&row));
         row.source = "wispr".into();
         assert!(!wants_note(&row));
+        row.source = "spokenly".into();
+        row.asr_model = Some("parakeet-ultra-Q8_0".into());
+        assert!(wants_note(&row));
         row.source = "murmur".into();
         row.status = Some("failed".into());
         assert!(!wants_note(&row));
