@@ -72,6 +72,8 @@ pub struct MeetingTrack {
     pub file: PathBuf,
     /// When the track's first sample was heard, from the meeting's start.
     pub start_offset_ms: i64,
+    /// Missing from meetings recorded before tracks had a length.
+    #[serde(default)]
     pub duration_ms: i64,
 }
 
@@ -626,8 +628,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let json = format!(
             r#"{{"id":"2026-11-15_14-03-22","started_at":"2026-11-15T14:03:22+01:00",
-            "duration_ms":1000,"status":"done","dir":{:?},"tracks":[],
-            "asr_model":null,"diar_model":null}}"#,
+            "duration_ms":1000,"status":"done","dir":{:?},
+            "tracks":[{{"kind":"mic","file":"mic.wav","start_offset_ms":0}}]}}"#,
             dir.path()
         );
         std::fs::write(dir.path().join("meeting.json"), json).unwrap();
