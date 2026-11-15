@@ -2,7 +2,7 @@
 name = "handy"
 version = "0.1.0"
 description = "Local dictation and meeting notes"
-authors = ["cjpais"]
+authors = ["Maryan Prydatko"]
 edition = "2021"
 license = "MIT"
 default-run = "handy"
