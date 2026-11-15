@@ -313,8 +313,21 @@ impl MeetingManager {
         }
     }
 
+    /// Whether the input of the recording meeting `id`'s system track failed.
+    fn system_failed(&self, id: &str) -> bool {
+        self.lock()
+            .as_ref()
+            .filter(|a| a.meeting.id == id)
+            .is_some_and(|a| {
+                a.tracks
+                    .iter()
+                    .any(|t| t.kind == TrackKind::System && t.failed.load(Ordering::Acquire))
+            })
+    }
+
     /// Moves the system track of the recording meeting `id` to the output
-    /// `monitor_source` now plays to. `false` if `id` stopped recording.
+    /// `monitor_source` now plays to, on an input opened for it now. `false`
+    /// if `id` stopped recording.
     fn move_output(&self, id: &str, monitor_source: &str) -> Result<bool> {
         let next = open_recorder(TrackKind::System, Some(monitor_input(monitor_source)?))?;
         let mut guard = self.lock();
@@ -626,8 +639,14 @@ fn tick(
 const OUTPUT_POLL: Duration = Duration::from_secs(2);
 
 /// Runs while the meeting `id` records: when the default output changes,
-/// moves the system track to it. A check that fails changes nothing.
+/// moves the system track to it, and when the track's input fails, opens it
+/// again. An input fails without the output changing when, say, a Bluetooth
+/// headset switches profile and its sample rate with it. A check that fails
+/// changes nothing.
 fn follow_output(app: &AppHandle, id: &str, mut monitor_source: String, ended: &AtomicBool) {
+    let meetings = app.state::<Arc<MeetingManager>>();
+    // Whether the last move failed: said once, then tried again quietly.
+    let mut stuck = false;
     loop {
         let wait = Instant::now();
         while wait.elapsed() < OUTPUT_POLL {
@@ -637,18 +656,32 @@ fn follow_output(app: &AppHandle, id: &str, mut monitor_source: String, ended: &
             std::thread::sleep(TICK);
         }
         let now = match default_monitor_source() {
-            Ok(now) if now != monitor_source => now,
-            Ok(_) => continue,
+            Ok(now) => now,
             Err(e) => {
                 debug!("Meeting {id}: couldn't check the default output: {e:#}");
                 continue;
             }
         };
-        info!("Meeting {id}: the default output is now {now}");
-        match app.state::<Arc<MeetingManager>>().move_output(id, &now) {
-            Ok(true) => monitor_source = now,
+        let moved = now != monitor_source;
+        if !moved && !meetings.system_failed(id) {
+            continue;
+        }
+        if moved && !stuck {
+            info!("Meeting {id}: the default output is now {now}");
+        } else if !stuck {
+            info!("Meeting {id}: the system input failed, opening it again");
+        }
+        match meetings.move_output(id, &now) {
+            Ok(true) => {
+                monitor_source = now;
+                stuck = false;
+            }
             Ok(false) => return,
-            Err(e) => warn!("Meeting {id}: failed to follow the output to {now}: {e:#}"),
+            Err(e) if stuck => debug!("Meeting {id}: still no system input on {now}: {e:#}"),
+            Err(e) => {
+                stuck = true;
+                warn!("Meeting {id}: failed to move the system track to {now}: {e:#}");
+            }
         }
     }
 }

@@ -179,20 +179,29 @@ pub(super) struct TrackRecorder {
     pub file: PathBuf,
     pub feed: Arc<TrackFeed>,
     pub recorder: Recorder<WavSink>,
+    /// Set when `recorder`'s input fails while it's open.
+    pub failed: Arc<AtomicBool>,
 }
+
+/// An input opened for a track, and the flag set if it fails while open.
+pub(super) type OpenedInput = (Recorder<WavSink>, Arc<AtomicBool>);
 
 impl TrackRecorder {
     /// Moves the track to `next`, an input opened and not started, after
     /// silence for the time the move took. Returns the input it was on, to
-    /// close. If `next` won't start, the track stays where it was.
-    pub fn move_to(&mut self, next: Recorder<WavSink>) -> Result<Recorder<WavSink>> {
+    /// close. If `next` won't start, the track stays where it was. The
+    /// input it leaves may have failed: its recording is kept all the same.
+    pub fn move_to(&mut self, (next, failed): OpenedInput) -> Result<Recorder<WavSink>> {
         let mut sink = self.recorder.stop()?.sink;
         if let Err(e) = sink.pad_to(Instant::now()) {
             sink.error = Some(e);
         }
         sink.realign = true;
         match next.start(sink) {
-            Ok(()) => Ok(std::mem::replace(&mut self.recorder, next)),
+            Ok(()) => {
+                self.failed = failed;
+                Ok(std::mem::replace(&mut self.recorder, next))
+            }
             Err(failed) => {
                 let error = anyhow!(failed.error).context("Failed to start the new output");
                 if let Err(e) = self.recorder.start(failed.sink) {
@@ -208,12 +217,20 @@ impl TrackRecorder {
 }
 
 /// Opens `device`, or the default input, for a meeting track.
-pub(super) fn open_recorder(kind: TrackKind, device: Option<String>) -> Result<Recorder<WavSink>> {
-    Recorder::open(RecorderConfig {
-        device,
-        ..RecorderConfig::speech()
-    })
-    .with_context(|| format!("Failed to open the {kind:?} input"))
+pub(super) fn open_recorder(kind: TrackKind, device: Option<String>) -> Result<OpenedInput> {
+    let failed = Arc::new(AtomicBool::new(false));
+    let recorder = Recorder::open_with_failure_handler(
+        RecorderConfig {
+            device,
+            ..RecorderConfig::speech()
+        },
+        {
+            let failed = Arc::clone(&failed);
+            move |_| failed.store(true, Ordering::Release)
+        },
+    )
+    .with_context(|| format!("Failed to open the {kind:?} input"))?;
+    Ok((recorder, failed))
 }
 
 pub(super) fn open_track(
@@ -222,7 +239,7 @@ pub(super) fn open_track(
     device: Option<String>,
 ) -> Result<TrackRecorder> {
     let file = dir.join(kind.file_name());
-    let recorder = open_recorder(kind, device)?;
+    let (recorder, failed) = open_recorder(kind, device)?;
     let feed = Arc::new(TrackFeed::default());
     recorder
         .start(WavSink::create(&file, Arc::clone(&feed))?)
@@ -232,6 +249,7 @@ pub(super) fn open_track(
         file,
         feed,
         recorder,
+        failed,
     })
 }
 
@@ -421,6 +439,88 @@ mod tests {
         let expected = (heard.as_secs_f64() * 16_000.0) as u32;
         assert!(samples.abs_diff(expected) < 160, "{samples} vs {expected}");
         assert!(samples >= 8_000);
+    }
+
+    /// An input on `mic`, as [`open_recorder`] opens one.
+    fn fake_input(mic: &handy_recorder::testing::FakeMic) -> OpenedInput {
+        let failed = Arc::new(AtomicBool::new(false));
+        let handler = {
+            let failed = Arc::clone(&failed);
+            Box::new(move |_| failed.store(true, Ordering::Release))
+        };
+        let recorder = mic
+            .open(
+                RecorderConfig::speech(),
+                Some(handler),
+                Duration::from_secs(2),
+            )
+            .unwrap();
+        (recorder, failed)
+    }
+
+    fn wait_for(what: &str, done: impl Fn() -> bool) {
+        let started = Instant::now();
+        while !done() {
+            assert!(started.elapsed() < Duration::from_secs(5), "{what}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn a_track_whose_input_failed_goes_on_from_a_new_one() {
+        use handy_recorder::testing::{FakeError, FakeMic};
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("system.wav");
+        let feed = Arc::new(TrackFeed::default());
+        let headset = FakeMic::new(16_000, 1);
+        let (recorder, failed) = fake_input(&headset);
+        recorder
+            .start(WavSink::create(&file, Arc::clone(&feed)).unwrap())
+            .unwrap();
+        let mut track = TrackRecorder {
+            kind: TrackKind::System,
+            file,
+            feed,
+            recorder,
+            failed,
+        };
+        let started = Instant::now();
+        let tenth = vec![0.5; 1_600];
+        assert!(headset.push(&tenth));
+        wait_for("the first audio", || track.feed.take_heard());
+
+        // The headset's stream ends under the track, as when its sample
+        // rate changes: nothing reaches the file until it's opened again.
+        assert!(headset.report_error(FakeError::Other));
+        wait_for("the failure", || track.failed.load(Ordering::Acquire));
+        std::thread::sleep(Duration::from_millis(300));
+
+        let again = FakeMic::new(16_000, 1);
+        let previous = track.move_to(fake_input(&again)).unwrap();
+        assert!(!track.failed.load(Ordering::Acquire));
+        previous.close().unwrap();
+        assert!(again.push(&tenth));
+        wait_for("audio from the new input", || track.feed.take_heard());
+
+        let stopped = std::thread::scope(|scope| {
+            let stopping = scope.spawn(|| stop_track(&track, started));
+            // A stop waits for the audio thread, which this test is.
+            while !stopping.is_finished() {
+                again.push(&[0.0; 16]);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            stopping.join().unwrap().unwrap()
+        });
+        assert_eq!(stopped.problem, None);
+        // Both tenths, and silence for the time without an input.
+        assert!(stopped.duration_ms >= 400, "{}", stopped.duration_ms);
+        let loud = hound::WavReader::open(&track.file)
+            .unwrap()
+            .into_samples::<i16>()
+            .filter(|s| *s.as_ref().unwrap() != 0)
+            .count();
+        assert_eq!(loud, 3_200);
     }
 
     #[test]
