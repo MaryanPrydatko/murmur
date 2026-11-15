@@ -449,13 +449,16 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
           </h3>
           <p>{t("meetings.failedBody")}</p>
           <div className="rowbtns">
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={() => rerun(t, row.id)}
-            >
-              {t("meetings.tryAgain")}
-            </Button>
+            {/* A recording a crash cut short is recovered on the next start. */}
+            {status === "failed" && (
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => rerun(t, row.id)}
+              >
+                {t("meetings.tryAgain")}
+              </Button>
+            )}
             {row.dir && (
               <Button
                 variant="secondary"
