@@ -33,7 +33,10 @@ pub fn on_done(app: &AppHandle, id: &str) {
         export(&conn, &detail, &folder).map(Some)
     })();
     match written {
-        Ok(Some(path)) => info!("Meeting {id}'s note is {}", path.display()),
+        Ok(Some(path)) => {
+            info!("Meeting {id}'s note is {}", path.display());
+            super::emit_changed(app, id);
+        }
         Ok(None) => {}
         Err(e) => {
             error!("Failed to write meeting {id}'s note: {e:#}");
