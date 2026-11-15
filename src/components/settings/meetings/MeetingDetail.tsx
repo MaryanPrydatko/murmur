@@ -63,8 +63,14 @@ const Header: React.FC<{
   const fallback = meetingTitle(t, i18n.language, { ...row, title: null });
   const [title, setTitle] = useState(row.title ?? "");
   useEffect(() => setTitle(row.title ?? ""), [row.id, row.title]);
+  // Escape blurs the field, and blur saves; this tells the blur not to.
+  const cancelled = useRef(false);
 
   const save = async () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
     const next = title.trim();
     if (next === (row.title ?? "")) return;
     const result = await commands.renameMeeting(row.id, next || null);
@@ -99,6 +105,7 @@ const Header: React.FC<{
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") {
+              cancelled.current = true;
               setTitle(row.title ?? "");
               e.currentTarget.blur();
             }
