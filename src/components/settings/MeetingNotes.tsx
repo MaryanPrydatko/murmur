@@ -12,11 +12,12 @@ interface MeetingNotesProps {
 }
 
 // Where a transcribed meeting's note goes: a folder in an Obsidian vault.
-// No vault, no notes.
+// No vault, no notes. The inputs stay enabled while a keystroke saves, or
+// they'd lose focus after every character.
 export const MeetingNotes: React.FC<MeetingNotesProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
-    const { getSetting, updateSetting, isUpdating } = useSettings();
+    const { getSetting, updateSetting } = useSettings();
     const vault = getSetting("obsidian_vault_path") ?? "";
     const folder = getSetting("obsidian_notes_folder") ?? "";
 
@@ -45,7 +46,6 @@ export const MeetingNotes: React.FC<MeetingNotesProps> = React.memo(
               placeholder={t(
                 "settings.advanced.meetingNotes.vault.placeholder",
               )}
-              disabled={isUpdating("obsidian_vault_path")}
             />
             <Button variant="secondary" size="sm" onClick={browse}>
               {t("settings.advanced.meetingNotes.vault.browse")}
@@ -65,7 +65,7 @@ export const MeetingNotes: React.FC<MeetingNotesProps> = React.memo(
               updateSetting("obsidian_notes_folder", e.target.value)
             }
             placeholder={t("settings.advanced.meetingNotes.folder.placeholder")}
-            disabled={!vault || isUpdating("obsidian_notes_folder")}
+            disabled={!vault}
           />
         </SettingContainer>
       </>
