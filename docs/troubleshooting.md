@@ -1,6 +1,6 @@
 # Troubleshooting and platform notes
 
-Technical notes carried over from Handy, which Murmur is built on. The binary is still called `handy` and the environment variables still start with `HANDY_`. Issue numbers link to Handy's tracker, where the bugs were found.
+Technical notes carried over from Handy, which Murmur is built on. The environment variables still start with `HANDY_`. Issue numbers link to Handy's tracker, where the bugs were found.
 
 ## Transcription hook
 
@@ -87,7 +87,7 @@ Without these tools, Murmur falls back to enigo which may have limited compatibi
   1. Open **Settings > Keyboard > Keyboard Shortcuts > Custom Shortcuts**
   2. Click the **+** button to add a new shortcut
   3. Set the **Name** to `Toggle Murmur Transcription`
-  4. Set the **Command** to `handy --toggle-transcription`
+  4. Set the **Command** to `murmur --toggle-transcription`
   5. Click **Set Shortcut** and press your desired key combination (e.g., `Super+O`)
 
   **KDE Plasma:**
@@ -95,14 +95,14 @@ Without these tools, Murmur falls back to enigo which may have limited compatibi
   2. Click **Edit > New > Global Shortcut > Command/URL**
   3. Name it `Toggle Murmur Transcription`
   4. In the **Trigger** tab, set your desired key combination
-  5. In the **Action** tab, set the command to `handy --toggle-transcription`
+  5. In the **Action** tab, set the command to `murmur --toggle-transcription`
 
   **Sway / i3:**
 
   Add to your config file (`~/.config/sway/config` or `~/.config/i3/config`):
 
   ```ini
-  bindsym $mod+o exec handy --toggle-transcription
+  bindsym $mod+o exec murmur --toggle-transcription
   ```
 
   **Hyprland:**
@@ -110,26 +110,26 @@ Without these tools, Murmur falls back to enigo which may have limited compatibi
   Add to your config file (`~/.config/hypr/hyprland.conf`):
 
   ```ini
-  bind = $mainMod, O, exec, handy --toggle-transcription
+  bind = $mainMod, O, exec, murmur --toggle-transcription
   ```
 
 - You can also trigger Murmur externally via Unix signals or the CLI flags, which lets Wayland window managers or other hotkey daemons keep ownership of keybindings:
 
-  | Action                                    | Trigger                                                  |
-  | ----------------------------------------- | -------------------------------------------------------- |
-  | Toggle transcription                      | `pkill -USR2 -n handy` or `handy --toggle-transcription` |
-  | Toggle transcription with post-processing | `handy --toggle-post-process`                            |
+  | Action                                    | Trigger                                                    |
+  | ----------------------------------------- | ---------------------------------------------------------- |
+  | Toggle transcription                      | `pkill -USR2 -n murmur` or `murmur --toggle-transcription` |
+  | Toggle transcription with post-processing | `murmur --toggle-post-process`                             |
 
   Example Sway config:
 
   ```ini
-  bindsym $mod+o exec pkill -USR2 -n handy
-  bindsym $mod+p exec handy --toggle-post-process
+  bindsym $mod+o exec pkill -USR2 -n murmur
+  bindsym $mod+p exec murmur --toggle-post-process
   ```
 
   `pkill` here simply delivers the signal. It does not terminate the process.
 
-  > **Behavior change:** older releases also accepted `SIGUSR1` for toggling transcription with post-processing. WebKitGTK, the webview engine embedded in Murmur on Linux, uses SIGUSR1 internally to coordinate JavaScript garbage collection, so listening for it caused phantom recordings and interrupted dictations every few minutes ([#1660](https://github.com/cjpais/Handy/issues/1660)). Murmur no longer listens for SIGUSR1 on Linux; the post-processing toggle is still available via `handy --toggle-post-process`. **Remove any `pkill -USR1` bindings**: the signal is now delivered straight to WebKit's internal handler and can crash the app.
+  > **Behavior change:** older releases also accepted `SIGUSR1` for toggling transcription with post-processing. WebKitGTK, the webview engine embedded in Murmur on Linux, uses SIGUSR1 internally to coordinate JavaScript garbage collection, so listening for it caused phantom recordings and interrupted dictations every few minutes ([#1660](https://github.com/cjpais/Handy/issues/1660)). Murmur no longer listens for SIGUSR1 on Linux; the post-processing toggle is still available via `murmur --toggle-post-process`. **Remove any `pkill -USR1` bindings**: the signal is now delivered straight to WebKit's internal handler and can crash the app.
 
 **Overlay & Pasting Issues (Linux):**
 
@@ -262,7 +262,7 @@ If it is already installed and you still see startup problems, try reinstalling 
 If installing the library does not help, you can skip `gtk-layer-shell` initialization entirely as a workaround. On some compositors (notably KDE Plasma under Wayland) it has been reported to interact poorly with the recording overlay. With this variable set, the overlay falls back to a regular always-on-top window:
 
 ```bash
-HANDY_NO_GTK_LAYER_SHELL=1 handy
+HANDY_NO_GTK_LAYER_SHELL=1 murmur
 ```
 
 **3. Configure the WebKit renderer (`WEBKIT_DISABLE_DMABUF_RENDERER` / `WEBKIT_DMABUF_RENDERER_FORCE_SHM`)**
@@ -276,13 +276,13 @@ Explicit environment-variable values are preserved, including in the Nix package
 
 ```bash
 # Force the legacy non-composited renderer (2.54: partial frames may reappear)
-WEBKIT_DISABLE_DMABUF_RENDERER=1 handy
+WEBKIT_DISABLE_DMABUF_RENDERER=1 murmur
 
 # Keep the compositor on shared memory (the 2.54 default below)
-WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 handy
+WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 murmur
 
 # Let WebKit use DMA-BUF when supported (may reintroduce the GPU/driver crashes)
-WEBKIT_DISABLE_DMABUF_RENDERER=0 handy
+WEBKIT_DISABLE_DMABUF_RENDERER=0 murmur
 ```
 
 Fully quit Murmur, including its tray instance, before testing a value. Running a second instance with `--toggle-transcription` does not change the running process's environment.
@@ -292,7 +292,7 @@ Fully quit Murmur, including its tray instance, before testing a value. Running 
 Set the variable in the environment of the launcher that actually starts Murmur. Shell profile exports may not apply to desktop-menu or autostart launches. If you launch Murmur from a `.desktop` file, you can prefix the `Exec=` line, e.g.:
 
 ```ini
-Exec=env HANDY_NO_GTK_LAYER_SHELL=1 handy
+Exec=env HANDY_NO_GTK_LAYER_SHELL=1 murmur
 ```
 
 Murmur's built-in autostart rewrites its generated desktop entry, so editing that entry is not a durable workaround. For autostart, use an appropriate session/service environment, or disable Murmur's built-in autostart and manage your own startup entry with the required variable.
@@ -305,7 +305,7 @@ If the recording overlay is empty or bordered, fully quit Murmur and launch a
 [native installation](../BUILD.md#linux-install-from-source) with Wayland enabled:
 
 ```bash
-env -u HANDY_NO_GTK_LAYER_SHELL GDK_BACKEND=wayland handy
+env -u HANDY_NO_GTK_LAYER_SHELL GDK_BACKEND=wayland murmur
 ```
 
 If this works, apply `GDK_BACKEND=wayland` only to Murmur's launcher.

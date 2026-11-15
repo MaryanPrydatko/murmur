@@ -35,8 +35,6 @@ chmod +x Murmur_*_amd64.AppImage
 
 The `.deb` adds Murmur to the app grid. The AppImage is a single file you start yourself. Either way Murmur sits in the system tray while it runs.
 
-The `.deb` installs the same files as Handy's `.deb` (the `handy` command among them), so the two cannot be installed side by side: installing Murmur's package removes Handy's.
-
 Pasting needs a helper tool that the packages do not install. Which one depends on your desktop, see [Linux notes](docs/troubleshooting.md#linux-notes).
 
 ### macOS
@@ -56,38 +54,38 @@ Murmur asks for microphone and accessibility access on first run. Recording the 
 
 ### Dictation
 
-The default shortcut is `Ctrl+Alt+Space` on Linux and `Option+Space` on macOS. Hold it while you talk and let go to finish, or tap it once to start and once to stop. You can change it in Settings. On macOS `Esc` cancels. On Linux there is no cancel key: cancel from the tray menu or with `handy --cancel`.
+The default shortcut is `Ctrl+Alt+Space` on Linux and `Option+Space` on macOS. Hold it while you talk and let go to finish, or tap it once to start and once to stop. You can change it in Settings. On macOS `Esc` cancels. On Linux there is no cancel key: cancel from the tray menu or with `murmur --cancel`.
 
-On Wayland the desktop may not pass global shortcuts to apps. In that case bind a system shortcut to `handy --toggle-transcription` (see [Command line](#command-line) and [Linux notes](docs/troubleshooting.md#linux-notes)).
+On Wayland the desktop may not pass global shortcuts to apps. In that case bind a system shortcut to `murmur --toggle-transcription` (see [Command line](#command-line) and [Linux notes](docs/troubleshooting.md#linux-notes)).
 
 ### Meetings
 
 Start and stop a meeting from the tray menu (**Start Meeting** / **Stop Meeting**), from the Meetings page in the app, or from a terminal:
 
 ```bash
-handy --toggle-meeting
+murmur --toggle-meeting
 ```
 
 When you stop, the recording is transcribed and shows up on the Meetings page, where you can play it, search it, rename speakers and open the note. You can keep dictating while a meeting is recording.
 
 ### Command line
 
-The `.deb` installs the command as `handy`, the name it has upstream. With the AppImage there is no installed command: run the AppImage file with the same flags. These flags are sent to the running app:
+The `.deb` installs the command as `murmur`. With the AppImage there is no installed command: run the AppImage file with the same flags. These flags are sent to the running app:
 
 ```bash
-handy --toggle-transcription    # start or stop dictation
-handy --toggle-post-process     # start or stop dictation with post-processing
-handy --toggle-meeting          # start or stop recording a meeting
-handy --cancel                  # cancel the current operation
+murmur --toggle-transcription    # start or stop dictation
+murmur --toggle-post-process     # start or stop dictation with post-processing
+murmur --toggle-meeting          # start or stop recording a meeting
+murmur --cancel                  # cancel the current operation
 ```
 
 Startup flags:
 
 ```bash
-handy --start-hidden            # start without showing the window
-handy --no-tray                 # start without the tray icon
-handy --debug                   # verbose logging
-handy --help                    # all flags
+murmur --start-hidden            # start without showing the window
+murmur --no-tray                 # start without the tray icon
+murmur --debug                   # verbose logging
+murmur --help                    # all flags
 ```
 
 ## Where your data lives

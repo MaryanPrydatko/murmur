@@ -58,8 +58,8 @@ sed -i 's/"keyboard_implementation": "tauri"/"keyboard_implementation": "handy_k
 Restart Handy:
 
 ```bash
-pkill handy
-handy --start-hidden &
+pkill murmur
+murmur --start-hidden &
 ```
 
 Check the Handy log for:
