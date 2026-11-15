@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{json_error, Scan, Source, SourceMeeting, SpeakerKeys};
+use super::{absent, json_error, Scan, Source, SourceMeeting, SpeakerKeys};
 use crate::managers::meetings::store::MeetingSegment;
 
 /// One line of `live.ndjson`.
@@ -82,8 +82,13 @@ impl Drop for TempCopy {
 pub fn scan(root: &Path) -> Scan {
     let mut scan = Scan::default();
     let db = root.join("flow.sqlite");
-    if !db.is_file() {
-        return scan;
+    match fs::metadata(&db) {
+        Ok(_) => {}
+        Err(e) if absent(&e) => return scan,
+        Err(e) => {
+            scan.unreadable(&db, e);
+            return scan;
+        }
     }
     match rows(&db) {
         Ok(rows) => {
@@ -171,20 +176,23 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
     // A segment can be written again as it's refined: keep its last line.
     // Keyed on the start too, in case `segment` numbers something coarser.
     let mut lines: BTreeMap<(String, i64), Line> = BTreeMap::new();
-    if ndjson.is_file() {
-        for (n, text) in fs::read_to_string(ndjson)?.lines().enumerate() {
-            if text.trim().is_empty() {
-                continue;
-            }
-            let line: Line = serde_json::from_str(text)
-                .map_err(json_error)
-                .with_context(|| format!("Line {} is unreadable", n + 1))?;
-            let key = line
-                .segment
-                .as_ref()
-                .map_or_else(|| format!("line {n}"), raw_id);
-            lines.insert((key, line.start_ms.unwrap_or(0)), line);
+    let live = match fs::read_to_string(ndjson) {
+        Ok(live) => live,
+        Err(e) if absent(&e) => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    for (n, text) in live.lines().enumerate() {
+        if text.trim().is_empty() {
+            continue;
         }
+        let line: Line = serde_json::from_str(text)
+            .map_err(json_error)
+            .with_context(|| format!("Line {} is unreadable", n + 1))?;
+        let key = line
+            .segment
+            .as_ref()
+            .map_or_else(|| format!("line {n}"), raw_id);
+        lines.insert((key, line.start_ms.unwrap_or(0)), line);
     }
     let mut lines: Vec<Line> = lines.into_values().collect();
     lines.sort_by_key(|l| (l.start_ms.unwrap_or(0), l.end_ms.unwrap_or(0)));

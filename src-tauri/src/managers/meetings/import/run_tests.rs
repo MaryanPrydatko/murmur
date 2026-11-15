@@ -96,6 +96,9 @@ fn world() -> World {
         false,
     );
     spokenly_dictation(&roots.spokenly, "sp-dictation", T0_SECS + 60);
+    for finder in [&roots.superwhisper, &roots.spokenly] {
+        fs::write(finder.join(".DS_Store"), b"Bud1").unwrap();
+    }
     World {
         tmp,
         roots,
@@ -409,6 +412,52 @@ fn an_unreadable_source_stops_the_import_until_it_reads() {
     assert_eq!(roadmap.meeting.source, "wispr");
     assert_eq!(roadmap.meeting.title.as_deref(), Some("Roadmap sync"));
     assert_eq!(roadmap.speakers[0].label.as_deref(), Some("Ana"));
+}
+
+/// Read as an app that never ran, a folder that can't be opened would let
+/// a worse copy of its meetings into the ledger.
+#[cfg(unix)]
+#[test]
+fn a_folder_that_cant_be_opened_stops_the_import() {
+    use std::os::unix::fs::PermissionsExt;
+    let world = world();
+    let roots = &world.roots;
+    let day = roots.spokenly.join("2026-09-01");
+    let wispr_meeting = roots.wispr.join("meetings/wf-roadmap");
+    for folder in [
+        &roots.wispr,
+        &wispr_meeting,
+        &roots.superwhisper,
+        &roots.spokenly,
+        &day,
+    ] {
+        let mode = |mode| fs::set_permissions(folder, fs::Permissions::from_mode(mode)).unwrap();
+        mode(0o000);
+        if fs::read_dir(folder).is_ok() {
+            // Root opens it anyway.
+            mode(0o755);
+            return;
+        }
+        let mut conn = db();
+        let vault = world.vault();
+        let result = run(
+            &mut conn,
+            roots,
+            &world.meetings_dir(),
+            false,
+            Some(&vault),
+            &mut write_json,
+        );
+        mode(0o755);
+        let (report, queued) = result.unwrap();
+        assert!(report.failed > 0, "{}: {report}", folder.display());
+        assert!(queued.is_empty());
+        assert!(!world.meetings_dir().exists());
+        assert!(!world.vault().exists());
+        assert!(db::seen(&conn).unwrap().is_empty());
+    }
+    let (report, _) = import(&world, &mut db(), false);
+    assert_eq!(report, expected(false));
 }
 
 #[test]

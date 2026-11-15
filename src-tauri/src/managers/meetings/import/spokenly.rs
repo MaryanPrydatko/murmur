@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
-use super::{audio_beside, json_error, Scan, Source, SourceMeeting};
+use super::{audio_beside, json_error, list, Scan, Source, SourceMeeting};
 use crate::managers::meetings::store::{MeetingSegment, MeetingSpeaker};
 
 /// Seconds from the Unix epoch to 2001-01-01, where Apple's dates start.
@@ -73,15 +73,8 @@ struct Segment {
 /// Every file transcription under `history`.
 pub fn scan(history: &Path) -> Scan {
     let mut scan = Scan::default();
-    let Ok(days) = fs::read_dir(history) else {
-        return scan;
-    };
-    for day in days.flatten().filter(|d| d.path().is_dir()) {
-        let Ok(entries) = fs::read_dir(day.path()) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
+    for day in list(history, &mut scan) {
+        for path in list(&day, &mut scan) {
             if path.extension().and_then(|e| e.to_str()) != Some("json") {
                 continue;
             }

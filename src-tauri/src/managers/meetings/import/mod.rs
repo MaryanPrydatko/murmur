@@ -18,6 +18,7 @@ use specta::Type;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -115,6 +116,34 @@ impl Scan {
     fn unreadable(&mut self, what: &Path, error: impl std::fmt::Display) {
         let error: String = error.to_string().chars().take(160).collect();
         self.unreadable.push(format!("{}: {error}", what.display()));
+    }
+}
+
+/// Not there, which only means the app never kept it. Any other error
+/// is a record or folder that can't be read.
+fn absent(e: &io::Error) -> bool {
+    matches!(
+        e.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    )
+}
+
+/// The paths in `dir`, none when it isn't there.
+fn list(dir: &Path, scan: &mut Scan) -> Vec<PathBuf> {
+    match fs::read_dir(dir) {
+        Ok(entries) => entries
+            .filter_map(|entry| {
+                entry
+                    .map(|e| e.path())
+                    .map_err(|e| scan.unreadable(dir, e))
+                    .ok()
+            })
+            .collect(),
+        Err(e) if absent(&e) => Vec::new(),
+        Err(e) => {
+            scan.unreadable(dir, e);
+            Vec::new()
+        }
     }
 }
 

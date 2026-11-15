@@ -7,7 +7,7 @@ use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
-use super::{audio_beside, json_error, Scan, Source, SourceMeeting, SpeakerKeys};
+use super::{absent, audio_beside, json_error, list, Scan, Source, SourceMeeting, SpeakerKeys};
 use crate::managers::meetings::store::MeetingSegment;
 
 #[derive(Deserialize)]
@@ -43,15 +43,8 @@ struct Speaker {
 /// Every meeting under `recordings`.
 pub fn scan(recordings: &Path) -> Scan {
     let mut scan = Scan::default();
-    let Ok(entries) = fs::read_dir(recordings) else {
-        return scan;
-    };
-    for entry in entries.flatten() {
-        let folder = entry.path();
+    for folder in list(recordings, &mut scan) {
         let meta = folder.join("meta.json");
-        if !meta.is_file() {
-            continue;
-        }
         match read(&folder, &meta) {
             Ok(Some(meeting)) => scan.meetings.push(meeting),
             Ok(None) => {}
@@ -69,7 +62,12 @@ fn raw_speaker(value: &Value) -> String {
 }
 
 fn read(folder: &Path, meta_path: &Path) -> Result<Option<SourceMeeting>> {
-    let meta: Meta = serde_json::from_slice(&fs::read(meta_path)?).map_err(json_error)?;
+    let bytes = match fs::read(meta_path) {
+        Ok(bytes) => bytes,
+        Err(e) if absent(&e) => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    let meta: Meta = serde_json::from_slice(&bytes).map_err(json_error)?;
     if meta.kind.as_deref() != Some("meeting") {
         return Ok(None);
     }
