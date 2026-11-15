@@ -1,6 +1,6 @@
 # Build Instructions
 
-This guide covers how to set up the development environment and build Handy from source across different platforms.
+This guide covers how to set up the development environment and build Murmur from source across different platforms.
 
 ## Prerequisites
 
@@ -77,8 +77,8 @@ This guide covers how to set up the development environment and build Handy from
 ### 1. Clone the Repository
 
 ```bash
-git clone git@github.com:cjpais/Handy.git
-cd Handy
+git clone https://github.com/MaryanPrydatko/murmur.git
+cd murmur
 ```
 
 ### 2. Install Dependencies
@@ -109,12 +109,12 @@ The raw binary (`src-tauri/target/release/handy`) cannot run standalone — it n
 
 ```bash
 cd /tmp
-ar x /path/to/Handy/src-tauri/target/release/bundle/deb/Handy_*_amd64.deb data.tar.gz
+ar x /path/to/murmur/src-tauri/target/release/bundle/deb/Murmur_*_amd64.deb data.tar.gz
 tar xzf data.tar.gz
 sudo cp usr/bin/handy /usr/bin/
 sudo cp -a usr/lib/. /usr/lib/
 sudo cp -r usr/share/icons/hicolor/* /usr/share/icons/hicolor/
-sudo cp usr/share/applications/Handy.desktop /usr/share/applications/
+sudo cp usr/share/applications/Murmur.desktop /usr/share/applications/
 ```
 
 The runtime libraries live in the app-private `/usr/lib/Handy/` (on the binary's rpath), so no `ldconfig` step is needed.
@@ -135,15 +135,15 @@ Resources only need re-copying if they change upstream (new icons, sounds, model
 
 Local builds use the ad-hoc `signingIdentity: "-"`. A rebuild can have a new macOS code
 identity while the old **System Settings > Privacy & Security > Accessibility** entry
-remains visibly enabled, leaving Handy on `Waiting...`.
+remains visibly enabled, leaving Murmur on `Waiting...`.
 
-After installing the final bundle at `/Applications/Handy.app`, quit Handy, clear only its
+After installing the final bundle at `/Applications/Murmur.app`, quit Murmur, clear only its
 stale Accessibility record, then reopen it:
 
 ```bash
-osascript -e 'tell application id "com.pais.handy" to quit' || true
-tccutil reset Accessibility com.pais.handy
-open /Applications/Handy.app
+osascript -e 'tell application id "com.maryan.murmur" to quit' || true
+tccutil reset Accessibility com.maryan.murmur
+open /Applications/Murmur.app
 ```
 
 Grant Accessibility again when prompted. This does not reset Microphone or other TCC
@@ -153,8 +153,8 @@ For optional diagnosis, compare the designated requirements of the previous and 
 bundles:
 
 ```bash
-codesign -dr - /path/to/previous/Handy.app 2>&1
-codesign -dr - /Applications/Handy.app 2>&1
+codesign -dr - /path/to/previous/Murmur.app 2>&1
+codesign -dr - /Applications/Murmur.app 2>&1
 ```
 
 An ad-hoc requirement contains a `cdhash`; a changed requirement confirms the rebuild is
@@ -170,7 +170,7 @@ and stale-permission report.
 The error from Tauri:
 
 ```
-Bundling Handy_*_amd64.AppImage
+Bundling Murmur_*_amd64.AppImage
 failed to bundle project `failed to run linuxdeploy`
 ```
 
@@ -179,7 +179,7 @@ Tauri swallows the real linuxdeploy error. To see it, run linuxdeploy manually:
 ```bash
 cd src-tauri/target/release/bundle/appimage
 ~/.cache/tauri/linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
-  --appdir Handy.AppDir --plugin gtk --output appimage
+  --appdir Murmur.AppDir --plugin gtk --output appimage
 ```
 
 **Workaround:** The binary, deb, and rpm bundles all build fine — only the AppImage step fails. To skip it:
@@ -234,7 +234,7 @@ around either case with a short Cargo target directory:
 $env:CARGO_TARGET_DIR = "C:\h"
 
 # Or persist it for all future terminals (note: redirects ALL your
-# Rust projects' build output, not just Handy):
+# Rust projects' build output, not just Murmur):
 [Environment]::SetEnvironmentVariable('CARGO_TARGET_DIR', 'C:\h', 'User')
 ```
 
