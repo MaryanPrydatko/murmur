@@ -840,7 +840,6 @@ pub fn set_meeting_recording(app_handle: &AppHandle, recording: bool) {
 /// unless a dictation session or a recording meeting has the overlay. Call it
 /// once as the transcription starts, before the first `meeting-progress`,
 /// which fills it in.
-#[allow(dead_code)] // Called once the meeting transcription reports progress.
 pub fn show_meeting_transcribing_overlay(app_handle: &AppHandle) {
     if !OVERLAY_ENABLED.load(Ordering::Relaxed) || is_session_showing() || meeting_showing() {
         return;

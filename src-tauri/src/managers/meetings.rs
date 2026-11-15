@@ -419,6 +419,8 @@ impl MeetingManager {
             meeting.id,
             meeting.duration_ms as f64 / 1000.0
         );
+        // Before the job can start, so the overlay can show its progress.
+        crate::overlay::set_meeting_recording(&self.app, false);
         self.app
             .state::<Arc<TranscriptionJobManager>>()
             .queue_meeting(&meeting.id, Rerun::All, || Ok(()))

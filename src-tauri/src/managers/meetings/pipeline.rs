@@ -49,6 +49,7 @@ pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn Chu
         error!("Failed to save meeting {id}: {e:#}");
     }
     info!("Meeting {id}: attempt {} ({rerun:?})", meeting.attempts);
+    crate::overlay::show_meeting_transcribing_overlay(app);
     transcribe(app, meeting, rerun, control);
 }
 
