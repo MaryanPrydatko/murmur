@@ -6,13 +6,15 @@
 //! `transcript.md`. `history.db` holds the same meeting for listing, and
 //! the names the user gives its speakers (see [`store`]).
 
+pub mod import;
+pub mod notes;
 pub mod store;
 
 use anyhow::{anyhow, bail, Context, Result};
 use handy_recorder::{AudioChunk, Recorder, RecorderConfig, Sink};
 use hound::{WavSpec, WavWriter};
 use log::{error, info, warn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufWriter;
@@ -45,7 +47,7 @@ const MIN_SPEAKER_SHARE_PCT: i64 = 3;
 /// Tries at diarizing when a dictation's cancel interrupts it.
 const MAX_DIARIZE_ATTEMPTS: usize = 3;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MeetingStatus {
     Recording,
@@ -54,11 +56,13 @@ pub enum MeetingStatus {
     Failed,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TrackKind {
     Mic,
     System,
+    /// Imported audio with everyone on it.
+    Mixed,
 }
 
 impl TrackKind {
@@ -66,8 +70,16 @@ impl TrackKind {
         match self {
             Self::Mic => "mic.wav",
             Self::System => "system.wav",
+            Self::Mixed => "mixed.wav",
         }
     }
+}
+
+/// What [`MeetingManager::requeue`] runs again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rerun {
+    All,
+    Speakers,
 }
 
 /// The microphone is the user; the output is everyone else, told apart when
@@ -125,7 +137,7 @@ impl Turn {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MeetingTrack {
     pub kind: TrackKind,
     pub file: PathBuf,
@@ -134,7 +146,7 @@ pub struct MeetingTrack {
     pub duration_ms: i64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Meeting {
     /// The local start time, `2026-11-15_14-03-22`; also the folder name.
     pub id: String,
@@ -147,6 +159,12 @@ pub struct Meeting {
     /// The models it was transcribed and diarized with, once it was.
     pub asr_model: Option<String>,
     pub diar_model: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
+    /// Transcriptions started, so a meeting that crashes the app stops
+    /// being retried.
+    #[serde(default)]
+    pub attempts: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -325,6 +343,8 @@ impl MeetingManager {
             tracks: Vec::new(),
             asr_model: None,
             diar_model: None,
+            language: None,
+            attempts: 0,
         };
         write_meeting(&self.app, &meeting)?;
         notices::clear(&self.app, NoticeSource::Meeting);
@@ -375,6 +395,11 @@ impl MeetingManager {
             .state::<Arc<TranscriptionJobManager>>()
             .queue_meeting(Box::new(move |control| transcribe(&app, meeting, control)));
         Ok(())
+    }
+
+    /// Queues meeting `id` from its `meeting.json` again.
+    pub fn requeue(&self, id: &str, rerun: Rerun) -> Result<()> {
+        bail!("Meeting {id} can't be queued again yet ({rerun:?})")
     }
 }
 
@@ -434,20 +459,22 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
             let speakers = match track.kind {
                 TrackKind::Mic => vec![Speaker::Me; track_words.len()],
                 // Nobody spoke, so there's no one to tell apart.
-                TrackKind::System if track_words.is_empty() => Vec::new(),
-                TrackKind::System => match diarize_track(app, &track.file, control)? {
-                    Ok(turns) => {
-                        meeting.diar_model = Some(crate::catalog::DIARIZER_CATALOG_ID.into());
-                        assign_speakers(&track_words, &merge_minor_speakers(turns))
-                    }
-                    Err(why) => {
-                        if let Unseparated::Failed(e) = &why {
-                            warn!("Meeting {} diarization failed: {e:#}", meeting.id);
+                TrackKind::System | TrackKind::Mixed if track_words.is_empty() => Vec::new(),
+                TrackKind::System | TrackKind::Mixed => {
+                    match diarize_track(app, &track.file, control)? {
+                        Ok(turns) => {
+                            meeting.diar_model = Some(crate::catalog::DIARIZER_CATALOG_ID.into());
+                            assign_speakers(&track_words, &merge_minor_speakers(turns))
                         }
-                        unseparated = Some(why);
-                        vec![Speaker::Them; track_words.len()]
+                        Err(why) => {
+                            if let Unseparated::Failed(e) = &why {
+                                warn!("Meeting {} diarization failed: {e:#}", meeting.id);
+                            }
+                            unseparated = Some(why);
+                            vec![Speaker::Them; track_words.len()]
+                        }
                     }
-                },
+                }
             };
             tracks.push((
                 track.start_offset_ms,
@@ -490,6 +517,7 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
                 }
                 None => {}
             }
+            notes::on_done(app, &meeting.id);
         }
         Err(e) => {
             error!("Meeting {} transcription failed: {e:#}", meeting.id);
@@ -639,7 +667,7 @@ fn assign_speakers(words: &[TimedWord], turns: &[Turn]) -> Vec<Speaker> {
 
 /// Writes `meeting.json`, then the meeting's row. The folder is the record:
 /// a row that fails to save is only logged.
-fn write_meeting(app: &AppHandle, meeting: &Meeting) -> Result<()> {
+pub(crate) fn write_meeting(app: &AppHandle, meeting: &Meeting) -> Result<()> {
     let path = meeting.dir.join("meeting.json");
     std::fs::write(&path, serde_json::to_vec_pretty(meeting)?)
         .with_context(|| format!("Failed to write {}", path.display()))?;
@@ -890,6 +918,8 @@ mod tests {
             tracks: Vec::new(),
             asr_model: None,
             diar_model: None,
+            language: None,
+            attempts: 0,
         };
         let utterances = [
             said(83_000, 84_000, Speaker::Me, "hi"),
