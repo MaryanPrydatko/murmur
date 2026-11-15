@@ -7,6 +7,11 @@ import { meetingStatus, type MeetingProgress } from "./meetingModel";
 /** How often the list is read again while a meeting records or transcribes. */
 const BUSY_POLL_MS = 2000;
 
+/** Starting opens devices (about 2 s here); give up waiting well after. */
+const TOGGLE_TIMEOUT_MS = 15000;
+
+let toggleTimer: ReturnType<typeof setTimeout> | undefined;
+
 interface MeetingsStore {
   /** Newest first; null until the first read. */
   rows: MeetingRow[] | null;
@@ -16,8 +21,13 @@ interface MeetingsStore {
   /** The meeting that's recording, if one is. */
   recordingId: string | null;
   progress: Record<string, MeetingProgress>;
+  /** A start or stop was asked for and the backend hasn't finished it. */
+  pending: boolean;
   refresh: () => Promise<void>;
+  /** Starts or stops a meeting; ignored while one is pending. */
   toggle: () => Promise<void>;
+  /** The backend says meetings changed (`meetings-changed`). */
+  changed: () => Promise<void>;
 }
 
 export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
@@ -26,6 +36,7 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
   error: null,
   recordingId: null,
   progress: {},
+  pending: false,
   refresh: async () => {
     try {
       const [rows, speakers, recording] = await Promise.all([
@@ -58,9 +69,23 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
     }
   },
   toggle: async () => {
-    await commands.toggleMeeting();
-    // The backend opens devices on its own thread; read again once it has.
-    setTimeout(() => get().refresh(), 400);
+    if (get().pending) return;
+    set({ pending: true });
+    // The backend toggles on its own thread and then sends
+    // `meetings-changed`; a second click before that would undo the first.
+    clearTimeout(toggleTimer);
+    toggleTimer = setTimeout(() => get().changed(), TOGGLE_TIMEOUT_MS);
+    try {
+      await commands.toggleMeeting();
+    } catch (e) {
+      clearTimeout(toggleTimer);
+      set({ pending: false, error: String(e) });
+    }
+  },
+  changed: async () => {
+    clearTimeout(toggleTimer);
+    await get().refresh();
+    set({ pending: false });
   },
 }));
 
@@ -75,11 +100,12 @@ const isBusy = (rows: MeetingRow[] | null, recordingId: string | null) =>
  */
 export const useMeetingsSync = () => {
   const refresh = useMeetingsStore((s) => s.refresh);
+  const changed = useMeetingsStore((s) => s.changed);
   const busy = useMeetingsStore((s) => isBusy(s.rows, s.recordingId));
 
   useEffect(() => {
     refresh();
-    const changed = listen("meetings-changed", () => refresh());
+    const offChanged = listen("meetings-changed", () => changed());
     const progress = listen<MeetingProgress>("meeting-progress", (event) => {
       const p = event.payload;
       useMeetingsStore.setState((s) => ({
@@ -87,10 +113,10 @@ export const useMeetingsSync = () => {
       }));
     });
     return () => {
-      changed.then((off) => off());
+      offChanged.then((off) => off());
       progress.then((off) => off());
     };
-  }, [refresh]);
+  }, [refresh, changed]);
 
   useEffect(() => {
     if (!busy) return;

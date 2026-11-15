@@ -29,6 +29,8 @@ const NOTICE_CHROME = 54;
 const WORK_CHROME = 83;
 const RING_LENGTH = 34.56;
 const MEETING_WORK_MS = 3000;
+// Stops are quick; stop ignoring clicks if `meetings-changed` never comes.
+const STOP_TIMEOUT_MS = 15000;
 const EMPTY_LEVELS = Array<number>(16).fill(0);
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -161,6 +163,10 @@ const RecordingOverlay: React.FC = () => {
   const [now, setNow] = useState(() => Date.now());
   const [meetingWork, setMeetingWork] = useState<number | null>(null);
   const meetingWorkTimer = useRef<ReturnType<typeof setTimeout>>();
+  // Set from a Stop click until the backend finishes the stop, so a double
+  // click can't start a new meeting.
+  const stopping = useRef(false);
+  const stoppingTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const [noticeW, setNoticeW] = useState<number>();
   const [workW, setWorkW] = useState<number>();
@@ -220,6 +226,10 @@ const RecordingOverlay: React.FC = () => {
         );
         setLevels(smoothed.current);
       }),
+      listen("meetings-changed", () => {
+        clearTimeout(stoppingTimer.current);
+        stopping.current = false;
+      }),
       listen<{ started_at_ms: number | null }>("overlay-meeting", (e) => {
         setMeetingStart(e.payload.started_at_ms);
         if (e.payload.started_at_ms === null) setControls(false);
@@ -266,6 +276,7 @@ const RecordingOverlay: React.FC = () => {
       clearTimeout(modelLoadTimer.current);
       clearTimeout(fadeTimer.current);
       clearTimeout(meetingWorkTimer.current);
+      clearTimeout(stoppingTimer.current);
     };
   }, []);
 
@@ -335,6 +346,11 @@ const RecordingOverlay: React.FC = () => {
   };
   const stopMeeting = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (stopping.current) return;
+    stopping.current = true;
+    stoppingTimer.current = setTimeout(() => {
+      stopping.current = false;
+    }, STOP_TIMEOUT_MS);
     commands.toggleMeeting();
   };
   const dismissNotice = state.startsWith("notice")

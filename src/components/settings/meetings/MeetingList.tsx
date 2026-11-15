@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { commands, type MeetingHit, type MeetingRow } from "@/bindings";
 import { ProgressLine } from "@/components/shared/ProgressLine";
 import { Button } from "@/components/ui/Button";
@@ -28,15 +28,22 @@ export const StartStopButton: React.FC<{ size?: "sm" | "md" }> = ({
 }) => {
   const { t } = useTranslation();
   const recording = useMeetingsStore((s) => s.recordingId !== null);
+  const pending = useMeetingsStore((s) => s.pending);
   const toggle = useMeetingsStore((s) => s.toggle);
   return (
     <Button
       variant={recording ? "danger" : "primary"}
       size={size}
       className="inline-flex items-center gap-[7px]"
+      disabled={pending}
+      aria-busy={pending}
       onClick={() => toggle()}
     >
-      <i className={`recdot ${recording ? "sq" : ""}`} aria-hidden="true" />
+      {pending ? (
+        <Loader2 className="-m-0.5 size-3 animate-spin" aria-hidden="true" />
+      ) : (
+        <i className={`recdot ${recording ? "sq" : ""}`} aria-hidden="true" />
+      )}
       {recording ? t("meetings.stop") : t("meetings.start")}
     </Button>
   );
