@@ -16,7 +16,8 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 use transcribe_cpp::{
-    Backend, BackendMask, DeviceType, ErrorKind, Feature, Model, ModelOptions, Session, Stream,
+    Backend, BackendMask, DeviceType, DiarizeOptions, ErrorKind, Feature, Model, ModelOptions,
+    Session, Stream,
 };
 
 /// Prefix on worker log lines so the parent can tell them apart from raw
@@ -79,10 +80,10 @@ pub fn run() -> i32 {
     );
 
     let mut output = protocol_out;
-    let mut session: Option<(Session, LoadedInfo)> = None;
+    let mut session: Option<Loaded> = None;
 
     while let Ok(Incoming { request, pcm }) = requests.recv() {
-        let finished_run = matches!(request, Request::Run { .. });
+        let finished_run = matches!(request, Request::Run { .. } | Request::Diarize { .. });
         let response = match request {
             Request::Hello { list_devices } => match &init_error {
                 Some(message) => Response::Error(message.clone()),
@@ -105,7 +106,7 @@ pub fn run() -> i32 {
                 session = None;
                 match load(&path, backend, device) {
                     Ok(loaded) => {
-                        let info = loaded.1.clone();
+                        let info = loaded.info.clone();
                         session = Some(loaded);
                         Response::Loaded(info)
                     }
@@ -113,7 +114,7 @@ pub fn run() -> i32 {
                 }
             }
             Request::Run { options } => match session.as_mut() {
-                Some((session, info)) => {
+                Some(Loaded { session, info, .. }) => {
                     if inject_fault("run", info.on_gpu) {
                         injected_backend_error()
                     } else {
@@ -126,7 +127,7 @@ pub fn run() -> i32 {
                 None => not_loaded(),
             },
             Request::StreamBegin { run, stream } => match session.as_mut() {
-                Some((session, info)) => match session.stream(&run, &stream) {
+                Some(Loaded { session, info, .. }) => match session.stream(&run, &stream) {
                     Ok(stream) => {
                         if write_message(&mut output, &Response::Ok, None).is_err() {
                             return 1;
@@ -146,6 +147,10 @@ pub fn run() -> i32 {
             Request::Feed | Request::Finalize { .. } | Request::StreamReset => {
                 Response::Error("no active stream".to_string())
             }
+            Request::Diarize { path, options } => match &session {
+                Some(loaded) => diarize(&path, &loaded.options, &options, &pcm),
+                None => not_loaded(),
+            },
         };
         if let Err(e) = write_message(&mut output, &response, None) {
             error!("Protocol write failed: {}", e);
@@ -277,11 +282,34 @@ fn injected_backend_error() -> Response {
     Response::BackendError("injected backend error".to_string())
 }
 
-fn load(
+/// The model the worker holds, and how it was loaded.
+struct Loaded {
+    session: Session,
+    info: LoadedInfo,
+    /// Its resolved backend and device, which a diarizer loads on too.
+    options: ModelOptions,
+}
+
+/// Loads the diarizer, runs it once over all of `pcm` and frees it: it keeps
+/// speakers apart across its own windows, so the audio is never cut.
+fn diarize(
     path: &Path,
-    backend: Backend,
-    selector: DeviceSelector,
-) -> Result<(Session, LoadedInfo), String> {
+    model_options: &ModelOptions,
+    options: &DiarizeOptions,
+    pcm: &[f32],
+) -> Response {
+    inject_fault("diarize", model_options.backend != Backend::Cpu);
+    let session = Model::load_with(path, model_options).and_then(|model| model.diarize_session());
+    match session {
+        Ok(mut session) => match session.run(pcm, options) {
+            Ok(segments) => Response::Speakers(segments),
+            Err(e) => run_error(e),
+        },
+        Err(e) => Response::Error(format!("Failed to load the diarizer: {e}")),
+    }
+}
+
+fn load(path: &Path, backend: Backend, selector: DeviceSelector) -> Result<Loaded, String> {
     let device = match selector {
         DeviceSelector::Auto => None,
         DeviceSelector::Key(key) => {
@@ -315,15 +343,13 @@ fn load(
     };
 
     inject_fault("load", backend != Backend::Cpu);
-    let model = Model::load_with(
-        path,
-        &ModelOptions {
-            backend,
-            device,
-            ..Default::default()
-        },
-    )
-    .map_err(|e| format!("Failed to load model: {e}"))?;
+    let options = ModelOptions {
+        backend,
+        device,
+        ..Default::default()
+    };
+    let model =
+        Model::load_with(path, &options).map_err(|e| format!("Failed to load model: {e}"))?;
     let session = model
         .session()
         .map_err(|e| format!("Failed to create session: {e}"))?;
@@ -348,14 +374,19 @@ fn load(
         supports_long_form: model.supports(Feature::LongForm),
         supports_vocabulary: model.supports(Feature::Vocabulary),
     };
-    Ok((session, info))
+    Ok(Loaded {
+        session,
+        info,
+        options,
+    })
 }
 
 /// Debug-build fault injection for exercising crash/hang recovery:
 /// `HANDY_WORKER_FAULT=<abort|segv|hang|backend>@<init|list|load|run|feed|finalize>`
 /// (`abort` is what `GGML_ASSERT` ends in, `segv` a real invalid memory write,
 /// `backend` a backend error such as a lost device, which returns true so the
-/// caller answers with it; only at `run`, `feed` and `finalize`)
+/// caller answers with it; only at `run`, `feed` and `finalize`; at `diarize`
+/// it is ignored)
 /// (`init` is backend registration, before the hello). With `HANDY_WORKER_FAULT_ONCE=<marker
 /// path>` it fires only in the first worker to reach that stage (the marker
 /// file records that it fired). With `HANDY_WORKER_FAULT_GPU_ONLY=1` it fires

@@ -30,7 +30,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
-use transcribe_cpp::{Backend, RunOptions, StreamOptions, StreamText, StreamUpdate, Transcript};
+use transcribe_cpp::{
+    Backend, DiarizeOptions, RunOptions, SpeakerSegment, StreamOptions, StreamText, StreamUpdate,
+    Transcript,
+};
 
 /// Spawn, backend init and device listing. Listing first opens the GPU,
 /// which on macOS compiles ggml's Metal library when the system shader cache
@@ -205,6 +208,12 @@ enum Command {
     },
     StreamReset {
         id: u64,
+    },
+    Diarize {
+        request: Request,
+        pcm: Vec<f32>,
+        epoch: u64,
+        reply: Reply<Result<Vec<SpeakerSegment>, EngineError>>,
     },
 }
 
@@ -427,6 +436,26 @@ impl EngineSupervisor {
         self.ask(|reply| Command::Transcribe {
             pcm,
             run,
+            epoch,
+            reply,
+        })
+        .unwrap_or_else(|| Err(engine_stopped()))
+    }
+
+    /// Who spoke when in 16 kHz mono PCM, by the diarizer at `path`, run on
+    /// the loaded model's device. Cancelled by any cancel since `mark`. Not
+    /// retried: a caller can do without speakers.
+    pub fn diarize_since(
+        &self,
+        mark: CancelMark,
+        path: PathBuf,
+        options: DiarizeOptions,
+        pcm: Vec<f32>,
+    ) -> Result<Vec<SpeakerSegment>, EngineError> {
+        let epoch = mark.0;
+        self.ask(|reply| Command::Diarize {
+            request: Request::Diarize { path, options },
+            pcm,
             epoch,
             reply,
         })
@@ -694,6 +723,14 @@ impl Owner {
                         self.end_stream();
                     }
                 }
+                Command::Diarize {
+                    request,
+                    pcm,
+                    epoch,
+                    reply,
+                } => {
+                    let _ = reply.send(self.diarize(&request, &pcm, epoch));
+                }
             }
         }
         // Every handle is gone.
@@ -954,6 +991,33 @@ impl Owner {
                     }
                 }
                 Err(failure) => return Err(failure.into()),
+            }
+        }
+    }
+
+    fn diarize(
+        &mut self,
+        request: &Request,
+        pcm: &[f32],
+        epoch: u64,
+    ) -> Result<Vec<SpeakerSegment>, EngineError> {
+        self.end_stream();
+        if self.shared.cancelled_since(epoch) {
+            return Err(EngineError::Cancelled);
+        }
+        self.ensure_worker()?;
+        let deadline = self.deadlines().run(pcm.len());
+        match self.call_work(request, Some(pcm), deadline, epoch) {
+            Ok(Response::Speakers(segments)) => Ok(segments),
+            Ok(other) => Err(unexpected(&other).into()),
+            Err(failure) => {
+                // The next use starts a fresh worker. The GPU is not marked
+                // unavailable: a fault in the diarizer says nothing about
+                // the transcription model on the same device.
+                if failure.worker_lost() {
+                    self.worker = None;
+                }
+                Err(failure.into())
             }
         }
     }
@@ -1490,6 +1554,7 @@ fn request_name(request: &Request) -> &'static str {
         Request::Feed => "stream feed",
         Request::Finalize { .. } => "stream finalize",
         Request::StreamReset => "stream reset",
+        Request::Diarize { .. } => "diarization",
     }
 }
 
@@ -1857,6 +1922,38 @@ mod tests {
     /// A one-off backend error on the GPU (a lost device the driver then
     /// resets): the run is retried in a fresh worker on the same GPU, and the
     /// GPU stays available.
+    /// Needs `HANDY_TEST_DIARIZER=<sortformer gguf>` too. A diarizer that
+    /// crashes the worker costs only that worker: the GPU stays usable.
+    #[test]
+    #[ignore]
+    fn diarizer_crash_drops_only_the_worker() {
+        let pcm = test_pcm();
+        let diarizer = env_path("HANDY_TEST_DIARIZER");
+        let diarize = |engine: &EngineSupervisor| {
+            engine.diarize_since(
+                engine.cancel_mark(),
+                diarizer.clone(),
+                DiarizeOptions::default(),
+                pcm.clone(),
+            )
+        };
+        set_fault(Some("abort@diarize"), false);
+        let engine = EngineSupervisor::new(true);
+        let on_gpu = engine.load(spec()).unwrap().on_gpu;
+        assert!(diarize(&engine).is_err());
+        assert_eq!(worker_count(), 0);
+        engine
+            .transcribe(pcm.clone(), RunOptions::default())
+            .unwrap();
+        assert_eq!(engine.loaded().unwrap().on_gpu, on_gpu);
+        let segments = diarize(&engine).unwrap();
+        assert!(segments
+            .iter()
+            .all(|s| s.speaker_id >= 1 && s.t1_ms > s.t0_ms));
+        assert!(!segments.is_empty(), "speech in the test clip");
+        set_fault(None, false);
+    }
+
     #[test]
     #[ignore]
     fn one_off_gpu_backend_error_retries_on_gpu() {
