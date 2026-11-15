@@ -633,8 +633,13 @@ fn default_selected_language() -> String {
 
 fn default_overlay_position() -> OverlayPosition {
     // Position only matters when the overlay is shown; whether it shows at all is
-    // `overlay_style` (Linux defaults that to None). So a single default suffices.
-    OverlayPosition::Bottom
+    // `overlay_style` (Linux defaults that to None). On macOS it starts at the
+    // top: the island in the notch, or the pill under the menu bar on a screen
+    // without one.
+    #[cfg(target_os = "macos")]
+    return OverlayPosition::Top;
+    #[cfg(not(target_os = "macos"))]
+    return OverlayPosition::Bottom;
 }
 
 fn default_overlay_style() -> OverlayStyle {
@@ -1843,6 +1848,25 @@ mod tests {
     fn default_overlay_style_is_live_when_overlay_defaults_on() {
         let settings = get_default_settings();
         assert_eq!(settings.overlay_style, OverlayStyle::Live);
+    }
+
+    #[test]
+    fn overlay_position_defaults_to_the_top_only_on_macos_and_only_when_unset() {
+        let default = if cfg!(target_os = "macos") {
+            OverlayPosition::Top
+        } else {
+            OverlayPosition::Bottom
+        };
+        assert_eq!(get_default_settings().overlay_position, default);
+
+        let mut raw = serde_json::to_value(get_default_settings()).unwrap();
+        raw["overlay_position"] = serde_json::json!("bottom");
+        let stored: AppSettings = serde_json::from_value(raw.clone()).unwrap();
+        assert_eq!(stored.overlay_position, OverlayPosition::Bottom);
+
+        raw.as_object_mut().unwrap().remove("overlay_position");
+        let unset: AppSettings = serde_json::from_value(raw).unwrap();
+        assert_eq!(unset.overlay_position, default);
     }
 
     #[test]
