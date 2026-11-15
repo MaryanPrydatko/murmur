@@ -1,6 +1,6 @@
 [package]
 name = "handy"
-version = "0.10.1"
+version = "0.1.0"
 description = "Local dictation and meeting notes"
 authors = ["cjpais"]
 edition = "2021"
