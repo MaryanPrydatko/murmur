@@ -161,7 +161,7 @@ impl HistoryManager {
 
     /// Bring the schema up to date. A newer Handy's database opens as is:
     /// migrations only add columns, and every query names its columns.
-    fn apply_migrations(conn: &mut Connection) -> Result<()> {
+    pub(crate) fn apply_migrations(conn: &mut Connection) -> Result<()> {
         match Migrations::new(MIGRATIONS.to_vec()).to_latest(conn) {
             Err(rusqlite_migration::Error::MigrationDefinition(
                 MigrationDefinitionError::DatabaseTooFarAhead,
@@ -182,6 +182,7 @@ impl HistoryManager {
                 info!("Added the {column} column to transcription history");
             }
         }
+        conn.execute_batch(crate::managers::meetings::store::SCHEMA)?;
 
         Ok(())
     }
@@ -251,7 +252,7 @@ impl HistoryManager {
         Ok(())
     }
 
-    fn get_connection(&self) -> Result<Connection> {
+    pub(crate) fn get_connection(&self) -> Result<Connection> {
         Ok(Connection::open(&self.db_path)?)
     }
 

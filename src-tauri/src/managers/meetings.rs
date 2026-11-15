@@ -3,7 +3,10 @@
 //!
 //! The meeting folder is the record: `recordings/meetings/<id>/` holds
 //! `mic.wav`, `system.wav`, `meeting.json` and, once transcribed,
-//! `transcript.md`.
+//! `transcript.md`. `history.db` holds the same meeting for listing, and
+//! the names the user gives its speakers (see [`store`]).
+
+pub mod store;
 
 use anyhow::{anyhow, bail, Context, Result};
 use handy_recorder::{AudioChunk, Recorder, RecorderConfig, Sink};
@@ -23,6 +26,7 @@ use transcribe_cpp::{
 };
 
 use crate::engine_supervisor::EngineError;
+use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
 use crate::managers::transcription::{ChunkControl, TimedWord, TranscriptionManager};
 use crate::managers::transcription_jobs::TranscriptionJobManager;
@@ -79,6 +83,15 @@ pub enum Speaker {
 }
 
 impl Speaker {
+    /// What it's stored as: `me`, `them` or `s1`, `s2`, ...
+    pub fn key(self) -> String {
+        match self {
+            Self::Me => "me".into(),
+            Self::Them => "them".into(),
+            Self::Remote(n) => format!("s{n}"),
+        }
+    }
+
     fn name(self) -> String {
         match self {
             Self::Me => "Me".into(),
@@ -118,6 +131,7 @@ pub struct MeetingTrack {
     pub file: PathBuf,
     /// When the track's first sample was heard, from the meeting's start.
     pub start_offset_ms: i64,
+    pub duration_ms: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -130,6 +144,9 @@ pub struct Meeting {
     pub status: MeetingStatus,
     pub dir: PathBuf,
     pub tracks: Vec<MeetingTrack>,
+    /// The models it was transcribed and diarized with, once it was.
+    pub asr_model: Option<String>,
+    pub diar_model: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,13 +182,15 @@ impl WavSink {
         })
     }
 
-    /// Finalizes the file. When the first sample was captured, if any audio came.
-    fn finish(self) -> Result<Option<Instant>> {
+    /// Finalizes the file. When the first sample was captured, if any audio
+    /// came, and the samples written.
+    fn finish(self) -> Result<(Option<Instant>, u32)> {
         if let Some(e) = self.error {
             return Err(e.into());
         }
+        let samples = self.writer.len();
         self.writer.finalize()?;
-        Ok(self.first_audio)
+        Ok((self.first_audio, samples))
     }
 }
 
@@ -304,8 +323,10 @@ impl MeetingManager {
             status: MeetingStatus::Recording,
             dir,
             tracks: Vec::new(),
+            asr_model: None,
+            diar_model: None,
         };
-        write_meeting(&meeting)?;
+        write_meeting(&self.app, &meeting)?;
         notices::clear(&self.app, NoticeSource::Meeting);
         info!("Meeting {} recording", meeting.id);
         Ok(ActiveMeeting {
@@ -325,10 +346,11 @@ impl MeetingManager {
         let mut failure = None;
         for track in tracks {
             match stop_track(&track, started) {
-                Ok(start_offset_ms) => meeting.tracks.push(MeetingTrack {
+                Ok((start_offset_ms, duration_ms)) => meeting.tracks.push(MeetingTrack {
                     kind: track.kind,
                     file: track.file,
                     start_offset_ms,
+                    duration_ms,
                 }),
                 Err(e) => failure = Some(e.context(format!("{:?} track", track.kind))),
             }
@@ -338,11 +360,11 @@ impl MeetingManager {
         }
         if let Some(e) = failure {
             meeting.status = MeetingStatus::Failed;
-            write_meeting(&meeting)?;
+            write_meeting(&self.app, &meeting)?;
             return Err(e);
         }
         meeting.status = MeetingStatus::Transcribing;
-        write_meeting(&meeting)?;
+        write_meeting(&self.app, &meeting)?;
         info!(
             "Meeting {} stopped after {:.1}s; queued for transcription",
             meeting.id,
@@ -373,17 +395,18 @@ fn open_track(dir: &Path, kind: TrackKind, device: Option<String>) -> Result<Tra
     })
 }
 
-/// Stops the track and finalizes its WAV. Its start offset in ms.
-fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Result<i64> {
+/// Stops the track and finalizes its WAV. Its start offset and length in ms.
+fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Result<(i64, i64)> {
     let stopped = track.recorder.stop()?;
     info!(
         "Meeting {:?} track ended: {:?}, {} frames dropped",
         track.kind, stopped.end_reason, stopped.dropped_frames
     );
-    let first_audio = stopped.sink.finish()?;
-    Ok(first_audio
+    let (first_audio, samples) = stopped.sink.finish()?;
+    let start_offset_ms = first_audio
         .map(|at| at.saturating_duration_since(meeting_started).as_millis() as i64)
-        .unwrap_or(0))
+        .unwrap_or(0);
+    Ok((start_offset_ms, i64::from(samples) * 1000 / 16_000))
 }
 
 /// Why the system track's speakers weren't told apart.
@@ -413,7 +436,10 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
                 // Nobody spoke, so there's no one to tell apart.
                 TrackKind::System if track_words.is_empty() => Vec::new(),
                 TrackKind::System => match diarize_track(app, &track.file, control)? {
-                    Ok(turns) => assign_speakers(&track_words, &merge_minor_speakers(turns)),
+                    Ok(turns) => {
+                        meeting.diar_model = Some(crate::catalog::DIARIZER_CATALOG_ID.into());
+                        assign_speakers(&track_words, &merge_minor_speakers(turns))
+                    }
                     Err(why) => {
                         if let Unseparated::Failed(e) = &why {
                             warn!("Meeting {} diarization failed: {e:#}", meeting.id);
@@ -428,16 +454,25 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
                 speakers.into_iter().zip(track_words).collect(),
             ));
         }
+        meeting.asr_model = tm.get_current_model();
         let utterances = merge_utterances(tracks);
         let path = meeting.dir.join("transcript.md");
         std::fs::write(&path, render_transcript(&meeting, &utterances))
-            .with_context(|| format!("Failed to write {}", path.display()))
+            .with_context(|| format!("Failed to write {}", path.display()))?;
+        let history = app.state::<Arc<HistoryManager>>();
+        if let Err(e) = history
+            .get_connection()
+            .and_then(|mut conn| store::save_transcript(&mut conn, &meeting.id, &utterances))
+        {
+            error!("Failed to store meeting {}'s transcript: {e:#}", meeting.id);
+        }
+        Ok(())
     })();
     meeting.status = match &result {
         Ok(()) => MeetingStatus::Done,
         Err(_) => MeetingStatus::Failed,
     };
-    if let Err(e) = write_meeting(&meeting) {
+    if let Err(e) = write_meeting(app, &meeting) {
         error!("Failed to save meeting {}: {e:#}", meeting.id);
     }
     match result {
@@ -602,10 +637,20 @@ fn assign_speakers(words: &[TimedWord], turns: &[Turn]) -> Vec<Speaker> {
         .collect()
 }
 
-fn write_meeting(meeting: &Meeting) -> Result<()> {
+/// Writes `meeting.json`, then the meeting's row. The folder is the record:
+/// a row that fails to save is only logged.
+fn write_meeting(app: &AppHandle, meeting: &Meeting) -> Result<()> {
     let path = meeting.dir.join("meeting.json");
     std::fs::write(&path, serde_json::to_vec_pretty(meeting)?)
-        .with_context(|| format!("Failed to write {}", path.display()))
+        .with_context(|| format!("Failed to write {}", path.display()))?;
+    let history = app.state::<Arc<HistoryManager>>();
+    if let Err(e) = history
+        .get_connection()
+        .and_then(|mut conn| store::save(&mut conn, meeting))
+    {
+        error!("Failed to store meeting {}: {e:#}", meeting.id);
+    }
+    Ok(())
 }
 
 /// The monitor source of the current default output, by its PulseAudio name.
@@ -843,6 +888,8 @@ mod tests {
             status: MeetingStatus::Done,
             dir: PathBuf::new(),
             tracks: Vec::new(),
+            asr_model: None,
+            diar_model: None,
         };
         let utterances = [
             said(83_000, 84_000, Speaker::Me, "hi"),

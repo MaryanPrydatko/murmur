@@ -749,6 +749,40 @@ async downloadDiarizer() : Promise<Result<null, string>> {
 }
 },
 /**
+ * Every meeting, newest first.
+ */
+async listMeetings() : Promise<Result<MeetingRow[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_meetings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * A meeting with its speakers and transcript; `None` if there's no such meeting.
+ */
+async getMeeting(id: string) : Promise<Result<MeetingDetail | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Names one of a meeting's speakers (`me`, `s1`, ...); a blank or missing
+ * `label` clears the name.
+ */
+async renameSpeaker(meetingId: string, key: string, label: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_speaker", { meetingId, key, label }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1333,6 +1367,26 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * A macOS privacy permission Handy asks for during onboarding.
  */
 export type MacPermission = "accessibility" | "microphone"
+export type MeetingDetail = { meeting: MeetingRow; speakers: MeetingSpeaker[]; 
+/**
+ * In order.
+ */
+segments: MeetingSegment[] }
+export type MeetingRow = { id: string; source: string; source_id: string | null; title: string | null; started_at: number | null; duration_ms: number | null; 
+/**
+ * `recording`, `transcribing`, `done` or `failed`.
+ */
+status: string | null; language: string | null; asr_model: string | null; diar_model: string | null; dir: string | null; note_path: string | null }
+export type MeetingSegment = { t0_ms: number; t1_ms: number; speaker_key: string; text: string }
+export type MeetingSpeaker = { 
+/**
+ * `me`, `them`, or `s1`, `s2`, ... for the people on the system track.
+ */
+key: string; 
+/**
+ * The name the user gave them.
+ */
+label: string | null }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
