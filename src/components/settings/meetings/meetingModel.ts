@@ -59,7 +59,11 @@ export const startedAt = (row: MeetingRow): Date | null =>
   row.started_at == null ? null : new Date(row.started_at * 1000);
 
 const timeFormat = (lang: string) =>
-  new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" });
+  new Intl.DateTimeFormat(lang, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
 
 export const formatTime = (lang: string, date: Date) =>
   timeFormat(lang).format(date);

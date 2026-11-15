@@ -72,9 +72,15 @@ export const MeetingPlayer: React.FC<MeetingPlayerProps> = ({
       >
         {playback.playing ? <PauseIcon /> : <PlayIcon />}
       </button>
-      <span className="clock">
-        <b>{formatClock(playback.t)}</b> / {formatClock(durationS)}
-      </span>
+      {playback.failed ? (
+        <span className="clock" role="alert">
+          {t("meetings.player.failed")}
+        </span>
+      ) : (
+        <span className="clock">
+          <b>{formatClock(playback.t)}</b> / {formatClock(durationS)}
+        </span>
+      )}
       <div
         ref={lanesRef}
         className="lanes"

@@ -28,7 +28,12 @@ const audible = (kind: string, choice: TrackChoice) =>
  * and `t` are seconds from the meeting's start, and each track starts at its
  * own offset. Loads the audio on the first play.
  */
-export const useMeetingPlayback = (meetingId: string, durationS: number) => {
+export const useMeetingPlayback = (
+  meetingId: string,
+  durationS: number,
+  /** Read the tracks again when this changes (a meeting finishing). */
+  status: string,
+) => {
   const osType = useOsType();
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -48,6 +53,11 @@ export const useMeetingPlayback = (meetingId: string, durationS: number) => {
     });
     return () => {
       stale = true;
+    };
+  }, [meetingId, status]);
+
+  useEffect(() => {
+    return () => {
       waits.current.forEach(clearTimeout);
       for (const track of tracks.current ?? []) {
         track.audio.pause();

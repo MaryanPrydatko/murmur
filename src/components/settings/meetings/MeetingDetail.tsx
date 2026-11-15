@@ -365,7 +365,7 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const status = meetingStatus(row);
   const durationS = (row.duration_ms ?? 0) / 1000;
-  const playback = useMeetingPlayback(row.id, durationS);
+  const playback = useMeetingPlayback(row.id, durationS, status);
 
   // Read again when the meeting changes state or a speaker is renamed.
   const [version, setVersion] = useState(0);

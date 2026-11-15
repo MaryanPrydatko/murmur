@@ -4,7 +4,7 @@ use crate::TranscriptionCoordinator;
 use log::debug;
 use log::warn;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 use signal_hook::consts::SIGUSR1;
@@ -37,6 +37,8 @@ pub fn toggle_meeting(app: &AppHandle) {
     std::thread::spawn(move || {
         meetings.toggle();
         crate::overlay::set_meeting_recording(&app, meetings.is_recording());
+        // The Meetings page reads the list again.
+        let _ = app.emit("meetings-changed", ());
     });
 }
 

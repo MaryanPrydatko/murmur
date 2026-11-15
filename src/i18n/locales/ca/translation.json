@@ -1073,7 +1073,8 @@
       "choice": "Which side to hear",
       "both": "Both tracks",
       "me": "Only me",
-      "others": "Only others"
+      "others": "Only others",
+      "failed": "Could not play the recording"
     },
     "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
     "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
