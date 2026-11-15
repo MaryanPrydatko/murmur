@@ -1361,6 +1361,10 @@ no_audio: number;
  */
 imported: number; 
 /**
+ * Of those, the ones no app kept audio for.
+ */
+without_audio: number; 
+/**
  * Meetings only Spokenly had, to be transcribed here.
  */
 to_transcribe: number; failed: number; notes: number; 
