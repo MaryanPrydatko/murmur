@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { platform } from "@tauri-apps/plugin-os";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "./RecordingOverlay.css";
@@ -12,6 +13,7 @@ import { getLanguageDirection } from "@/lib/utils/rtl";
 import {
   barHeights,
   formatTimer,
+  hitRect,
   visualState,
   type OverlayGeometry,
   type Session,
@@ -198,6 +200,7 @@ const RecordingOverlay: React.FC = () => {
   const noticeProbe = useRef<HTMLSpanElement>(null);
   const workProbe = useRef<HTMLSpanElement>(null);
   const liveText = useRef<HTMLParagraphElement>(null);
+  const pill = useRef<HTMLDivElement>(null);
   const direction = getLanguageDirection(i18n.language);
 
   useEffect(() => {
@@ -360,6 +363,33 @@ const RecordingOverlay: React.FC = () => {
     const p = liveText.current;
     if (p) setLiveH(p.offsetHeight);
   }, [stream, loadingNote, geometry.form]);
+
+  // On Linux the window is wider than the pill, and its transparent margin
+  // would take the clicks meant for the window below. So the backend is told
+  // where the pill is: when the state changes, while the pill or the window
+  // around it changes size, and once a transition settles.
+  useEffect(() => {
+    const el = pill.current;
+    if (!el || platform() !== "linux") return;
+    let sent = "";
+    const report = () => {
+      const r = hitRect(el.getBoundingClientRect());
+      const key = `${r.x},${r.y},${r.width},${r.height}`;
+      if (key === sent) return;
+      sent = key;
+      commands.setOverlayHitRect(r.x, r.y, r.width, r.height);
+    };
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    window.addEventListener("resize", report);
+    el.addEventListener("transitionend", report);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", report);
+      el.removeEventListener("transitionend", report);
+    };
+  }, [state, edge, geometry.form]);
 
   const toggleControls = async () => {
     if (!meeting) return;
@@ -587,6 +617,7 @@ const RecordingOverlay: React.FC = () => {
     >
       {probes}
       <div
+        ref={pill}
         className="pill"
         role="status"
         data-edge={edge}

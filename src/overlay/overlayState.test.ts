@@ -4,6 +4,7 @@ import assert from "node:assert";
 import {
   barHeights,
   formatTimer,
+  hitRect,
   visualState,
   type OverlayInputs,
 } from "./overlayState";
@@ -51,4 +52,17 @@ assert.deepEqual(barHeights(Array(16).fill(0), 5, 17), [3, 3, 3, 3, 3]);
 
 assert.equal(formatTimer(724), "12:04");
 assert.equal(formatTimer(3725), "1:02:05");
+// The dictation pill in its 460 wide window, and one on half pixels.
+assert.deepEqual(hitRect({ left: 156, top: 0, right: 304, bottom: 44 }), {
+  x: 156,
+  y: 0,
+  width: 148,
+  height: 44,
+});
+assert.deepEqual(hitRect({ left: 20.5, top: 0.2, right: 195.5, bottom: 44 }), {
+  x: 20,
+  y: 0,
+  width: 176,
+  height: 44,
+});
 console.log("overlayState: ok");

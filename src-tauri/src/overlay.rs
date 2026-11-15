@@ -885,6 +885,37 @@ pub fn set_overlay_dropped(app: AppHandle, dropped: bool) {
     });
 }
 
+/// Limits the clicks the overlay window takes to the pill, as the overlay
+/// measured it in its own logical pixels. The window is wider than the pill,
+/// for its shadow and its widest state, and on Linux that transparent margin
+/// took the clicks meant for the window below. An empty rectangle gives the
+/// whole window back. Linux only: macOS and Windows keep their windows as
+/// they are.
+#[tauri::command]
+#[specta::specta]
+pub fn set_overlay_hit_rect(app: AppHandle, x: i32, y: i32, width: i32, height: i32) {
+    #[cfg(target_os = "linux")]
+    {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            use gtk::cairo::{RectangleInt, Region};
+            use gtk::prelude::WidgetExt;
+
+            let Some(window) = handle.get_webview_window("recording_overlay") else {
+                return;
+            };
+            let Ok(gtk_window) = window.gtk_window() else {
+                return;
+            };
+            let region = (width > 0 && height > 0)
+                .then(|| Region::create_rectangle(&RectangleInt::new(x, y, width, height)));
+            gtk_window.input_shape_combine_region(region.as_ref());
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (app, x, y, width, height);
+}
+
 /// Notify the visible recording overlay that the input stream has delivered its
 /// first sample chunk. Audio feedback uses the same backend readiness signal,
 /// but this targeted event is skipped when overlays are disabled.

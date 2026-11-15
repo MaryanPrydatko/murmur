@@ -1239,6 +1239,17 @@ async dismissOverlayNotice() : Promise<void> {
  */
 async setOverlayDropped(dropped: boolean) : Promise<void> {
     await TAURI_INVOKE("set_overlay_dropped", { dropped });
+},
+/**
+ * Limits the clicks the overlay window takes to the pill, as the overlay
+ * measured it in its own logical pixels. The window is wider than the pill,
+ * for its shadow and its widest state, and on Linux that transparent margin
+ * took the clicks meant for the window below. An empty rectangle gives the
+ * whole window back. Linux only: macOS and Windows keep their windows as
+ * they are.
+ */
+async setOverlayHitRect(x: number, y: number, width: number, height: number) : Promise<void> {
+    await TAURI_INVOKE("set_overlay_hit_rect", { x, y, width, height });
 }
 }
 

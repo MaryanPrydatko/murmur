@@ -113,3 +113,23 @@ export const formatTimer = (seconds: number) => {
       : `${Math.floor(s / 60)}`;
   return `${head}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/**
+ * The whole pixels a measured rectangle touches: the part of the overlay
+ * window that takes clicks.
+ */
+export const hitRect = (r: {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}) => {
+  const x = Math.floor(r.left);
+  const y = Math.floor(r.top);
+  return {
+    x,
+    y,
+    width: Math.ceil(r.right) - x,
+    height: Math.ceil(r.bottom) - y,
+  };
+};

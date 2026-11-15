@@ -871,6 +871,7 @@ pub fn run(cli_args: CliArgs) {
             notices::dismiss_notice,
             notices::dismiss_overlay_notice,
             overlay::set_overlay_dropped,
+            overlay::set_overlay_hit_rect,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
