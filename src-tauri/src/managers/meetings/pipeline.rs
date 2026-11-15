@@ -192,19 +192,19 @@ fn diarize_track(
             preset: Some(SortformerPreset::VeryHighLatency),
         })),
     };
+    // The worker reads the track itself; the header's length sizes its deadline.
+    let samples = match hound::WavReader::open(file) {
+        Ok(reader) => reader.duration() as usize,
+        Err(e) => return Ok(Err(Unseparated::Failed(e.into()))),
+    };
     let mut attempts = 0;
     loop {
         if !control.proceed() {
             bail!("Transcription was stopped");
         }
         attempts += 1;
-        // Read again for each try rather than keep a second copy of the track.
-        let pcm: Vec<f32> = match read_track(file) {
-            Ok((samples, _)) => samples.collect(),
-            Err(e) => return Ok(Err(Unseparated::Failed(e))),
-        };
         let started = Instant::now();
-        match tm.diarize(model.clone(), options.clone(), pcm) {
+        match tm.diarize(model.clone(), options.clone(), file.to_path_buf(), samples) {
             Ok(segments) => {
                 info!(
                     "Diarized the system track in {} ms: {} turns",

@@ -144,18 +144,20 @@ impl TranscriptionManager {
         ))
     }
 
-    /// Who spoke when in `pcm`, by the diarizer at `model`, on the loaded
-    /// transcription model's device. A dictation's cancel stops it like a
-    /// chunk, as [`EngineError::Cancelled`].
+    /// Who spoke when in the 16 kHz mono WAV at `audio`, `samples` long, by
+    /// the diarizer at `model`, on the loaded transcription model's device.
+    /// A dictation's cancel stops it like a chunk, as
+    /// [`EngineError::Cancelled`].
     pub fn diarize(
         &self,
         model: PathBuf,
         options: DiarizeOptions,
-        pcm: Vec<f32>,
+        audio: PathBuf,
+        samples: usize,
     ) -> std::result::Result<Vec<SpeakerSegment>, EngineError> {
         self.touch_activity();
         self.engine
-            .diarize_since(self.engine.cancel_mark(), model, options, pcm)
+            .diarize_since(self.engine.cancel_mark(), model, options, audio, samples)
     }
 
     /// Cuts the audio at pauses as `pieces` arrive and decodes each chunk,

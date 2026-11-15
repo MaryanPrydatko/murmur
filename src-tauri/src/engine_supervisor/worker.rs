@@ -147,8 +147,15 @@ pub fn run() -> i32 {
             Request::Feed | Request::Finalize { .. } | Request::StreamReset => {
                 Response::Error("no active stream".to_string())
             }
-            Request::Diarize { path, options } => match &session {
-                Some(loaded) => diarize(&path, &loaded.options, &options, &pcm),
+            Request::Diarize {
+                path,
+                options,
+                audio,
+            } => match &session {
+                Some(loaded) => match read_pcm(&audio) {
+                    Ok(pcm) => diarize(&path, &loaded.options, &options, &pcm),
+                    Err(e) => Response::Error(e),
+                },
                 None => not_loaded(),
             },
         };
@@ -288,6 +295,17 @@ struct Loaded {
     info: LoadedInfo,
     /// Its resolved backend and device, which a diarizer loads on too.
     options: ModelOptions,
+}
+
+/// A 16-bit WAV's samples, up to the first that can't be read.
+fn read_pcm(path: &Path) -> Result<Vec<f32>, String> {
+    let reader = hound::WavReader::open(path)
+        .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    Ok(reader
+        .into_samples::<i16>()
+        .map_while(Result::ok)
+        .map(|s| s as f32 / i16::MAX as f32)
+        .collect())
 }
 
 /// Loads the diarizer, runs it once over all of `pcm` and frees it: it keeps
