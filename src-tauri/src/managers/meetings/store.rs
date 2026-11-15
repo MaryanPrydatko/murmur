@@ -323,30 +323,31 @@ pub struct MeetingHit {
     pub text: String,
 }
 
-/// Meetings whose transcript contains `query`, with their first match.
-/// SQLite folds case for ASCII letters only.
+/// Meetings whose transcript contains `query` in any letter case, with their
+/// first match. Case is folded here: SQLite's LIKE folds ASCII only.
 pub fn search(conn: &Connection, query: &str) -> Result<Vec<MeetingHit>> {
-    let query = query.trim();
+    let query = query.trim().to_lowercase();
     if query.is_empty() {
         return Ok(Vec::new());
     }
-    let escaped = query
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
-    // A bare column next to MIN() comes from the row MIN() picked.
-    let mut stmt = conn.prepare(
-        "SELECT meeting_id, t0_ms, text, MIN(idx) FROM meeting_segments
-         WHERE text LIKE ?1 ESCAPE '\\' GROUP BY meeting_id",
-    )?;
-    let rows = stmt.query_map([format!("%{escaped}%")], |row| {
+    let mut stmt = conn
+        .prepare("SELECT meeting_id, t0_ms, text FROM meeting_segments ORDER BY meeting_id, idx")?;
+    let rows = stmt.query_map([], |row| {
         Ok(MeetingHit {
             meeting_id: row.get("meeting_id")?,
             t0_ms: row.get("t0_ms")?,
             text: row.get("text")?,
         })
     })?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
+    let mut hits: Vec<MeetingHit> = Vec::new();
+    for hit in rows {
+        let hit = hit?;
+        let seen = hits.last().is_some_and(|h| h.meeting_id == hit.meeting_id);
+        if !seen && hit.text.to_lowercase().contains(&query) {
+            hits.push(hit);
+        }
+    }
+    Ok(hits)
 }
 
 /// Names a meeting; a blank `title` clears it.
@@ -467,6 +468,7 @@ mod tests {
             said(0, Speaker::Me, "the 50% build"),
             said(1_000, Speaker::Remote(1), "Ship BUILD 215"),
             said(2_000, Speaker::Remote(1), "build again"),
+            said(3_000, Speaker::Remote(1), "Привіт, Über alles"),
         ];
         save_transcript(&mut conn, id, &utterances).unwrap();
 
@@ -476,6 +478,8 @@ mod tests {
         assert_eq!(search(&conn, "50%").unwrap()[0].t0_ms, 0);
         assert!(search(&conn, "5_%").unwrap().is_empty());
         assert!(search(&conn, "  ").unwrap().is_empty());
+        assert_eq!(search(&conn, "привіт").unwrap()[0].t0_ms, 3_000);
+        assert_eq!(search(&conn, "über").unwrap()[0].t0_ms, 3_000);
 
         let keys = speaker_keys(&conn).unwrap();
         assert_eq!(keys[0].keys, ["me", "s1"]);
