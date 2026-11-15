@@ -142,8 +142,18 @@ const transcriptText = (t: TFunction, detail: Detail) => {
     .join("\n\n");
 };
 
+/** Queues meeting `id` again; the list shows it transcribing once it is. */
+const rerun = async (t: TFunction, id: string, speakersOnly = false) => {
+  const result = speakersOnly
+    ? await commands.rediarizeMeeting(id)
+    : await commands.retranscribeMeeting(id);
+  if (result.status === "error")
+    notify({ title: t("meetings.rerunFailed"), detail: result.error });
+};
+
 const MoreMenu: React.FC<{ detail: Detail }> = ({ detail }) => {
   const { t } = useTranslation();
+  const refresh = useMeetingsStore((s) => s.refresh);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -161,7 +171,19 @@ const MoreMenu: React.FC<{ detail: Detail }> = ({ detail }) => {
     };
   }, [open]);
 
-  const dir = detail.meeting.dir;
+  const { id, dir, note_path } = detail.meeting;
+  const item = (label: string, run: () => unknown) => (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => {
+        setOpen(false);
+        run();
+      }}
+    >
+      {label}
+    </button>
+  );
   return (
     <div ref={ref} className="relative">
       <button
@@ -187,18 +209,22 @@ const MoreMenu: React.FC<{ detail: Detail }> = ({ detail }) => {
           >
             {t("meetings.copyTranscript")}
           </button>
-          {dir && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                revealItemInDir(dir).catch(console.error);
-              }}
-            >
-              {t("meetings.openFolder")}
-            </button>
-          )}
+          {dir &&
+            item(t("meetings.openFolder"), () =>
+              revealItemInDir(dir).catch(console.error),
+            )}
+          {!note_path &&
+            item(t("meetings.writeNote"), async () => {
+              const result = await commands.exportMeetingNote(id);
+              if (result.status === "error")
+                notify({
+                  title: t("meetings.writeNoteFailed"),
+                  detail: result.error,
+                });
+              refresh();
+            })}
+          {item(t("meetings.rediarize"), () => rerun(t, id, true))}
+          {item(t("meetings.retranscribe"), () => rerun(t, id))}
         </div>
       )}
     </div>
@@ -422,8 +448,15 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
               : t("meetings.interrupted")}
           </h3>
           <p>{t("meetings.failedBody")}</p>
-          {row.dir && (
-            <div className="rowbtns">
+          <div className="rowbtns">
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => rerun(t, row.id)}
+            >
+              {t("meetings.tryAgain")}
+            </Button>
+            {row.dir && (
               <Button
                 variant="secondary"
                 size="md"
@@ -431,8 +464,8 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
               >
                 {t("meetings.openFolder")}
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div className="transcript" />
         <MeetingPlayer
