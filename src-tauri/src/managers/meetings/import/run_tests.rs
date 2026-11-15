@@ -346,6 +346,9 @@ fn a_later_run_with_notes_writes_the_notes_still_missing() {
     let (first, _) = import_notes(&world, &mut conn, false, false);
     assert_eq!((first.imported, first.notes), (3, 0));
     assert!(!world.vault().exists());
+    let (dry, _) = import(&world, &mut conn, true);
+    assert_eq!(dry.notes, 0);
+    assert!(!world.vault().exists());
 
     let (with_notes, queued) = import(&world, &mut conn, false);
     assert_eq!(with_notes.imported + with_notes.to_transcribe, 0);

@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, State};
 
 /// Imports the meetings Superwhisper, Wispr Flow and Spokenly kept that
 /// weren't imported before; with `dry_run`, only says what it would do.
-/// With `write_notes`, each imported transcript also gets its note.
+/// With `write_notes`, each transcribed meeting without a note gets one.
 #[tauri::command]
 #[specta::specta]
 pub async fn import_meetings(

@@ -389,7 +389,8 @@ impl fmt::Display for ImportReport {
 }
 
 /// Imports every meeting under `roots` not imported before into
-/// `meetings_dir`, and its note into `notes_folder` when that's set.
+/// `meetings_dir`. With `notes_folder`, every transcribed one without a
+/// note gets it there, imported now or before.
 /// `write` saves `meeting.json`. A dry run writes nothing. Returns the ids
 /// of the meetings left to transcribe.
 pub fn run(
@@ -502,7 +503,10 @@ fn write_note(conn: &Connection, id: &str, folder: &Path, report: &mut ImportRep
     match note {
         Ok(Some(_)) => report.notes += 1,
         Ok(None) => {}
-        Err(e) => report.errors.push(format!("{id} note: {e:#}")),
+        Err(e) => {
+            report.failed += 1;
+            report.errors.push(format!("{id} note: {e:#}"));
+        }
     }
 }
 
