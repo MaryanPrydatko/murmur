@@ -27,8 +27,10 @@ pub(super) struct TrackFeed {
     /// The loudest sample since the last read, as `f32` bits: for a
     /// non-negative float those order like the float.
     peak: AtomicU32,
-    /// Whether any sample so far was other than zero.
+    /// Whether a sample since the last read was other than zero.
     heard: AtomicBool,
+    /// Set once the track gave only zeros for too long while it recorded.
+    withheld: AtomicBool,
 }
 
 impl TrackFeed {
@@ -44,12 +46,23 @@ impl TrackFeed {
         f32::from_bits(self.peak.swap(0, Ordering::Relaxed))
     }
 
-    /// Whether the track has had a sample other than zero. The macOS system
-    /// track always has if the tap is allowed to record: see
-    /// [`handy_recorder::SYSTEM_OUTPUT_DEVICE`].
+    /// Whether the track had a sample other than zero since the last call.
+    /// The macOS system track always has while its tap is given the audio:
+    /// see [`handy_recorder::SYSTEM_OUTPUT_DEVICE`].
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-    pub fn heard(&self) -> bool {
-        self.heard.load(Ordering::Relaxed)
+    pub fn take_heard(&self) -> bool {
+        self.heard.swap(false, Ordering::Relaxed)
+    }
+
+    /// Notes that the track gave only zeros for too long.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn set_withheld(&self) {
+        self.withheld.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn withheld(&self) -> bool {
+        self.withheld.load(Ordering::Relaxed)
     }
 }
 
@@ -440,11 +453,12 @@ mod tests {
         let feed = Arc::new(TrackFeed::default());
         let mut sink = WavSink::create(&path, Arc::clone(&feed)).unwrap();
         sink.process_chunk(chunk(&[0.0; 1_600]));
-        assert!(!feed.heard(), "only zeros: macOS withheld the audio");
+        assert!(!feed.take_heard(), "only zeros: macOS withheld the audio");
         // What an allowed tap hears when nothing plays: the recorder's own
         // output, too quiet to reach the 16-bit file.
         sink.process_chunk(chunk(&[1.0e-5; 1_600]));
-        assert!(feed.heard());
+        assert!(feed.take_heard());
+        assert!(!feed.take_heard(), "read once");
         assert_eq!(sink.finish().unwrap(), (3_200, None));
         assert!(hound::WavReader::open(&path)
             .unwrap()

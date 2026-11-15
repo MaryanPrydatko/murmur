@@ -452,8 +452,7 @@ impl MeetingManager {
                         cut_short.push(format!("{:?}: {problem}", track.kind));
                     }
                     #[cfg(target_os = "macos")]
-                    if track.kind == TrackKind::System && !track.feed.heard() {
-                        warn!("Meeting {} has no system audio", meeting.id);
+                    if track.kind == TrackKind::System && track.feed.withheld() {
                         cut_short.push(SYSTEM_AUDIO_WITHHELD.to_string());
                     }
                     meeting.tracks.push(MeetingTrack {
@@ -530,11 +529,11 @@ const TICK: Duration = Duration::from_millis(1000 / 30);
 #[cfg(target_os = "macos")]
 const SYSTEM_AUDIO_DUE: Duration = Duration::from_secs(10);
 
-/// Why a system track of only zeros is missing: macOS gives a tap it didn't
-/// allow silence, not an error.
+/// Why a stretch of only zeros in the system track is missing: macOS gives a
+/// tap it didn't allow, or an output it can't tap, silence and no error.
 #[cfg(target_os = "macos")]
-const SYSTEM_AUDIO_WITHHELD: &str = "System: macOS gave no audio. Allow Murmur in System \
-    Settings > Privacy & Security > Screen & System Audio Recording";
+const SYSTEM_AUDIO_WITHHELD: &str = "System: macOS gave no audio from the output. Allow Murmur in \
+    System Settings > Privacy & Security > Screen & System Audio Recording";
 
 /// Runs while the meeting `id` records: sends the tracks' levels, and
 /// saves each track's start offset once its audio arrives, so a meeting
@@ -549,17 +548,20 @@ fn tick(
     let mut known = vec![false; feeds.len()];
     let mut sent = 0u64;
     let mut next = Instant::now();
+    // When the system track last had a sample other than zero, and whether
+    // the user was warned since.
     #[cfg(target_os = "macos")]
-    let mut system_checked = false;
+    let (mut system_heard, mut system_warned) = (started, false);
     while !ended.load(Ordering::Acquire) {
         #[cfg(target_os = "macos")]
-        if !system_checked && started.elapsed() >= SYSTEM_AUDIO_DUE {
-            system_checked = true;
-            let withheld = feeds
-                .iter()
-                .any(|(kind, feed)| *kind == TrackKind::System && !feed.heard());
-            if withheld {
-                warn!("Meeting {id}: no system audio after {SYSTEM_AUDIO_DUE:?}");
+        for (_, feed) in feeds.iter().filter(|(kind, _)| *kind == TrackKind::System) {
+            if feed.take_heard() {
+                system_heard = Instant::now();
+                system_warned = false;
+            } else if !system_warned && system_heard.elapsed() >= SYSTEM_AUDIO_DUE {
+                system_warned = true;
+                feed.set_withheld();
+                warn!("Meeting {id}: no system audio for {SYSTEM_AUDIO_DUE:?}");
                 notices::raise(
                     app,
                     Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
