@@ -101,6 +101,18 @@ bun run tauri build
 
 This compiles a release binary and generates platform-specific bundles (deb, rpm, AppImage on Linux; dmg on macOS; msi on Windows).
 
+**A Linux package takes two things from the machine that builds it**, not from the source:
+
+- The binary needs a glibc at least as new as the one it was built against. Tauri does not write that into the `.deb`, so APT installs the package on an older system and the app then fails to start. A build on Ubuntu 26.04 needs glibc 2.43. To see what a build needs:
+
+  ```bash
+  objdump -T src-tauri/target/release/handy | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+  ```
+
+- The AppImage copies every GStreamer plugin installed on the build machine. With `gstreamer1.0-plugins-ugly` or `gstreamer1.0-libav` installed, that puts GPL codecs (x264, x265 and others) into the file, which an MIT release must not carry.
+
+So a package built on a current desktop is for that machine. Packages for other people have to be built on an older, clean base. The release workflow is set up that way: the `.deb` on Ubuntu 22.04, the AppImage on Ubuntu 24.04.
+
 ## Linux Install (from source)
 
 The raw binary (`src-tauri/target/release/handy`) cannot run standalone — it needs Tauri resource files (tray icons, sounds, VAD model) to be co-located at the expected path.
