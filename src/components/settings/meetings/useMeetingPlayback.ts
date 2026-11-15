@@ -3,6 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { commands, type MeetingAudio } from "@/bindings";
 import { useOsType } from "@/hooks/useOsType";
+import { playbackStart } from "./meetingModel";
 
 /** Which recorded side to hear. */
 export type TrackChoice = "both" | "me" | "others";
@@ -146,9 +147,16 @@ export const useMeetingPlayback = (
 
   const startAll = useCallback(
     (list: LoadedTrack[], at: number) => {
-      place(list, at);
+      const from = playbackStart(
+        at,
+        durationS,
+        list.map((x) => x.offset),
+      );
+      tRef.current = from;
+      setT(from);
+      place(list, from);
       for (const track of list) {
-        const wait = track.offset - at;
+        const wait = track.offset - from;
         if (wait > 0) {
           waits.current.push(
             setTimeout(() => track.audio.play().catch(() => {}), wait * 1000),
@@ -158,7 +166,7 @@ export const useMeetingPlayback = (
         }
       }
     },
-    [place],
+    [durationS, place],
   );
 
   const pause = useCallback(() => {
@@ -176,7 +184,7 @@ export const useMeetingPlayback = (
         setLoading(!tracks.current);
         const list = await load();
         if (!list) return;
-        startAll(list, at >= durationS ? 0 : at);
+        startAll(list, at);
         setPlaying(true);
         setFailed(false);
       } catch (e) {
