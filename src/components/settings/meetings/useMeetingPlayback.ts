@@ -18,6 +18,13 @@ interface LoadedTrack {
   blobUrl: string | null;
 }
 
+const dispose = (list: LoadedTrack[]) => {
+  for (const track of list) {
+    track.audio.pause();
+    if (track.blobUrl) URL.revokeObjectURL(track.blobUrl);
+  }
+};
+
 const audible = (kind: string, choice: TrackChoice) =>
   choice === "both" ||
   kind === "mixed" ||
@@ -43,6 +50,11 @@ export const useMeetingPlayback = (
   const [choice, setChoice] = useState<TrackChoice>("both");
   const [kinds, setKinds] = useState<string[]>([]);
   const tracks = useRef<LoadedTrack[] | null>(null);
+  // The load in flight, shared by every play() that waits on it.
+  const inFlight = useRef<Promise<LoadedTrack[] | null> | null>(null);
+  // Bumped when the meeting changes or the view goes, so a load that
+  // finishes after that throws its tracks away instead of playing them.
+  const generation = useRef(0);
   const tRef = useRef(0);
   const waits = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -58,11 +70,10 @@ export const useMeetingPlayback = (
 
   useEffect(() => {
     return () => {
+      generation.current += 1;
+      inFlight.current = null;
       waits.current.forEach(clearTimeout);
-      for (const track of tracks.current ?? []) {
-        track.audio.pause();
-        if (track.blobUrl) URL.revokeObjectURL(track.blobUrl);
-      }
+      dispose(tracks.current ?? []);
       tracks.current = null;
       tRef.current = 0;
       setT(0);
@@ -86,26 +97,43 @@ export const useMeetingPlayback = (
     [osType],
   );
 
-  const load = useCallback(async () => {
-    if (tracks.current) return tracks.current;
-    const result = await commands.meetingAudio(meetingId);
-    if (result.status !== "ok" || result.data.length === 0) {
-      throw new Error(result.status === "ok" ? "no tracks" : result.error);
-    }
+  /** The tracks, loading them once; null if the meeting changed meanwhile. */
+  const load = useCallback(() => {
+    if (tracks.current) return Promise.resolve(tracks.current);
+    if (inFlight.current) return inFlight.current;
+    const started = generation.current;
     const loaded: LoadedTrack[] = [];
-    for (const track of result.data) {
-      const { src, blobUrl } = await source(track);
-      const audio = new Audio(src);
-      audio.preload = "auto";
-      loaded.push({
-        audio,
-        kind: track.kind,
-        offset: track.start_offset_ms / 1000,
-        blobUrl,
-      });
-    }
-    tracks.current = loaded;
-    return loaded;
+    const run = async () => {
+      const result = await commands.meetingAudio(meetingId);
+      if (result.status !== "ok" || result.data.length === 0) {
+        throw new Error(result.status === "ok" ? "no tracks" : result.error);
+      }
+      for (const track of result.data) {
+        const { src, blobUrl } = await source(track);
+        const audio = new Audio(src);
+        audio.preload = "auto";
+        loaded.push({
+          audio,
+          kind: track.kind,
+          offset: track.start_offset_ms / 1000,
+          blobUrl,
+        });
+      }
+      if (started !== generation.current) {
+        dispose(loaded);
+        return null;
+      }
+      tracks.current = loaded;
+      inFlight.current = null;
+      return loaded;
+    };
+    const pending = run().catch((e) => {
+      dispose(loaded);
+      if (started === generation.current) inFlight.current = null;
+      throw e;
+    });
+    inFlight.current = pending;
+    return pending;
   }, [meetingId, source]);
 
   const place = useCallback((list: LoadedTrack[], at: number) => {
@@ -147,6 +175,7 @@ export const useMeetingPlayback = (
       try {
         setLoading(!tracks.current);
         const list = await load();
+        if (!list) return;
         startAll(list, at >= durationS ? 0 : at);
         setPlaying(true);
         setFailed(false);
