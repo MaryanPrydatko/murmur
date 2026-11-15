@@ -61,7 +61,8 @@
         "replaces": ["handy"],
         "section": "utils",
         "files": {
-          "/usr/lib/Handy": "transcribe-libs"
+          "/usr/lib/Handy": "transcribe-libs",
+          "/usr/share/doc/murmur/copyright": "../LICENSE"
         }
       },
       "rpm": {
@@ -79,7 +80,8 @@
       "appimage": {
         "bundleMediaFramework": true,
         "files": {
-          "/usr/lib": "transcribe-libs"
+          "/usr/lib": "transcribe-libs",
+          "/usr/share/doc/murmur/copyright": "../LICENSE"
         }
       }
     },
