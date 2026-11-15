@@ -2,6 +2,7 @@
 //! `meetings/<id>/live.ndjson`. It keeps no audio.
 
 use anyhow::{Context, Result};
+use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags};
 use serde::Deserialize;
 use serde_json::Value;
@@ -59,11 +60,14 @@ impl SpeakerMap {
     }
 }
 
+/// A row of `Meetings`, each column read as whatever type it holds: SQLite
+/// keeps a value its column's declared type can't hold as it came, and the
+/// declared types have changed between Wispr Flow's versions.
 struct Row {
-    id: String,
+    id: Option<String>,
     title: Option<String>,
-    created_at: Option<String>,
-    ended_at: Option<String>,
+    created_ms: Option<i64>,
+    ended_ms: Option<i64>,
     recorded_ms: Option<f64>,
     summary: Option<String>,
     speaker_map: Option<String>,
@@ -92,9 +96,13 @@ pub fn scan(root: &Path) -> Scan {
     }
     match rows(&db) {
         Ok(rows) => {
-            for row in rows {
-                let ndjson = root.join("meetings").join(&row.id).join("live.ndjson");
-                match read(row, &ndjson) {
+            for mut row in rows {
+                let Some(id) = row.id.take() else {
+                    scan.unreadable(&db, "A meeting has no id");
+                    continue;
+                };
+                let ndjson = root.join("meetings").join(&id).join("live.ndjson");
+                match read(id, row, &ndjson) {
                     Ok(meeting) => scan.meetings.push(meeting),
                     Err(e) => scan.unreadable(&ndjson, format!("{e:#}")),
                 }
@@ -132,25 +140,51 @@ fn rows(db: &Path) -> Result<Vec<Row>> {
     let rows = stmt
         .query_map([], |row| {
             Ok(Row {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                created_at: row.get(2)?,
-                ended_at: row.get(3)?,
-                recorded_ms: row.get(4)?,
-                summary: row.get(5)?,
-                speaker_map: row.get(6)?,
+                id: text(row.get_ref(0)?),
+                title: text(row.get_ref(1)?),
+                created_ms: time_ms(row.get_ref(2)?),
+                ended_ms: time_ms(row.get_ref(3)?),
+                recorded_ms: number(row.get_ref(4)?),
+                summary: text(row.get_ref(5)?),
+                speaker_map: text(row.get_ref(6)?),
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
     Ok(rows)
 }
 
-/// `2026-08-19 14:31:42.633 +00:00`, in Unix ms.
-fn timestamp_ms(at: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_str(at, "%Y-%m-%d %H:%M:%S%.f %:z")
-        .or_else(|_| chrono::DateTime::parse_from_rfc3339(at))
-        .ok()
-        .map(|at| at.timestamp_millis())
+/// A column's text, or its number written out.
+fn text(value: ValueRef) -> Option<String> {
+    match value {
+        ValueRef::Null => None,
+        ValueRef::Integer(n) => Some(n.to_string()),
+        ValueRef::Real(n) => Some(n.to_string()),
+        ValueRef::Text(t) | ValueRef::Blob(t) => Some(String::from_utf8_lossy(t).into_owned()),
+    }
+}
+
+/// A column's number, also when it was stored as text.
+fn number(value: ValueRef) -> Option<f64> {
+    match value {
+        ValueRef::Integer(n) => Some(n as f64),
+        ValueRef::Real(n) => Some(n),
+        ValueRef::Text(t) => std::str::from_utf8(t).ok()?.trim().parse().ok(),
+        ValueRef::Null | ValueRef::Blob(_) => None,
+    }
+}
+
+/// A time in Unix ms. Wispr Flow stores `createdAt` as a date
+/// (`2026-08-19 14:31:42.633 +00:00`) and `endedAt` as Unix ms.
+fn time_ms(value: ValueRef) -> Option<i64> {
+    if let ValueRef::Text(at) = value {
+        let at = std::str::from_utf8(at).ok()?.trim();
+        let date = chrono::DateTime::parse_from_str(at, "%Y-%m-%d %H:%M:%S%.f %:z")
+            .or_else(|_| chrono::DateTime::parse_from_rfc3339(at));
+        if let Ok(date) = date {
+            return Some(date.timestamp_millis());
+        }
+    }
+    number(value).map(|ms| ms.round() as i64)
 }
 
 fn raw_id(value: &Value) -> String {
@@ -160,12 +194,7 @@ fn raw_id(value: &Value) -> String {
     }
 }
 
-fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
-    let started_at_ms = row
-        .created_at
-        .as_deref()
-        .and_then(timestamp_ms)
-        .with_context(|| format!("Meeting {} has no readable start", row.id))?;
+fn read(id: String, row: Row, ndjson: &Path) -> Result<SourceMeeting> {
     let map: SpeakerMap = match row.speaker_map.as_deref() {
         Some(json) if !json.trim().is_empty() => serde_json::from_str(json)
             .map_err(json_error)
@@ -229,12 +258,18 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
         })
         .collect();
 
-    let ended_ms = row.ended_at.as_deref().and_then(timestamp_ms);
-    let duration_ms = row
+    let recorded_ms = row
         .recorded_ms
         .map(|ms| ms.round() as i64)
-        .or_else(|| segments.iter().map(|s| s.t1_ms).max())
-        .or_else(|| ended_ms.map(|end| end - started_at_ms))
+        .or_else(|| segments.iter().map(|s| s.t1_ms).max());
+    // Without a readable `createdAt`, counted back from the end: later than
+    // it started by however long the recording was paused.
+    let started_at_ms = row
+        .created_ms
+        .or_else(|| Some(row.ended_ms? - recorded_ms.unwrap_or(0)))
+        .with_context(|| format!("Meeting {id} has no readable start"))?;
+    let duration_ms = recorded_ms
+        .or_else(|| row.ended_ms.map(|end| end - started_at_ms))
         .unwrap_or(0);
     let summary = row.summary.map(|summary| {
         let mut out = String::new();
@@ -265,7 +300,7 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
 
     Ok(SourceMeeting {
         source: Source::Wispr,
-        source_id: row.id,
+        source_id: id,
         started_at_ms,
         duration_ms,
         title: row.title.filter(|t| !t.trim().is_empty()),

@@ -398,11 +398,11 @@ fn a_later_run_with_notes_writes_the_notes_still_missing() {
 fn an_unreadable_source_stops_the_import_until_it_reads() {
     let world = world();
     let mut conn = db();
-    // A column of another type than expected makes all of flow.sqlite
-    // unreadable, and Spokenly's copy of the roadmap would take its place.
+    // A meeting with no time to date it by can't be read, and Spokenly's
+    // copy of the roadmap would take its place.
     world
         ._wispr
-        .execute("UPDATE Meetings SET recordedMs = 'soon'", [])
+        .execute("UPDATE Meetings SET createdAt = 'soon', endedAt = NULL", [])
         .unwrap();
 
     let (dry, _) = import(&world, &mut conn, true);
@@ -419,7 +419,7 @@ fn an_unreadable_source_stops_the_import_until_it_reads() {
 
     world
         ._wispr
-        .execute("UPDATE Meetings SET recordedMs = NULL", [])
+        .execute("UPDATE Meetings SET createdAt = modifiedAt", [])
         .unwrap();
     let (report, _) = import(&world, &mut conn, false);
     assert_eq!(report, expected(false));
