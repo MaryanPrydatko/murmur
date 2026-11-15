@@ -331,6 +331,43 @@ fn a_second_run_writes_nothing_and_a_deleted_meeting_stays_deleted() {
 }
 
 #[test]
+fn an_unreadable_source_stops_the_import_until_it_reads() {
+    let world = world();
+    let mut conn = db();
+    // A column of another type than expected makes all of flow.sqlite
+    // unreadable, and Spokenly's copy of the roadmap would take its place.
+    world
+        ._wispr
+        .execute("UPDATE Meetings SET recordedMs = 0.5", [])
+        .unwrap();
+
+    let (dry, _) = import(&world, &mut conn, true);
+    assert_eq!(dry.sources[0].unreadable, 1);
+    assert_eq!(dry.failed, 0);
+    let (blocked, queued) = import(&world, &mut conn, false);
+    assert!(queued.is_empty());
+    assert_eq!(blocked.imported + blocked.to_transcribe + blocked.notes, 0);
+    assert_eq!(blocked.failed, 1);
+    assert_eq!(blocked.errors.len(), 2);
+    assert!(!world.meetings_dir().exists());
+    assert!(!world.vault().exists());
+    assert!(db::seen(&conn).unwrap().is_empty());
+
+    world
+        ._wispr
+        .execute("UPDATE Meetings SET recordedMs = NULL", [])
+        .unwrap();
+    let (report, _) = import(&world, &mut conn, false);
+    assert_eq!(report, expected(false));
+    let roadmap = store::get(&conn, &meeting_id(T0_SECS * 1000, Source::Wispr))
+        .unwrap()
+        .unwrap();
+    assert_eq!(roadmap.meeting.source, "wispr");
+    assert_eq!(roadmap.meeting.title.as_deref(), Some("Roadmap sync"));
+    assert_eq!(roadmap.speakers[0].label.as_deref(), Some("Ana"));
+}
+
+#[test]
 fn finds_nothing_where_the_apps_never_ran() {
     let tmp = tempfile::tempdir().unwrap();
     let mut conn = db();

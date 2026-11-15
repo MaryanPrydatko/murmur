@@ -415,6 +415,15 @@ pub fn run(
         report.errors.extend(scan.unreadable);
         found.extend(scan.meetings);
     }
+    // A record that can't be read may be a meeting's best copy: imported
+    // without it, the worse copy would be in the ledger for good.
+    if !dry_run && !report.errors.is_empty() {
+        report.failed = report.errors.len() as u32;
+        report
+            .errors
+            .push("Nothing was imported. Fix or move the records above, then run again.".into());
+        return Ok((report, Vec::new()));
+    }
     if !dry_run {
         db::create_ledger(conn)?;
     }

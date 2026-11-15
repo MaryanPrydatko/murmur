@@ -671,7 +671,7 @@ fn run_headless_import(app: &AppHandle, args: &CliArgs) -> i32 {
     match managers::meetings::import::import(app, args.dry_run, args.with_notes, false) {
         Ok(report) => {
             print!("{report}");
-            i32::from(report.failed > 0)
+            i32::from(report.failed > 0 || !report.errors.is_empty())
         }
         Err(e) => {
             eprintln!("error: {e:#}");
