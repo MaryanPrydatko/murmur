@@ -101,17 +101,23 @@ bun run tauri build
 
 This compiles a release binary and generates platform-specific bundles (deb, rpm, AppImage on Linux; dmg on macOS; msi on Windows).
 
-**A Linux package takes two things from the machine that builds it**, not from the source:
+#### Release .deb
 
-- The binary needs a glibc at least as new as the one it was built against. Tauri does not write that into the `.deb`, so APT installs the package on an older system and the app then fails to start. A build on Ubuntu 26.04 needs glibc 2.43. To see what a build needs:
+```bash
+bun run tauri build --bundles deb --config '{"bundle":{"linux":{"deb":{"depends":["libgtk-layer-shell0","libopenblas0","libssl3t64 | libssl3","libasound2t64 | libasound2","libvulkan1","libc6 (>= 2.43)"]}}}}'
+```
 
-  ```bash
-  objdump -T src-tauri/target/release/murmur | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
-  ```
+The package lands in `src-tauri/target/release/bundle/deb/`.
 
-- The AppImage copies every GStreamer plugin installed on the build machine. With `gstreamer1.0-plugins-ugly` or `gstreamer1.0-libav` installed, that puts GPL codecs (x264, x265 and others) into the file, which an MIT release must not carry.
+The binary and its libraries need a glibc at least as new as the build machine's, and Tauri does not write that into the package. Without the `libc6` entry APT installs the package on an older system and the app then fails to start. Tauri replaces an array given with `--config` whole, so the command repeats every entry of `bundle.linux.deb.depends` in `src-tauri/tauri.conf.json`: keep the two in step.
 
-So a package built on a current desktop is for that machine. Packages for other people have to be built on an older, clean base. The release workflow builds the `.deb` on Ubuntu 22.04 and the AppImage on Ubuntu 24.04, and installs no extra GStreamer plugins.
+2.43 is what a build on Ubuntu 26.04 needs. On another machine, build once, read the number and build again with it:
+
+```bash
+for f in src-tauri/target/release/murmur src-tauri/transcribe-libs/*; do objdump -T "$f"; done | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+```
+
+The AppImage is not published. A local build copies every GStreamer plugin installed on the build machine into it, GPL codec libraries (x264, x265 and others) among them, which an MIT release must not carry.
 
 ## Linux Install (from source)
 
