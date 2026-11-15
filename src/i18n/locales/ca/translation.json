@@ -912,7 +912,7 @@
         },
         "handy": {
           "title": "Handy",
-          "description": "Based on Handy by CJ Pais (MIT)",
+          "description": "Murmur is built on Handy by CJ Pais (MIT).",
           "button": "View on GitHub"
         }
       }

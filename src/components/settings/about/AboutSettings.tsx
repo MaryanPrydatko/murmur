@@ -67,6 +67,7 @@ export const AboutSettings: React.FC = () => {
         <SettingContainer
           title={t("settings.about.acknowledgments.handy.title")}
           description={t("settings.about.acknowledgments.handy.description")}
+          descriptionMode="inline"
           grouped={true}
         >
           <Button
