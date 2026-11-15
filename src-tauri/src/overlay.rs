@@ -55,6 +55,9 @@ const OVERLAY_HEIGHT: f64 = 44.0 + PILL_SHADOW_PAD;
 // around it to the apps below.
 const OVERLAY_MEETING_WIDTH: f64 = 176.0 + 2.0 * 20.0;
 
+// A meeting transcribing after it stopped: the 226 wide progress pill.
+const OVERLAY_MEETING_WORK_WIDTH: f64 = 226.0 + 2.0 * 20.0;
+
 // Live: the pill opens into a panel up to 116 tall.
 const OVERLAY_STREAM_WIDTH: f64 = 460.0;
 const OVERLAY_STREAM_HEIGHT: f64 = 116.0 + PILL_SHADOW_PAD;
@@ -67,6 +70,13 @@ const ISLAND_DROPPED: (f64, f64) = (440.0, 160.0);
 
 /// No session, but a meeting is recording: the overlay shows the meeting.
 const MEETING_STATE: &str = "meeting";
+
+/// No session and no meeting recording: a stopped meeting is transcribing.
+const MEETING_WORK_STATE: &str = "meeting_transcribing";
+
+/// How long the overlay shows a meeting's progress before the Meetings page
+/// carries it alone.
+const MEETING_WORK_HOLD: Duration = Duration::from_secs(3);
 
 const NOTICE_STATE: &str = "notice";
 const LIVE_NOTICE_STATE: &str = "live_notice";
@@ -94,6 +104,8 @@ fn overlay_dimensions(state: &str) -> (f64, f64) {
         (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
     } else if state == MEETING_STATE {
         (OVERLAY_MEETING_WIDTH, OVERLAY_HEIGHT)
+    } else if state == MEETING_WORK_STATE {
+        (OVERLAY_MEETING_WORK_WIDTH, OVERLAY_HEIGHT)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
     }
@@ -824,6 +836,28 @@ pub fn set_meeting_recording(app_handle: &AppHandle, recording: bool) {
     }
 }
 
+/// Shows a stopped meeting's transcription progress for [`MEETING_WORK_HOLD`]
+/// after the last call, unless a dictation session or a recording meeting has
+/// the overlay. Call it before each `meeting-progress`, which fills it in.
+#[allow(dead_code)] // Called once the meeting transcription reports progress.
+pub fn show_meeting_transcribing_overlay(app_handle: &AppHandle) {
+    if !OVERLAY_ENABLED.load(Ordering::Relaxed) || is_session_showing() || meeting_showing() {
+        return;
+    }
+    let handle = app_handle.clone();
+    // On the main thread for the same reason as show_overlay_state.
+    let _ = app_handle.run_on_main_thread(move || {
+        show_overlay_state_on_main(&handle, MEETING_WORK_STATE);
+        let generation = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
+        std::thread::spawn(move || {
+            std::thread::sleep(MEETING_WORK_HOLD);
+            if OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst) == generation {
+                hide_recording_overlay(&handle);
+            }
+        });
+    });
+}
+
 /// Grows the island's panel before its meeting controls open, and shrinks it
 /// after they close.
 #[tauri::command]
@@ -1120,6 +1154,15 @@ mod tests {
         assert_eq!(
             overlay_dimensions(NOTICE_STATE),
             (OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        );
+    }
+
+    #[test]
+    fn a_meeting_progress_window_fits_its_wider_pill() {
+        assert!(overlay_dimensions(MEETING_WORK_STATE).0 >= 226.0 + 2.0 * 20.0);
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, MEETING_WORK_STATE, false),
+            ISLAND_EARS
         );
     }
 

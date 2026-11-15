@@ -185,7 +185,11 @@ const RecordingOverlay: React.FC = () => {
       }),
       listen<string>("show-overlay", async (e) => {
         clearTimeout(fadeTimer.current);
-        const next = e.payload === "meeting" ? null : (e.payload as Session);
+        // A meeting recording or transcribing shows with no session.
+        const next =
+          e.payload === "meeting" || e.payload === "meeting_transcribing"
+            ? null
+            : (e.payload as Session);
         if (next !== "notice" && next !== "live_notice") setNotice(null);
         // Reset before the awaits below: a fast microphone can send
         // recording-ready while they run.
@@ -238,8 +242,8 @@ const RecordingOverlay: React.FC = () => {
       listen<{ me: number[]; others: number[] }>("meeting-levels", (e) =>
         setMeetingLevels(e.payload),
       ),
-      // Not emitted yet; see the report. Shown for a few seconds, then the
-      // Meetings page carries the progress.
+      // Not emitted yet; see the report. The backend shows the overlay with
+      // `meeting_transcribing` first; this holds the pill as long as it does.
       listen<{ percent: number | null }>("meeting-progress", (e) => {
         setMeetingWork(e.payload.percent ?? 0);
         clearTimeout(meetingWorkTimer.current);
