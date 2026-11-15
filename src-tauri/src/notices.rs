@@ -60,6 +60,8 @@ pub enum NoticeCode {
     // Part of a track wasn't recorded (the input or the disk failed); the
     // detail says which and why. The rest is transcribed.
     MeetingTrackIncomplete,
+    // The meeting is transcribed, but its note isn't in the vault.
+    MeetingNoteFailed,
 }
 
 impl NoticeCode {
@@ -80,7 +82,8 @@ impl NoticeCode {
             Self::PostProcessFailed
             | Self::FilePostProcessFailed
             | Self::MeetingSpeakersNotSeparated
-            | Self::MeetingTrackIncomplete => NoticeLevel::Warning,
+            | Self::MeetingTrackIncomplete
+            | Self::MeetingNoteFailed => NoticeLevel::Warning,
         }
     }
 
@@ -103,6 +106,7 @@ impl NoticeCode {
             Self::MeetingTranscriptionFailed => &strings.meeting_transcription_failed_title,
             Self::MeetingSpeakersNotSeparated => &strings.meeting_speakers_not_separated_title,
             Self::MeetingTrackIncomplete => &strings.meeting_track_incomplete_title,
+            Self::MeetingNoteFailed => &strings.meeting_note_failed_title,
         }
     }
 }

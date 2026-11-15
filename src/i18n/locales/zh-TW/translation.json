@@ -473,7 +473,21 @@
         "output": "輸出",
         "transcription": "轉錄",
         "history": "歷史",
+        "meetingNotes": "Meeting Notes",
         "experimental": "實驗性"
+      },
+      "meetingNotes": {
+        "vault": {
+          "title": "Obsidian Vault",
+          "description": "Each transcribed meeting gets a note in this vault, written once and never overwritten. Leave it empty for no notes.",
+          "placeholder": "Path to your vault",
+          "browse": "Browse"
+        },
+        "folder": {
+          "title": "Notes Folder",
+          "description": "The folder in the vault the notes go into.",
+          "placeholder": "Meetings"
+        }
       },
       "experimentalToggle": {
         "label": "實驗性功能",
@@ -964,6 +978,7 @@
     "meetingSpeakersNotSeparatedTitle": "Speakers Not Separated",
     "meetingTrackIncompleteTitle": "Meeting Audio Cut Short",
     "meetingTrackIncomplete": "Part of the meeting wasn't recorded. The transcript covers the rest.",
+    "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "轉錄失敗"
   },

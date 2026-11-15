@@ -676,6 +676,21 @@ fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     0
 }
 
+/// `--import-meetings`: prints the report (ids and counts, never what was
+/// said). 1 if anything failed.
+fn run_headless_import(app: &AppHandle, args: &CliArgs) -> i32 {
+    match managers::meetings::import::import(app, args.dry_run, args.with_notes, false) {
+        Ok(report) => {
+            print!("{report}");
+            i32::from(report.failed > 0 || !report.errors.is_empty())
+        }
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            1
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(cli_args: CliArgs) {
     // Avoid ggml-metal residency-set teardown assertions when a native engine
@@ -802,6 +817,10 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::retranscribe_meeting,
             commands::meetings::rediarize_meeting,
             commands::meetings::active_meeting,
+            commands::meeting_io::import_meetings,
+            commands::meeting_io::export_meeting_note,
+            commands::meeting_io::change_obsidian_vault_path_setting,
+            commands::meeting_io::change_obsidian_notes_folder_setting,
             commands::models::is_language_detector_downloaded,
             commands::models::delete_model,
             commands::models::get_retired_models,
@@ -873,8 +892,10 @@ pub fn run(cli_args: CliArgs) {
 
     // The headless path must run as its own instance (see the single-instance
     // note below), not forward to an already-running app.
-    let headless_mode =
-        cli_args.transcribe_file.is_some() || cli_args.list_devices || cli_args.list_models;
+    let headless_mode = cli_args.transcribe_file.is_some()
+        || cli_args.list_devices
+        || cli_args.list_models
+        || cli_args.import_meetings;
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
@@ -1011,6 +1032,23 @@ pub fn run(cli_args: CliArgs) {
             // thread and exit. Deliberately skips the window, tray, overlay, audio
             // recorder (so it never opens the mic, even with always_on_microphone),
             // signal handlers, and autostart that initialize_core_logic sets up.
+            // `--import-meetings` needs only the history database.
+            if cli_args.import_meetings {
+                let app_handle = app.handle().clone();
+                app_handle.manage(Arc::new(
+                    HistoryManager::new(&app_handle).expect("Failed to initialize history manager"),
+                ));
+                let args = cli_args.clone();
+                std::thread::spawn(move || {
+                    let code = run_headless_guarded(|| run_headless_import(&app_handle, &args));
+                    use std::io::Write;
+                    let _ = std::io::stdout().flush();
+                    let _ = std::io::stderr().flush();
+                    std::process::exit(code);
+                });
+                return Ok(());
+            }
+
             if headless_mode {
                 let app_handle = app.handle().clone();
                 let model_manager = Arc::new(

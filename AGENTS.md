@@ -212,6 +212,9 @@ Handy supports command-line parameters on all platforms for integration with scr
 | `--start-hidden`         | Launch without showing the main window (tray icon visible) |
 | `--no-tray`              | Launch without system tray (closing window quits the app)  |
 | `--debug`                | Enable debug mode with verbose (Trace) logging             |
+| `--import-meetings`      | Import old Superwhisper, Wispr Flow and Spokenly meetings  |
+| `--dry-run`              | With `--import-meetings`: report only, write nothing       |
+| `--with-notes`           | With `--import-meetings`: also write Obsidian notes        |
 
 **Key design decisions:**
 

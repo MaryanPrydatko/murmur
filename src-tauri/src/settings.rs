@@ -572,6 +572,17 @@ pub struct AppSettings {
     /// `overlay_position` (position `none` → style `None`).
     #[serde(default = "default_overlay_style")]
     pub overlay_style: OverlayStyle,
+    /// The Obsidian vault a finished meeting's note goes into; no notes
+    /// while unset.
+    #[serde(default)]
+    pub obsidian_vault_path: Option<String>,
+    /// The folder in the vault the notes go into.
+    #[serde(default = "default_obsidian_notes_folder")]
+    pub obsidian_notes_folder: String,
+}
+
+fn default_obsidian_notes_folder() -> String {
+    "Meetings".to_string()
 }
 
 fn default_model() -> String {
@@ -1076,6 +1087,8 @@ pub fn get_default_settings() -> AppSettings {
         language_detection: LanguageDetectionMode::default(),
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
+        obsidian_vault_path: None,
+        obsidian_notes_folder: default_obsidian_notes_folder(),
     }
 }
 
