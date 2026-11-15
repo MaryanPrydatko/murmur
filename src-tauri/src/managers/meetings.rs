@@ -173,10 +173,10 @@ pub struct MeetingManager {
     /// is only held for moments, never while PulseAudio is asked anything.
     toggling: Mutex<()>,
     active: Mutex<Option<ActiveMeeting>>,
-    /// Why tracks of meetings stopped this run were cut short, by meeting
-    /// id, for their transcription to warn about again after it clears
-    /// the meeting's notices.
-    cut_short: Mutex<HashMap<String, String>>,
+    /// What went wrong with the tracks of meetings stopped this run, by
+    /// meeting id, for their transcription to warn about again after it
+    /// clears the meeting's notices.
+    track_problems: Mutex<HashMap<String, TrackProblems>>,
     /// Read by the tray without waiting on a start or stop in progress.
     recording: AtomicBool,
 }
@@ -187,7 +187,7 @@ impl MeetingManager {
             app: app.clone(),
             toggling: Mutex::new(()),
             active: Mutex::new(None),
-            cut_short: Mutex::default(),
+            track_problems: Mutex::default(),
             recording: AtomicBool::new(false),
         }
     }
@@ -200,13 +200,14 @@ impl MeetingManager {
         self.active.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Why the tracks of the meeting `id` were cut short while recording,
-    /// once.
-    pub(crate) fn take_cut_short(&self, id: &str) -> Option<String> {
-        self.cut_short
+    /// What went wrong with the tracks of the meeting `id` while it
+    /// recorded, once.
+    pub(crate) fn take_track_problems(&self, id: &str) -> TrackProblems {
+        self.track_problems
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(id)
+            .unwrap_or_default()
     }
 
     /// The id of the meeting recording now.
@@ -440,7 +441,7 @@ impl MeetingManager {
         ended.store(true, Ordering::Release);
         meeting.duration_ms = started.elapsed().as_millis() as i64;
         meeting.tracks.clear();
-        let (mut failure, mut cut_short) = (None, Vec::new());
+        let (mut failure, mut problems) = (None, TrackProblems::default());
         for track in tracks {
             match stop_track(&track, started) {
                 Ok(stopped) => {
@@ -449,11 +450,13 @@ impl MeetingManager {
                             "Meeting {} {:?} track cut short: {problem}",
                             meeting.id, track.kind
                         );
-                        cut_short.push(format!("{:?}: {problem}", track.kind));
+                        problems
+                            .cut_short
+                            .push(format!("{:?}: {problem}", track.kind));
                     }
                     #[cfg(target_os = "macos")]
                     if track.kind == TrackKind::System && track.feed.withheld() {
-                        cut_short.push(SYSTEM_AUDIO_WITHHELD.to_string());
+                        problems.system_withheld = true;
                     }
                     meeting.tracks.push(MeetingTrack {
                         kind: track.kind,
@@ -474,23 +477,44 @@ impl MeetingManager {
             return Err(failure.unwrap_or_else(|| anyhow!("The meeting has no tracks")));
         }
         if let Some(e) = &failure {
-            cut_short.push(format!("{e:#}"));
+            problems.cut_short.push(format!("{e:#}"));
         }
         meeting.status = MeetingStatus::Transcribing;
         write_meeting(&self.app, &meeting)?;
-        if !cut_short.is_empty() {
-            let detail = cut_short.join("; ");
-            self.cut_short
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(meeting.id.clone(), detail.clone());
-            notices::raise(
-                &self.app,
-                Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
-                    .with_detail(detail),
-            );
-        }
+        problems.raise(&self.app);
+        self.track_problems
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(meeting.id.clone(), problems);
         Ok(meeting)
+    }
+}
+
+/// What went wrong with a meeting's tracks.
+#[derive(Default)]
+pub(crate) struct TrackProblems {
+    /// Which tracks were cut short, and why.
+    pub cut_short: Vec<String>,
+    /// macOS gave the system track only zeros for a stretch.
+    pub system_withheld: bool,
+}
+
+impl TrackProblems {
+    /// Warns about them. A meeting has one notice at a time: a track cut
+    /// short comes before a system track macOS withheld.
+    pub(crate) fn raise(&self, app: &AppHandle) {
+        let code = if !self.cut_short.is_empty() {
+            NoticeCode::MeetingTrackIncomplete
+        } else if self.system_withheld {
+            NoticeCode::MeetingSystemAudioWithheld
+        } else {
+            return;
+        };
+        let detail = (!self.cut_short.is_empty()).then(|| self.cut_short.join("; "));
+        notices::raise(
+            app,
+            Notice::new(code, NoticeSource::Meeting).with_detail(detail),
+        );
     }
 }
 /// Where each meeting's folder is.
@@ -525,15 +549,12 @@ fn check_track(file: &Path) -> Result<()> {
 const TICK: Duration = Duration::from_millis(1000 / 30);
 
 /// How long a meeting's system track may give only zeros before the user is
-/// warned: long enough to answer macOS the first time it asks.
+/// warned: long enough to answer macOS the first time it asks. macOS gives a
+/// tap it didn't allow, or an output it can't tap, silence and no error.
+/// Nothing checks when the meeting stops, so one shorter than this gets no
+/// warning, even with its whole system track withheld.
 #[cfg(target_os = "macos")]
 const SYSTEM_AUDIO_DUE: Duration = Duration::from_secs(10);
-
-/// Why a stretch of only zeros in the system track is missing: macOS gives a
-/// tap it didn't allow, or an output it can't tap, silence and no error.
-#[cfg(target_os = "macos")]
-const SYSTEM_AUDIO_WITHHELD: &str = "System: macOS gave no audio from the output. Allow Murmur in \
-    System Settings > Privacy & Security > Screen & System Audio Recording";
 
 /// Runs while the meeting `id` records: sends the tracks' levels, and
 /// saves each track's start offset once its audio arrives, so a meeting
@@ -564,8 +585,10 @@ fn tick(
                 warn!("Meeting {id}: no system audio for {SYSTEM_AUDIO_DUE:?}");
                 notices::raise(
                     app,
-                    Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
-                        .with_detail(SYSTEM_AUDIO_WITHHELD.to_string()),
+                    Notice::new(
+                        NoticeCode::MeetingSystemAudioWithheld,
+                        NoticeSource::Meeting,
+                    ),
                 );
             }
         }

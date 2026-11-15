@@ -73,6 +73,10 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
     title: "errors.meetingTrackIncompleteTitle",
     explanation: (t) => t("errors.meetingTrackIncomplete"),
   },
+  MeetingSystemAudioWithheld: {
+    title: "errors.meetingSystemAudioWithheldTitle",
+    explanation: (t) => t("errors.meetingSystemAudioWithheld"),
+  },
   MeetingSpeakersNotSeparated: {
     title: "errors.meetingSpeakersNotSeparatedTitle",
     // With a detail the diarizer failed; without one it isn't downloaded.
