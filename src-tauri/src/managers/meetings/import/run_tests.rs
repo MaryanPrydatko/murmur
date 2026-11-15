@@ -201,7 +201,7 @@ fn imports_each_meeting_once_with_names_from_wispr_and_audio_from_spokenly() {
 
     let (report, queued) = import(&world, &mut conn, false);
     assert_eq!(report, expected(false));
-    assert_eq!(queued, [call.clone()]);
+    assert_eq!(queued, std::slice::from_ref(&call));
 
     let detail = store::get(&conn, &roadmap).unwrap().unwrap();
     assert_eq!(detail.meeting.source, "wispr");
