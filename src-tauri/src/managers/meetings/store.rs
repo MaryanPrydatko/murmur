@@ -105,17 +105,19 @@ pub fn save(conn: &mut Connection, meeting: &Meeting) -> Result<()> {
     let status = serde_json::to_value(meeting.status)?;
     let tx = conn.transaction()?;
     tx.execute(
-        "INSERT INTO meetings (id, started_at, duration_ms, status, asr_model, diar_model, dir)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO meetings (id, started_at, duration_ms, status, language, asr_model,
+             diar_model, dir)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT (id) DO UPDATE SET started_at = excluded.started_at,
              duration_ms = excluded.duration_ms, status = excluded.status,
-             asr_model = excluded.asr_model, diar_model = excluded.diar_model,
-             dir = excluded.dir",
+             language = excluded.language, asr_model = excluded.asr_model,
+             diar_model = excluded.diar_model, dir = excluded.dir",
         params![
             meeting.id,
             started_at,
             meeting.duration_ms,
             status.as_str(),
+            meeting.language,
             meeting.asr_model,
             meeting.diar_model,
             meeting.dir.to_string_lossy(),
@@ -272,7 +274,7 @@ mod tests {
             }],
             asr_model: Some("parakeet-ultra-Q8_0".into()),
             diar_model: Some("diar_streaming_sortformer_4spk-v2.1".into()),
-            language: None,
+            language: Some("en".into()),
             attempts: 0,
         }
     }
@@ -305,6 +307,7 @@ mod tests {
         let detail = get(&conn, id).unwrap().unwrap();
         assert_eq!(detail.meeting.source, "murmur");
         assert_eq!(detail.meeting.status.as_deref(), Some("done"));
+        assert_eq!(detail.meeting.language.as_deref(), Some("en"));
         assert_eq!(detail.meeting.started_at, Some(1_794_747_802));
         let speakers: Vec<(&str, Option<&str>)> = detail
             .speakers

@@ -77,11 +77,22 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
     let mut unseparated = None;
     let result = (|| -> Result<()> {
         let mut tracks = Vec::new();
+        // The language of the track with the most words.
+        let mut language: Option<(usize, String)> = None;
         for track in &meeting.tracks {
             let (samples, total) = read_track(&track.file)?;
-            let track_words = tm
+            let transcript = tm
                 .transcribe_words_in_chunks(samples, total, control)?
                 .ok_or_else(|| anyhow!("Transcription was stopped"))?;
+            let track_words = transcript.words;
+            if let Some(spoken) = transcript.language {
+                if language
+                    .as_ref()
+                    .is_none_or(|(most, _)| track_words.len() > *most)
+                {
+                    language = Some((track_words.len(), spoken));
+                }
+            }
             info!(
                 "Meeting {:?} track: {} words",
                 track.kind,
@@ -113,6 +124,7 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
             ));
         }
         meeting.asr_model = tm.get_current_model();
+        meeting.language = language.map(|(_, language)| language);
         let utterances = merge_utterances(tracks);
         let path = meeting.dir.join("transcript.md");
         std::fs::write(&path, render_transcript(&meeting, &utterances))

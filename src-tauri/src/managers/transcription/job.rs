@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -14,7 +15,8 @@ use super::{
 };
 use crate::audio_toolkit::chunking::Chunker;
 use crate::engine_supervisor::EngineError;
-use crate::managers::audio::create_detector;
+use crate::language_detection::speech::{gather_head, SpeechHead};
+use crate::managers::audio::{create_detector, create_smoothed_detector};
 use crate::settings::AppSettings;
 
 /// Tries per chunk when a dictation's cancel interrupts it.
@@ -35,12 +37,23 @@ pub trait ChunkControl {
     fn progress(&self, done: usize, total: usize);
 }
 
+/// Pieces searched for the speech the language is detected from: a
+/// recording that starts with silence still gets its language.
+const MAX_HEAD_PIECES: usize = 10;
+
 /// A word, in milliseconds from the start of the audio it was decoded from.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TimedWord {
     pub t0_ms: i64,
     pub t1_ms: i64,
     pub text: String,
+}
+
+/// Words timed from the start of the audio, and the language they're in.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct TimedTranscript {
+    pub words: Vec<TimedWord>,
+    pub language: Option<String>,
 }
 
 /// What the chunk loop decoded, with what it ran with.
@@ -68,13 +81,15 @@ impl TranscriptionManager {
                 language: None,
             }));
         }
+        self.begin_batch();
+        let context = self.batch_context(&audio)?;
         let pieces = audio.chunks(FEED_SAMPLES).map(<[f32]>::to_vec);
         let Some(Decoded {
             transcripts,
             settings,
             setup,
             ..
-        }) = self.decode_chunks(&audio, pieces, total, TimestampKind::Auto, control)?
+        }) = self.decode_chunks(context, pieces, total, TimestampKind::Auto, control)?
         else {
             return Ok(None);
         };
@@ -112,36 +127,63 @@ impl TranscriptionManager {
 
     /// Transcribe `total` samples into words timed from the start of the
     /// audio, reading `samples` a piece at a time so a long recording is
-    /// never all in memory before it is cut. `None` if `control` stopped it.
+    /// never all in memory before it is cut. A language to detect is
+    /// detected from the first window of speech in the first
+    /// [`MAX_HEAD_PIECES`] pieces. `None` if `control` stopped it.
     pub fn transcribe_words_in_chunks(
         &self,
         mut samples: impl Iterator<Item = f32>,
         total: usize,
         control: &dyn ChunkControl,
-    ) -> Result<Option<Vec<TimedWord>>> {
+    ) -> Result<Option<TimedTranscript>> {
         let mut pieces = std::iter::from_fn(move || {
             let piece: Vec<f32> = samples.by_ref().take(FEED_SAMPLES).collect();
             (!piece.is_empty()).then_some(piece)
-        });
-        let Some(head) = pieces.next() else {
-            return Ok(Some(Vec::new()));
-        };
-        let pieces = std::iter::once(head.clone()).chain(pieces);
+        })
+        .peekable();
+        if pieces.peek().is_none() {
+            return Ok(Some(TimedTranscript::default()));
+        }
+        self.begin_batch();
+        let planned = self.batch_plan()?;
+        let (head, speech) =
+            if planned.plan.detects() && self.model_manager.language_detector_path().is_some() {
+                let window = planned.settings.language_detection_window_samples();
+                match create_smoothed_detector(planned.settings.vad_backend, &self.app_handle) {
+                    Ok(vad) => {
+                        let mut head = SpeechHead::new(vad, window);
+                        let taken = gather_head(&mut pieces, &mut head, MAX_HEAD_PIECES);
+                        (taken, Some(head.into_speech()))
+                    }
+                    Err(e) => {
+                        warn!("Language detection: VAD failed: {e:#}");
+                        (Vec::new(), Some(Vec::new()))
+                    }
+                }
+            } else {
+                let speech = self.plan_speech(&planned.settings, &planned.plan, &[]);
+                (Vec::new(), speech)
+            };
+        let context = self.batch_context_with(planned, speech);
+        let pieces = head.into_iter().chain(pieces);
         let Some(decoded) =
-            self.decode_chunks(&head, pieces, total, TimestampKind::Word, control)?
+            self.decode_chunks(context, pieces, total, TimestampKind::Word, control)?
         else {
             return Ok(None);
         };
-        Ok(Some(
-            decoded
-                .spans
-                .iter()
-                .zip(&decoded.transcripts)
-                .flat_map(|(span, t)| {
-                    chunk_words(t, samples_to_ms(span.start), samples_to_ms(span.end))
-                })
-                .collect(),
-        ))
+        let language = decoded
+            .setup
+            .spoken_language(agreed_language(&decoded.transcripts).as_deref())
+            .language;
+        let words = decoded
+            .spans
+            .iter()
+            .zip(&decoded.transcripts)
+            .flat_map(|(span, t)| {
+                chunk_words(t, samples_to_ms(span.start), samples_to_ms(span.end))
+            })
+            .collect();
+        Ok(Some(TimedTranscript { words, language }))
     }
 
     /// Who spoke when in the 16 kHz mono WAV at `audio`, `samples` long, by
@@ -160,25 +202,29 @@ impl TranscriptionManager {
             .diarize_since(self.engine.cancel_mark(), model, options, audio, samples)
     }
 
-    /// Cuts the audio at pauses as `pieces` arrive and decodes each chunk,
-    /// yielding to dictation through `control`. `None` if it stopped.
+    /// Keeps the model from unloading, and starts loading it if it isn't.
+    fn begin_batch(&self) {
+        self.touch_activity();
+        self.initiate_model_load(false);
+    }
+
+    /// Cuts the audio at pauses as `pieces` arrive and decodes each chunk
+    /// with `context`, read once: the model can't change until the job
+    /// ends. Yields to dictation through `control`. `None` if it stopped.
     fn decode_chunks(
         &self,
-        head: &[f32],
+        context: BatchContext,
         mut pieces: impl Iterator<Item = Vec<f32>>,
         total: usize,
         timestamps: TimestampKind,
         control: &dyn ChunkControl,
     ) -> Result<Option<Decoded>> {
-        self.touch_activity();
-        self.initiate_model_load(false);
-        // Read once: the model can't change until the job ends.
         let BatchContext {
             settings,
             active_model,
             setup,
             ..
-        } = self.batch_context(head)?;
+        } = context;
         let run_options = RunOptions {
             timestamps,
             ..setup.run_options.clone()
