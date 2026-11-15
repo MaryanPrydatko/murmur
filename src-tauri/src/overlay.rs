@@ -50,6 +50,11 @@ const PILL_SHADOW_PAD: f64 = 34.0;
 const OVERLAY_WIDTH: f64 = 460.0;
 const OVERLAY_HEIGHT: f64 = 44.0 + PILL_SHADOW_PAD;
 
+// A recording meeting: the 176 wide pill, which stays up for the whole call,
+// so the window keeps only the shadow room around it and leaves the clicks
+// around it to the apps below.
+const OVERLAY_MEETING_WIDTH: f64 = 176.0 + 2.0 * 20.0;
+
 // Live: the pill opens into a panel up to 116 tall.
 const OVERLAY_STREAM_WIDTH: f64 = 460.0;
 const OVERLAY_STREAM_HEIGHT: f64 = 116.0 + PILL_SHADOW_PAD;
@@ -87,6 +92,8 @@ fn notice_state(session_is_live: bool) -> &'static str {
 fn overlay_dimensions(state: &str) -> (f64, f64) {
     if is_live_state(state) {
         (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
+    } else if state == MEETING_STATE {
+        (OVERLAY_MEETING_WIDTH, OVERLAY_HEIGHT)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
     }
@@ -1097,6 +1104,23 @@ mod tests {
             );
             assert_eq!(is_live_state(session), live);
         }
+    }
+
+    #[test]
+    fn a_meeting_pill_window_is_only_the_pill_and_its_shadow() {
+        assert_eq!(overlay_dimensions(MEETING_STATE), (216.0, 78.0));
+        assert_eq!(
+            form_dimensions(OverlayForm::Pill, MEETING_STATE, false),
+            (216.0, 78.0)
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, MEETING_STATE, false),
+            ISLAND_EARS
+        );
+        assert_eq!(
+            overlay_dimensions(NOTICE_STATE),
+            (OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        );
     }
 
     #[test]
