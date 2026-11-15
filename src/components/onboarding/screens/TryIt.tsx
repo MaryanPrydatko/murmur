@@ -631,11 +631,7 @@ export const TryIt: React.FC<TryItProps> = ({
                 }
               >
                 <span className="try-pose">
-                  <Mascot
-                    key={fived ? "finale" : e.fives}
-                    size={88}
-                    animation={fived || e.fives ? "slap" : "wave"}
-                  />
+                  <Mascot size={84} />
                 </span>
                 {(fived || e.fives > 0) && (
                   <span

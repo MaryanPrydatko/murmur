@@ -2,7 +2,7 @@
  * greys (ink-2, ink-3, line-strong, line, wash) for text, edges and fills;
  * logo-primary / background-ui for brand and primary actions; plum for keys
  * and picks (onboarding); moss / warning / error (+ -wash) for status.
- * demo-*, wordmark and mascot are illustration, not UI.
+ * demo-* and mark-edge are illustration, not UI.
  */
 
 :root {
@@ -72,15 +72,9 @@
     ),
     #1f1a1e;
 
-  /* The wordmark. Dark mode outlines it in white to cut down on pinks. */
-  --light-color-wordmark: var(--light-color-logo-primary);
-  --light-color-wordmark-stroke: var(--light-color-logo-stroke);
-  --dark-color-wordmark: var(--dark-color-logo-primary);
-  --dark-color-wordmark-stroke: var(--dark-color-text);
-
-  /* Mascot outline and face; dark mode uses the background, not muddy plum. */
-  --light-color-mascot-line: var(--light-color-logo-stroke);
-  --dark-color-mascot-line: var(--dark-color-background);
+  /* The mark's island is ink in both themes; on dark it keeps a light edge. */
+  --light-color-mark-edge: transparent;
+  --dark-color-mark-edge: rgba(255, 255, 255, 0.13);
 
   /* Demo's recording pill ring and shadow. */
   --light-demo-pill-shadow:
@@ -158,9 +152,7 @@
   --color-demo-alu-hi: var(--light-color-demo-alu-hi);
   --color-demo-alu-lo: var(--light-color-demo-alu-lo);
   --demo-wallpaper: var(--light-demo-wallpaper);
-  --color-wordmark: var(--light-color-wordmark);
-  --color-wordmark-stroke: var(--light-color-wordmark-stroke);
-  --color-mascot-line: var(--light-color-mascot-line);
+  --color-mark-edge: var(--light-color-mark-edge);
   --color-moss-wash: var(--light-color-moss-wash);
   --color-warning-wash: var(--light-color-warning-wash);
   --color-error-wash: var(--light-color-error-wash);
@@ -201,9 +193,7 @@
     --color-demo-alu-hi: var(--dark-color-demo-alu-hi);
     --color-demo-alu-lo: var(--dark-color-demo-alu-lo);
     --demo-wallpaper: var(--dark-demo-wallpaper);
-    --color-wordmark: var(--dark-color-wordmark);
-    --color-wordmark-stroke: var(--dark-color-wordmark-stroke);
-    --color-mascot-line: var(--dark-color-mascot-line);
+    --color-mark-edge: var(--dark-color-mark-edge);
     --color-moss-wash: var(--dark-color-moss-wash);
     --color-warning-wash: var(--dark-color-warning-wash);
     --color-error-wash: var(--dark-color-error-wash);
@@ -239,9 +229,7 @@
   --color-demo-alu-hi: var(--light-color-demo-alu-hi);
   --color-demo-alu-lo: var(--light-color-demo-alu-lo);
   --demo-wallpaper: var(--light-demo-wallpaper);
-  --color-wordmark: var(--light-color-wordmark);
-  --color-wordmark-stroke: var(--light-color-wordmark-stroke);
-  --color-mascot-line: var(--light-color-mascot-line);
+  --color-mark-edge: var(--light-color-mark-edge);
   --color-moss-wash: var(--light-color-moss-wash);
   --color-warning-wash: var(--light-color-warning-wash);
   --color-error-wash: var(--light-color-error-wash);
@@ -266,9 +254,7 @@
   --color-demo-alu-hi: var(--dark-color-demo-alu-hi);
   --color-demo-alu-lo: var(--dark-color-demo-alu-lo);
   --demo-wallpaper: var(--dark-demo-wallpaper);
-  --color-wordmark: var(--dark-color-wordmark);
-  --color-wordmark-stroke: var(--dark-color-wordmark-stroke);
-  --color-mascot-line: var(--dark-color-mascot-line);
+  --color-mark-edge: var(--dark-color-mark-edge);
   --color-moss-wash: var(--dark-color-moss-wash);
   --color-warning-wash: var(--dark-color-warning-wash);
   --color-error-wash: var(--dark-color-error-wash);

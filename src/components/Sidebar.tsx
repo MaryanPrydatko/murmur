@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       aria-label={t("sidebar.label")}
       className="flex flex-col w-40 h-full border-e border-line items-center px-2"
     >
-      <Wordmark className="m-4" />
+      <Wordmark width={124} className="my-4" />
       <div className="flex flex-col w-full items-center gap-1 pt-2 border-t border-line">
         {availableSections.map((section, i) => {
           const Icon = section.icon;
