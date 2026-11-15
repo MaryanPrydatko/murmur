@@ -126,38 +126,54 @@ body {
 }
 
 /* ---------- shared parts ---------- */
+/* The meeting's dot: red while it records. */
 .ov .dot {
   display: block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex: none;
-  background: var(--ov-pink);
-  transition:
-    background-color 180ms ease,
-    opacity 180ms ease;
-}
-.ov [data-dot="arming"] .dot {
-  background: var(--ov-muted);
-  opacity: 0.45;
-}
-.ov [data-dot="live"] .dot {
-  animation: ov-halo 1.9s infinite;
-}
-.ov [data-dot="held"] .dot {
-  opacity: 0.5;
+  background: var(--ov-rec);
 }
 .ov [data-dot="rec"] .dot {
-  background: var(--ov-rec);
   animation: ov-breathe 2.4s ease-in-out infinite;
 }
-@keyframes ov-halo {
-  0% {
-    box-shadow: 0 0 0 0 rgba(242, 140, 187, 0.5);
-  }
-  70%,
+/* Dictation's cat: grey while arming, awake while it listens, dimmed while
+   the words are worked on. Its one animation is a blink. */
+.ov .cat {
+  display: block;
+  flex: none;
+  color: var(--ov-pink);
+  transition:
+    color 180ms ease,
+    opacity 180ms ease;
+}
+.ov .cat .eyes {
+  fill: var(--ov-black);
+}
+.ov .pill .cat .eyes {
+  fill: var(--ov-surface);
+}
+.ov .cat .eyes rect {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: cat-blink 5.2s infinite;
+}
+.ov [data-dot="arming"] .cat {
+  color: var(--ov-muted);
+  opacity: 0.6;
+}
+.ov [data-dot="held"] .cat {
+  opacity: 0.5;
+}
+@keyframes cat-blink {
+  0%,
+  91%,
   100% {
-    box-shadow: 0 0 0 6px rgba(242, 140, 187, 0);
+    transform: scaleY(1);
+  }
+  94.5% {
+    transform: scaleY(0.12);
   }
 }
 @keyframes ov-breathe {
@@ -613,7 +629,7 @@ body {
 }
 /* Hover is a bonus, never the only way: Esc and the cancel shortcut work
    without it. */
-.island:is([data-state="listening"], [data-state="live"]):hover .ear-l .dot {
+.island:is([data-state="listening"], [data-state="live"]):hover .ear-l .cat {
   opacity: 0;
 }
 .island .ear-l .xbtn {
@@ -709,8 +725,8 @@ body {
 /* Scene spacing. Each scene is laid out at its final width from the start,
    so nothing reflows while the pill changes width. */
 .pill .sc-listen {
-  gap: 13px;
-  padding: 0 10px 0 16px;
+  gap: 8px;
+  padding: 0 10px 0 13px;
 }
 .pill .sc-work {
   gap: 10px;

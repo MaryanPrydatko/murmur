@@ -3,6 +3,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "./RecordingOverlay.css";
 import { commands, events } from "@/bindings";
+import { PATHS as TRAY_PATHS } from "@/components/icons/TrayIcon";
 import type { Notice, StreamTextEvent, StreamWorkKind } from "@/bindings";
 import i18n, { syncLanguageFromSettings } from "@/i18n";
 import { noticeDisplay } from "@/lib/notices";
@@ -44,6 +45,29 @@ const CrossIcon = () => (
       strokeWidth="1.8"
       strokeLinecap="round"
     />
+  </svg>
+);
+
+// The cat's body with its ears up. Asleep it is the idle tray glyph.
+const CAT_AWAKE =
+  "M0 13V11.5A3.5 3.5 0 0 1 5.29 8.49L6.18 3.69A0.4 0.4 0 0 1 6.93 3.58L8.17 6.09A4 4 0 0 1 9.83 6.09L11.07 3.58A0.4 0.4 0 0 1 11.82 3.69L12.71 8.5A4 4 0 0 1 13 10V11.56A0.44 0.44 0 0 0 13.44 12H17A1 1 0 0 1 17 14H6A1 1 0 0 1 5 13V11.5A1.5 1.5 0 0 0 2 11.5V13A1 1 0 0 1 0 13Z";
+
+/** Dictation's mark: awake with its eyes open while it listens, else asleep. */
+const Cat: React.FC<{ awake: boolean }> = ({ awake }) => (
+  <svg
+    className="cat"
+    viewBox="0 2 18 12.4"
+    width="22"
+    height="15.2"
+    aria-hidden="true"
+  >
+    <path fill="currentColor" d={awake ? CAT_AWAKE : TRAY_PATHS.idle} />
+    {awake && (
+      <g className="eyes">
+        <rect x="6" y="9" width="2" height="2" rx=".5" />
+        <rect x="10" y="9" width="2" height="2" rx=".5" />
+      </g>
+    )}
   </svg>
 );
 
@@ -459,7 +483,10 @@ const RecordingOverlay: React.FC = () => {
         >
           <div className="body">
             <div className="ear ear-l">
-              <span className={pc(leftEar === "dot")}>
+              <span className={pc(leftEar === "dot" && dotState !== "rec")}>
+                <Cat awake={dotState === "live"} />
+              </span>
+              <span className={pc(leftEar === "dot" && dotState === "rec")}>
                 <i className="dot" />
               </span>
               <button
@@ -572,7 +599,7 @@ const RecordingOverlay: React.FC = () => {
         <div className="p-text">{liveContent}</div>
         <div className="p-row">
           <div className={`sc sc-listen ${pc(scene === "listen")}`}>
-            <i className="dot" />
+            <Cat awake={dotState === "live"} />
             <Wave n={13} max={20} levels={levels} />
             <button
               type="button"
