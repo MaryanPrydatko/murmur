@@ -1,6 +1,6 @@
 # Troubleshooting and platform notes
 
-Technical notes carried over from Murmur, which Murmur is built on. The binary is still called `handy` and the environment variables still start with `HANDY_`. Issue numbers link to Murmur's tracker, where the bugs were found.
+Technical notes carried over from Handy, which Murmur is built on. The binary is still called `handy` and the environment variables still start with `HANDY_`. Issue numbers link to Handy's tracker, where the bugs were found.
 
 ## Transcription hook
 
@@ -45,15 +45,17 @@ On Linux, new installs paste with **Shift+Insert** (**Clipboard (Shift+Insert)**
 
 Murmur needs a tool to send the paste key (or to type, with Direct). Install the appropriate one for your display server:
 
-| Display Server | Recommended Tool | Install Command                                    |
-| -------------- | ---------------- | -------------------------------------------------- |
-| X11            | `xdotool`        | `sudo apt install xdotool`                         |
-| Wayland        | `wtype`          | `sudo apt install wtype`                           |
-| Both           | `dotool`         | `sudo apt install dotool` (requires `input` group) |
+| Display Server                | Recommended Tool | Install Command                                    |
+| ----------------------------- | ---------------- | -------------------------------------------------- |
+| X11                           | `xdotool`        | `sudo apt install xdotool`                         |
+| Wayland, except GNOME and KDE | `wtype`          | `sudo apt install wtype`                           |
+| Wayland on GNOME or KDE       | `ydotool`        | `sudo apt install ydotool` (needs its service)     |
+| Both                          | `dotool`         | `sudo apt install dotool` (requires `input` group) |
 
 - **X11**: Install `xdotool` for both direct typing and clipboard paste shortcuts
 - **Ubuntu 26.04**: Has Wayland display server by default. `wtype` does not work, you need to install `ydotool` and configure systemd as described [here](https://github.com/cjpais/Handy/pull/557#issuecomment-3781249267).
 - **Wayland**: Install `wtype` (preferred) or `dotool` for text input to work correctly
+- **GNOME and KDE on Wayland**: Murmur does not use `wtype` there, because these desktops lack the virtual keyboard protocol it needs. Install `dotool` or `ydotool`. On KDE, `kwtype` is used for Direct typing when it is installed.
 - **dotool setup**: Requires adding your user to the `input` group: `sudo usermod -aG input $USER` (then log out and back in)
 
 Without these tools, Murmur falls back to enigo which may have limited compatibility, especially on Wayland.
@@ -61,7 +63,7 @@ Without these tools, Murmur falls back to enigo which may have limited compatibi
 **Wayland Support (Linux):**
 
 - Limited support for Wayland display server
-- Requires [`wtype`](https://github.com/atx/wtype) or [`dotool`](https://sr.ht/~geb/dotool/) for text input to work correctly (see above for installation)
+- Requires [`wtype`](https://github.com/atx/wtype), [`dotool`](https://sr.ht/~geb/dotool/) or `ydotool` for text input to work correctly (see above for which one your desktop needs)
 
 **Other Notes:**
 
