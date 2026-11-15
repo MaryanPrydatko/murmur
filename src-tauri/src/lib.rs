@@ -910,6 +910,13 @@ pub fn run(cli_args: CliArgs) {
         .plugin(
             LogBuilder::new()
                 .level(log::LevelFilter::Trace) // Set to most verbose level globally
+                // The PulseAudio client's reactor has no clean way to end: it
+                // logs "Reactor error: Client disconnected" as an error every
+                // time a client is closed, which a meeting does every two
+                // seconds to see where the output plays. It's the module's
+                // only line, and a stream that really fails is reported by
+                // the recorder.
+                .level_for("pulseaudio::client::reactor", log::LevelFilter::Off)
                 .max_file_size(500_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()
