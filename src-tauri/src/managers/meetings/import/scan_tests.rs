@@ -27,6 +27,7 @@ fn reads_a_superwhisper_meeting_and_skips_its_dictations() {
     assert_eq!(meeting.source_id, T0_SECS.to_string());
     assert_eq!(meeting.started_at_ms, T0_SECS * 1000);
     assert_eq!(meeting.duration_ms, 40 * 60_000);
+    assert_eq!(meeting.title.as_deref(), Some("Weekly standup"));
     assert_eq!(speakers(meeting), [("s1", Some("Ana")), ("s2", None)]);
     let segments: Vec<_> = meeting
         .segments
@@ -56,6 +57,7 @@ fn reads_superwhisper_segment_times_given_in_ms() {
     fs::write(folder.join("meta.json"), meta.to_string()).unwrap();
     let scan = superwhisper::scan(tmp.path());
     assert_eq!(scan.meetings[0].segments[0].t0_ms, 540_000);
+    assert_eq!(scan.meetings[0].title, None);
     assert_eq!(scan.meetings[0].audio, None);
 }
 

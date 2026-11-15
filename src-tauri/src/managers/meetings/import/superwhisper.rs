@@ -16,6 +16,7 @@ struct Meta {
     duration: Option<f64>,
     /// UTC; the folder's name is the same time in Unix seconds.
     datetime: Option<String>,
+    title: Option<String>,
     #[serde(rename = "llmResult")]
     llm_result: Option<String>,
     #[serde(default)]
@@ -132,7 +133,7 @@ fn read(folder: &Path, meta_path: &Path) -> Result<Option<SourceMeeting>> {
         source_id: folder_name,
         started_at_ms,
         duration_ms: duration_ms as i64,
-        title: None,
+        title: meta.title.filter(|t| !t.trim().is_empty()),
         summary: meta
             .llm_result
             .map(|s| s.trim().trim_start_matches(':').trim().to_string()),

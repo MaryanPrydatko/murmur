@@ -21,6 +21,7 @@ pub fn superwhisper(recordings: &Path, unix_secs: i64, minutes: i64, audio: bool
         "duration": minutes * 60_000,
         "llmResult": ": ## Summary\n- Ana takes the release",
         "modeName": "Meeting",
+        "title": "Weekly standup",
         "segments": [
             {"text": " Morning all.", "speaker": 1, "start": 0.5, "end": 2.0,
              "words": [{"word": "Morning", "start": 0.5, "end": 1.0}]},
