@@ -18,17 +18,19 @@ pub use transcript::{Speaker, Utterance};
 use anyhow::{anyhow, Context, Result};
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription_jobs::TranscriptionJobManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::settings::get_settings;
-use capture::{default_monitor_source, monitor_device_id, open_track, stop_track, TrackRecorder};
+use capture::{
+    default_monitor_source, monitor_device_id, open_track, stop_track, TrackFeed, TrackRecorder,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +103,8 @@ struct ActiveMeeting {
     meeting: Meeting,
     started: Instant,
     tracks: Vec<TrackRecorder>,
+    /// Set when it stops, which ends its ticker.
+    ended: Arc<AtomicBool>,
 }
 
 /// Records one meeting at a time, beside dictation: its recorders are its
@@ -158,6 +162,28 @@ impl MeetingManager {
         ))
     }
 
+    /// Writes the offsets of the tracks whose audio has arrived into the
+    /// recording meeting `id`'s `meeting.json`.
+    fn save_offsets(&self, id: &str) {
+        let mut active = self.lock();
+        let Some(active) = active.as_mut().filter(|a| a.meeting.id == id) else {
+            return;
+        };
+        for track in &active.tracks {
+            if let Some(listed) = active
+                .meeting
+                .tracks
+                .iter_mut()
+                .find(|t| t.kind == track.kind)
+            {
+                listed.start_offset_ms = track.feed.offset_ms(active.started).unwrap_or(0);
+            }
+        }
+        if let Err(e) = write_meeting(&self.app, &active.meeting) {
+            warn!("Failed to save meeting {id}'s track offsets: {e:#}");
+        }
+    }
+
     fn start(&self) -> Result<ActiveMeeting> {
         let devices = handy_recorder::list_input_devices()?;
         let monitor_source = default_monitor_source()?;
@@ -199,13 +225,23 @@ impl MeetingManager {
                 return Err(e);
             }
         };
+        // Listed from the start, so a meeting that never stops is still found.
+        let listed = tracks
+            .iter()
+            .map(|track| MeetingTrack {
+                kind: track.kind,
+                file: track.file.clone(),
+                start_offset_ms: 0,
+                duration_ms: 0,
+            })
+            .collect();
         let meeting = Meeting {
             id,
             started_at: now.to_rfc3339(),
             duration_ms: 0,
             status: MeetingStatus::Recording,
             dir,
-            tracks: Vec::new(),
+            tracks: listed,
             asr_model: None,
             diar_model: None,
             language: None,
@@ -214,10 +250,17 @@ impl MeetingManager {
         write_meeting(&self.app, &meeting)?;
         notices::clear(&self.app, NoticeSource::Meeting);
         info!("Meeting {} recording", meeting.id);
+        let ended = Arc::new(AtomicBool::new(false));
+        let feeds = tracks.iter().map(|t| Arc::clone(&t.feed)).collect();
+        let (app, id, until) = (self.app.clone(), meeting.id.clone(), Arc::clone(&ended));
+        std::thread::Builder::new()
+            .name("meeting-ticker".into())
+            .spawn(move || tick(&app, &id, feeds, started, &until))?;
         Ok(ActiveMeeting {
             meeting,
             started,
             tracks,
+            ended,
         })
     }
 
@@ -226,8 +269,11 @@ impl MeetingManager {
             mut meeting,
             started,
             tracks,
+            ended,
         } = active;
+        ended.store(true, Ordering::Release);
         meeting.duration_ms = started.elapsed().as_millis() as i64;
+        meeting.tracks.clear();
         let mut failure = None;
         for track in tracks {
             match stop_track(&track, started) {
@@ -264,12 +310,57 @@ impl MeetingManager {
         Ok(())
     }
 }
+/// How often a recording meeting's ticker runs.
+const TICK: Duration = Duration::from_millis(1000 / 30);
+
+/// Runs while the meeting `id` records: saves each track's start offset
+/// once its audio arrives, so a meeting that never stops can still be lined
+/// up.
+fn tick(
+    app: &AppHandle,
+    id: &str,
+    feeds: Vec<Arc<TrackFeed>>,
+    started: Instant,
+    ended: &AtomicBool,
+) {
+    let mut known = vec![false; feeds.len()];
+    while !ended.load(Ordering::Acquire) {
+        let mut arrived = false;
+        for (feed, known) in feeds.iter().zip(&mut known) {
+            if !*known && feed.offset_ms(started).is_some() {
+                *known = true;
+                arrived = true;
+            }
+        }
+        if arrived {
+            app.state::<Arc<MeetingManager>>().save_offsets(id);
+        }
+        std::thread::sleep(TICK);
+    }
+}
+
+/// The meeting in `dir`, from its `meeting.json`.
+pub(crate) fn read_meeting(dir: &Path) -> Result<Meeting> {
+    let path = dir.join("meeting.json");
+    let json =
+        std::fs::read(&path).with_context(|| format!("Failed to read {}", path.display()))?;
+    serde_json::from_slice(&json).with_context(|| format!("Failed to parse {}", path.display()))
+}
+
+/// Replaces `meeting.json` whole: written aside and renamed, so a crash
+/// mid-write never leaves half a record.
+fn write_meeting_json(meeting: &Meeting) -> Result<()> {
+    let path = meeting.dir.join("meeting.json");
+    let partial = meeting.dir.join("meeting.json.partial");
+    std::fs::write(&partial, serde_json::to_vec_pretty(meeting)?)
+        .and_then(|()| std::fs::rename(&partial, &path))
+        .with_context(|| format!("Failed to write {}", path.display()))
+}
+
 /// Writes `meeting.json`, then the meeting's row. The folder is the record:
 /// a row that fails to save is only logged.
 pub(crate) fn write_meeting(app: &AppHandle, meeting: &Meeting) -> Result<()> {
-    let path = meeting.dir.join("meeting.json");
-    std::fs::write(&path, serde_json::to_vec_pretty(meeting)?)
-        .with_context(|| format!("Failed to write {}", path.display()))?;
+    write_meeting_json(meeting)?;
     let history = app.state::<Arc<HistoryManager>>();
     if let Err(e) = history
         .get_connection()
