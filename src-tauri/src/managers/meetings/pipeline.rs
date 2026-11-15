@@ -3,7 +3,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use log::{error, info, warn};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Manager};
@@ -22,7 +22,7 @@ use super::{
 use crate::engine_supervisor::EngineError;
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
-use crate::managers::transcription::{ChunkControl, TranscriptionManager};
+use crate::managers::transcription::{ChunkControl, TimedTranscript, TranscriptionManager};
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 
 /// Tries at diarizing when a dictation's cancel interrupts it.
@@ -47,7 +47,7 @@ pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn Chu
         error!("Failed to save meeting {id}: {e:#}");
     }
     info!("Meeting {id}: attempt {} ({rerun:?})", meeting.attempts);
-    transcribe(app, meeting, control);
+    transcribe(app, meeting, rerun, control);
 }
 
 /// Marks the meeting `id` failed and says why, as when its job panicked.
@@ -72,8 +72,9 @@ pub(crate) fn fail_job(app: &AppHandle, id: &str, error: &str) {
     );
 }
 
-/// Transcribes every track and writes the transcript.
-fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl) {
+/// Transcribes every track, or with [`Rerun::Speakers`] reuses the words
+/// each already has, and writes the transcript.
+fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
     let mut unseparated = None;
     let mut cut_short = Vec::new();
@@ -82,13 +83,14 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
         // The language of the track with the most words.
         let mut language: Option<(usize, String)> = None;
         for track in &meeting.tracks {
-            let (samples, total, short) = read_track(&track.file)?;
-            if short {
-                cut_short.push(format!("{:?}: the file ends early", track.kind));
-            }
-            let transcript = tm
-                .transcribe_words_in_chunks(samples, total, control)?
-                .ok_or_else(|| anyhow!("Transcription was stopped"))?;
+            let transcript = track_words(rerun, &meeting.dir, track.kind, || {
+                let (samples, total, short) = read_track(&track.file)?;
+                if short {
+                    cut_short.push(format!("{:?}: the file ends early", track.kind));
+                }
+                tm.transcribe_words_in_chunks(samples, total, control)
+            })?
+            .ok_or_else(|| anyhow!("Transcription was stopped"))?;
             let track_words = transcript.words;
             if let Some(spoken) = transcript.language {
                 if language
@@ -188,6 +190,50 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
     }
 }
 
+/// Where a track's words are kept, so its speakers can be told apart again
+/// without transcribing it again.
+fn words_path(dir: &Path, kind: TrackKind) -> PathBuf {
+    let kind = serde_json::to_value(kind)
+        .ok()
+        .and_then(|k| k.as_str().map(str::to_string))
+        .unwrap_or_default();
+    dir.join(format!("words.{kind}.json"))
+}
+
+/// A track's words: the ones kept from its last transcription for
+/// [`Rerun::Speakers`], else from `transcribe`, then kept. `None` if the
+/// transcription was stopped.
+fn track_words(
+    rerun: Rerun,
+    dir: &Path,
+    kind: TrackKind,
+    transcribe: impl FnOnce() -> Result<Option<TimedTranscript>>,
+) -> Result<Option<TimedTranscript>> {
+    let path = words_path(dir, kind);
+    if rerun == Rerun::Speakers {
+        match std::fs::read(&path).map(|json| serde_json::from_slice(&json)) {
+            Ok(Ok(kept)) => {
+                info!("Reusing the {kind:?} track's words");
+                return Ok(Some(kept));
+            }
+            Ok(Err(e)) => warn!("Transcribing again: {} won't parse: {e}", path.display()),
+            Err(e) => info!("Transcribing again: no {}: {e}", path.display()),
+        }
+    }
+    let transcript = transcribe()?;
+    if let Some(transcript) = &transcript {
+        let partial = path.with_extension("json.partial");
+        if let Err(e) = serde_json::to_vec(transcript)
+            .map_err(anyhow::Error::from)
+            .and_then(|json| Ok(std::fs::write(&partial, json)?))
+            .and_then(|()| Ok(std::fs::rename(&partial, &path)?))
+        {
+            warn!("Failed to keep the {kind:?} track's words: {e:#}");
+        }
+    }
+    Ok(transcript)
+}
+
 /// A track's samples, read as they're needed, how many there are, and
 /// whether the file holds fewer than its header says.
 fn read_track(file: &Path) -> Result<(impl Iterator<Item = f32>, usize, bool)> {
@@ -255,5 +301,58 @@ fn diarize_track(
             }
             Err(e) => return Ok(Err(Unseparated::Failed(e.into()))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::managers::transcription::TimedWord;
+
+    fn said() -> TimedTranscript {
+        TimedTranscript {
+            words: vec![TimedWord {
+                t0_ms: 0,
+                t1_ms: 400,
+                text: "hello".into(),
+            }],
+            language: Some("en".into()),
+        }
+    }
+
+    #[test]
+    fn telling_speakers_apart_again_reuses_the_kept_words() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = track_words(Rerun::All, dir.path(), TrackKind::System, || {
+            Ok(Some(said()))
+        });
+        assert_eq!(first.unwrap(), Some(said()));
+        assert!(dir.path().join("words.system.json").exists());
+
+        let again = track_words(Rerun::Speakers, dir.path(), TrackKind::System, || {
+            panic!("transcribed again")
+        });
+        assert_eq!(again.unwrap(), Some(said()));
+    }
+
+    #[test]
+    fn a_track_without_kept_words_is_transcribed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut ran = false;
+        let words = track_words(Rerun::Speakers, dir.path(), TrackKind::Mixed, || {
+            ran = true;
+            Ok(Some(said()))
+        });
+        assert_eq!(words.unwrap(), Some(said()));
+        assert!(ran);
+        assert!(dir.path().join("words.mixed.json").exists());
+        // Everything again transcribes again, whatever is kept.
+        let mut ran = false;
+        track_words(Rerun::All, dir.path(), TrackKind::Mixed, || {
+            ran = true;
+            Ok(None)
+        })
+        .unwrap();
+        assert!(ran);
     }
 }
