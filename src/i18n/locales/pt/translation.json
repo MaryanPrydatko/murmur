@@ -962,6 +962,7 @@
     "meetingRecordingFailedTitle": "Meeting Recording Failed",
     "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "meetingSpeakersNotSeparatedTitle": "Speakers Not Separated",
+    "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "Falha na transcrição"
   },

@@ -80,6 +80,9 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
             run: () => void commands.downloadDiarizer(),
           },
   },
+  MeetingNoteFailed: {
+    title: "errors.meetingNoteFailedTitle",
+  },
 };
 
 export const noticeDisplay = (code: NoticeCode) => NOTICE_DISPLAY[code];
