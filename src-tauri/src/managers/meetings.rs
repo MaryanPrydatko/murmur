@@ -1,5 +1,6 @@
-//! Meeting recording: the microphone and the default output's monitor, each
-//! streamed to its own WAV, then transcribed into who said what and when.
+//! Meeting recording: the microphone and the default output's monitor (on
+//! macOS, a tap on the default output), each streamed to its own WAV, then
+//! transcribed into who said what and when.
 //!
 //! The meeting folder is the record: `recordings/meetings/<id>/` holds
 //! `mic.wav`, `system.wav`, `meeting.json` and, once transcribed,
@@ -450,6 +451,11 @@ impl MeetingManager {
                         );
                         cut_short.push(format!("{:?}: {problem}", track.kind));
                     }
+                    #[cfg(target_os = "macos")]
+                    if track.kind == TrackKind::System && !track.feed.heard() {
+                        warn!("Meeting {} has no system audio", meeting.id);
+                        cut_short.push(SYSTEM_AUDIO_WITHHELD.to_string());
+                    }
                     meeting.tracks.push(MeetingTrack {
                         kind: track.kind,
                         file: track.file,
@@ -519,6 +525,17 @@ fn check_track(file: &Path) -> Result<()> {
 /// How often a recording meeting's ticker runs.
 const TICK: Duration = Duration::from_millis(1000 / 30);
 
+/// How long a meeting's system track may give only zeros before the user is
+/// warned: long enough to answer macOS the first time it asks.
+#[cfg(target_os = "macos")]
+const SYSTEM_AUDIO_DUE: Duration = Duration::from_secs(10);
+
+/// Why a system track of only zeros is missing: macOS gives a tap it didn't
+/// allow silence, not an error.
+#[cfg(target_os = "macos")]
+const SYSTEM_AUDIO_WITHHELD: &str = "System: macOS gave no audio. Allow Murmur in System \
+    Settings > Privacy & Security > Screen & System Audio Recording";
+
 /// Runs while the meeting `id` records: sends the tracks' levels, and
 /// saves each track's start offset once its audio arrives, so a meeting
 /// that never stops can still be lined up.
@@ -532,7 +549,24 @@ fn tick(
     let mut known = vec![false; feeds.len()];
     let mut sent = 0u64;
     let mut next = Instant::now();
+    #[cfg(target_os = "macos")]
+    let mut system_checked = false;
     while !ended.load(Ordering::Acquire) {
+        #[cfg(target_os = "macos")]
+        if !system_checked && started.elapsed() >= SYSTEM_AUDIO_DUE {
+            system_checked = true;
+            let withheld = feeds
+                .iter()
+                .any(|(kind, feed)| *kind == TrackKind::System && !feed.heard());
+            if withheld {
+                warn!("Meeting {id}: no system audio after {SYSTEM_AUDIO_DUE:?}");
+                notices::raise(
+                    app,
+                    Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
+                        .with_detail(SYSTEM_AUDIO_WITHHELD.to_string()),
+                );
+            }
+        }
         let mut levels = MeetingLevels {
             mic: 0.0,
             system: 0.0,
