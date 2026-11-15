@@ -9,7 +9,7 @@ use tauri::{AppHandle, Manager};
 #[cfg(target_os = "macos")]
 use signal_hook::consts::SIGUSR1;
 #[cfg(unix)]
-use signal_hook::consts::SIGUSR2;
+use signal_hook::consts::{SIGTERM, SIGUSR2};
 #[cfg(unix)]
 use signal_hook::iterator::Signals;
 #[cfg(unix)]
@@ -43,15 +43,15 @@ pub fn toggle_meeting(app: &AppHandle) {
 /// WebKitGTK's JavaScriptCore garbage collector sends SIGUSR1 to its own
 /// threads to suspend them, so handling it caused phantom recordings on every
 /// GC cycle (#1660). Linux users should use `handy --toggle-post-process`
-/// instead.
+/// instead. SIGTERM saves a meeting being recorded, then quits.
 #[cfg(unix)]
 pub fn setup_signal_handler(app_handle: AppHandle) {
     #[cfg(target_os = "macos")]
-    let mut signals =
-        Signals::new([SIGUSR1, SIGUSR2]).expect("failed to register transcription signal handlers");
+    let mut signals = Signals::new([SIGUSR1, SIGUSR2, SIGTERM])
+        .expect("failed to register transcription signal handlers");
     #[cfg(not(target_os = "macos"))]
     let mut signals =
-        Signals::new([SIGUSR2]).expect("failed to register transcription signal handlers");
+        Signals::new([SIGUSR2, SIGTERM]).expect("failed to register transcription signal handlers");
     #[cfg(target_os = "macos")]
     debug!("Signal handlers registered (SIGUSR1, SIGUSR2)");
     #[cfg(not(target_os = "macos"))]
@@ -62,6 +62,15 @@ pub fn setup_signal_handler(app_handle: AppHandle) {
                 #[cfg(target_os = "macos")]
                 SIGUSR1 => ("transcribe_with_post_process", "SIGUSR1"),
                 SIGUSR2 => ("transcribe", "SIGUSR2"),
+                SIGTERM => {
+                    // A meeting recording now is kept for the next start.
+                    debug!("Received SIGTERM");
+                    crate::finish_meeting_for_exit(&app_handle);
+                    app_handle.exit(0);
+                    // Still quit if the event loop never gets to it.
+                    thread::sleep(std::time::Duration::from_secs(3));
+                    std::process::exit(0);
+                }
                 _ => continue,
             };
             debug!("Received {signal_name}");

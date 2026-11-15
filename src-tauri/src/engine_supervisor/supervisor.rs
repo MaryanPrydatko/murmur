@@ -211,7 +211,8 @@ enum Command {
     },
     Diarize {
         request: Request,
-        pcm: Vec<f32>,
+        /// The audio's length, which sizes the deadline.
+        samples: usize,
         epoch: u64,
         reply: Reply<Result<Vec<SpeakerSegment>, EngineError>>,
     },
@@ -442,20 +443,26 @@ impl EngineSupervisor {
         .unwrap_or_else(|| Err(engine_stopped()))
     }
 
-    /// Who spoke when in 16 kHz mono PCM, by the diarizer at `path`, run on
-    /// the loaded model's device. Cancelled by any cancel since `mark`. Not
-    /// retried: a caller can do without speakers.
+    /// Who spoke when in the 16 kHz mono WAV at `audio`, `samples` long, by
+    /// the diarizer at `path`, run on the loaded model's device. The worker
+    /// reads the file. Cancelled by any cancel since `mark`. Not retried: a
+    /// caller can do without speakers.
     pub fn diarize_since(
         &self,
         mark: CancelMark,
         path: PathBuf,
         options: DiarizeOptions,
-        pcm: Vec<f32>,
+        audio: PathBuf,
+        samples: usize,
     ) -> Result<Vec<SpeakerSegment>, EngineError> {
         let epoch = mark.0;
         self.ask(|reply| Command::Diarize {
-            request: Request::Diarize { path, options },
-            pcm,
+            request: Request::Diarize {
+                path,
+                options,
+                audio,
+            },
+            samples,
             epoch,
             reply,
         })
@@ -725,11 +732,11 @@ impl Owner {
                 }
                 Command::Diarize {
                     request,
-                    pcm,
+                    samples,
                     epoch,
                     reply,
                 } => {
-                    let _ = reply.send(self.diarize(&request, &pcm, epoch));
+                    let _ = reply.send(self.diarize(&request, samples, epoch));
                 }
             }
         }
@@ -998,7 +1005,7 @@ impl Owner {
     fn diarize(
         &mut self,
         request: &Request,
-        pcm: &[f32],
+        samples: usize,
         epoch: u64,
     ) -> Result<Vec<SpeakerSegment>, EngineError> {
         self.end_stream();
@@ -1006,8 +1013,8 @@ impl Owner {
             return Err(EngineError::Cancelled);
         }
         self.ensure_worker()?;
-        let deadline = self.deadlines().run(pcm.len());
-        match self.call_work(request, Some(pcm), deadline, epoch) {
+        let deadline = self.deadlines().run(samples);
+        match self.call_work(request, None, deadline, epoch) {
             Ok(Response::Speakers(segments)) => Ok(segments),
             Ok(other) => Err(unexpected(&other).into()),
             Err(failure) => {
@@ -1929,12 +1936,16 @@ mod tests {
     fn diarizer_crash_drops_only_the_worker() {
         let pcm = test_pcm();
         let diarizer = env_path("HANDY_TEST_DIARIZER");
+        let dir = tempfile::tempdir().unwrap();
+        let audio = dir.path().join("system.wav");
+        crate::audio_toolkit::save_wav_file(&audio, &pcm).unwrap();
         let diarize = |engine: &EngineSupervisor| {
             engine.diarize_since(
                 engine.cancel_mark(),
                 diarizer.clone(),
                 DiarizeOptions::default(),
-                pcm.clone(),
+                audio.clone(),
+                pcm.len(),
             )
         };
         set_fault(Some("abort@diarize"), false);

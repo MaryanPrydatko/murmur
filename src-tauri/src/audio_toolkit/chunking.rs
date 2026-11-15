@@ -24,6 +24,10 @@ const TARGET_SECONDS: f64 = 30.0;
 /// Audio up to this many samples is decoded in one piece; longer audio is cut.
 const MAX_CHUNK_SAMPLES: usize = 40 * RATE;
 const MIN_CHUNK_SAMPLES: usize = 5 * RATE;
+/// A pause's cut is its midpoint, but no further than this into it: then a
+/// pause still growing stops moving its cut once it's twice this long, and a
+/// long silence is cut as it arrives instead of held until speech returns.
+const MAX_PAUSE_CUT_SAMPLES: usize = MAX_CHUNK_SAMPLES / 2;
 /// Live, a cut is only final once this much audio past its window is scored:
 /// then no cut it allows can leave a short rest, so live cuts match the plan
 /// for the whole clip.
@@ -90,14 +94,15 @@ fn speech_segments(probs: &[f32], frame_samples: usize, samples: usize) -> Vec<R
     segments
 }
 
-/// A place a chunk may end: the middle of a pause.
+/// A place a chunk may end: the middle of a pause, or
+/// [`MAX_PAUSE_CUT_SAMPLES`] into a long one.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CutCandidate {
     cut: usize,
     gap_seconds: f64,
 }
 
-/// One candidate in the middle of each pause, lead-in and tail included.
+/// One candidate in each pause, lead-in and tail included.
 fn cut_candidates(segments: &[Range<usize>], samples: usize) -> Vec<CutCandidate> {
     let mut candidates = Vec::new();
     let mut silence_start = 0;
@@ -108,13 +113,18 @@ fn cut_candidates(segments: &[Range<usize>], samples: usize) -> Vec<CutCandidate
     {
         if segment.start > silence_start {
             candidates.push(CutCandidate {
-                cut: (silence_start + segment.start) / 2,
+                cut: silence_start + pause_cut(segment.start - silence_start),
                 gap_seconds: (segment.start - silence_start) as f64 / RATE as f64,
             });
         }
         silence_start = silence_start.max(segment.end);
     }
     candidates
+}
+
+/// How far into a pause this long its cut is.
+fn pause_cut(pause: usize) -> usize {
+    (pause / 2).min(MAX_PAUSE_CUT_SAMPLES)
 }
 
 /// Greedy, left to right from `from`: each cut is the best-scoring pause
@@ -239,17 +249,23 @@ impl Chunker {
             }
         };
         let segments = speech_segments(&self.probs, self.frame_samples, scored);
-        // A pause still open at the end moves its midpoint as it grows: wait
-        // for speech.
-        if segments.last().map(|segment| segment.end) != Some(scored) {
-            return Vec::new();
-        }
+        // A pause still open at the end moves its cut later as it grows.
+        let open_pause = match segments.last() {
+            Some(segment) if segment.end == scored => None,
+            Some(segment) => Some(segment.end),
+            None => Some(0),
+        };
+        let moving_cut = open_pause
+            .filter(|&from| (scored - from) / 2 < MAX_PAUSE_CUT_SAMPLES)
+            .map(|from| from + pause_cut(scored - from));
         // One plan, committed while each cut's whole window plus the lookahead
-        // is scored.
+        // is scored, and while the open pause's cut can't land in the window.
         let cuts = plan_cuts(&cut_candidates(&segments, scored), scored, self.start);
         let mut chunks = Vec::new();
         for cut in cuts {
-            if scored - self.start <= MAX_CHUNK_SAMPLES + LOOKAHEAD_SAMPLES {
+            if scored - self.start <= MAX_CHUNK_SAMPLES + LOOKAHEAD_SAMPLES
+                || moving_cut.is_some_and(|at| at <= self.start + MAX_CHUNK_SAMPLES)
+            {
                 break;
             }
             chunks.push(self.take_until(cut));
@@ -585,6 +601,49 @@ mod tests {
         }
         live.extend(chunker.finish());
         assert_eq!(lengths(&live), planned);
+    }
+
+    #[test]
+    fn a_long_silence_is_cut_as_it_arrives_where_the_whole_clip_is() {
+        // A meeting with ten silent minutes, fed a minute at a time.
+        let pcm = clip(&probs_with_pauses(660.0, &[(30.0, 630.0)]));
+        let (mut once, _) = chunker();
+        let mut offline = once.push(&pcm[..]);
+        offline.extend(once.finish());
+
+        let (mut chunker, _) = chunker();
+        let (mut live, mut taken, mut most_pending) = (Vec::new(), 0, 0);
+        for piece in pcm.chunks(s(60.0)) {
+            for chunk in chunker.push(piece) {
+                taken += chunk.len();
+                live.push(chunk);
+            }
+            most_pending = most_pending.max(chunker.samples() - taken);
+        }
+        live.extend(chunker.finish());
+        assert_eq!(lengths(&live), lengths(&offline));
+        assert!(
+            most_pending < s(180.0),
+            "{:.0} s waited to be cut",
+            seconds(most_pending)
+        );
+    }
+
+    #[test]
+    fn a_pause_over_40_s_fed_a_few_frames_at_a_time_is_cut_as_planned() {
+        let pcm = clip(&probs_with_pauses(130.0, &[(30.0, 80.0)]));
+        let (mut once, _) = chunker();
+        let mut offline = once.push(&pcm[..]);
+        offline.extend(once.finish());
+
+        let (mut chunker, _) = chunker();
+        let mut live = Vec::new();
+        for piece in pcm.chunks(FRAME * 3 + 7) {
+            live.extend(chunker.push(piece));
+        }
+        live.extend(chunker.finish());
+        assert_eq!(lengths(&live), lengths(&offline));
+        assert_eq!(live.concat(), pcm, "every sample once, in order");
     }
 
     #[test]

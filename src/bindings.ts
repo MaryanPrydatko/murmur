@@ -783,6 +783,45 @@ async renameSpeaker(meetingId: string, key: string, label: string | null) : Prom
 }
 },
 /**
+ * Titles a meeting; a blank or missing `title` clears it.
+ */
+async renameMeeting(id: string, title: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_meeting", { id, title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Transcribes a meeting again from its audio, speakers and all.
+ */
+async retranscribeMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("retranscribe_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Tells a meeting's speakers apart again, from the words it already has.
+ */
+async rediarizeMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rediarize_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The id of the meeting recording now, if one is.
+ */
+async activeMeeting() : Promise<string | null> {
+    return await TAURI_INVOKE("active_meeting");
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1120,6 +1159,9 @@ async dismissOverlayNotice() : Promise<void> {
 
 export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
+meetingChanged: MeetingChanged,
+meetingLevels: MeetingLevels,
+meetingProgress: MeetingProgress,
 noticesChanged: NoticesChanged,
 recordingStateEvent: RecordingStateEvent,
 streamPhaseEvent: StreamPhaseEvent,
@@ -1128,6 +1170,9 @@ transcriptionCompleteEvent: TranscriptionCompleteEvent,
 transcriptionJob: TranscriptionJob
 }>({
 historyUpdatePayload: "history-update-payload",
+meetingChanged: "meeting-changed",
+meetingLevels: "meeting-levels",
+meetingProgress: "meeting-progress",
 noticesChanged: "notices-changed",
 recordingStateEvent: "recording-state-event",
 streamPhaseEvent: "stream-phase-event",
@@ -1367,11 +1412,22 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * A macOS privacy permission Handy asks for during onboarding.
  */
 export type MacPermission = "accessibility" | "microphone"
+/**
+ * A meeting's folder or row changed: its status, tracks, title or
+ * transcript.
+ */
+export type MeetingChanged = { id: string }
 export type MeetingDetail = { meeting: MeetingRow; speakers: MeetingSpeaker[]; 
 /**
  * In order.
  */
 segments: MeetingSegment[] }
+/**
+ * The loudest sample of each track since the last, 0 to 1, sent 30 times
+ * a second while a meeting records.
+ */
+export type MeetingLevels = { mic: number; system: number }
+export type MeetingProgress = { id: string; step: MeetingStep; percent: number | null }
 export type MeetingRow = { id: string; source: string; source_id: string | null; title: string | null; started_at: number | null; duration_ms: number | null; 
 /**
  * `recording`, `transcribing`, `done` or `failed`.
@@ -1387,6 +1443,22 @@ key: string;
  * The name the user gave them.
  */
 label: string | null }
+/**
+ * What a meeting's transcription is doing.
+ */
+export type MeetingStep = 
+/**
+ * Transcribing the microphone.
+ */
+"mic" | 
+/**
+ * Transcribing the output, or imported audio.
+ */
+"system" | 
+/**
+ * Telling the output's speakers apart, which reports no percent.
+ */
+"speakers"
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
@@ -1422,7 +1494,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingTrackIncomplete"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.

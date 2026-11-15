@@ -19,6 +19,7 @@ use tauri_specta::Event;
 use crate::actions::process_transcription_output;
 use crate::audio_toolkit::{decode_audio_file, read_wav_samples, save_wav_file};
 use crate::managers::history::{HistoryEntry, HistoryManager};
+use crate::managers::meetings::{self, Rerun};
 use crate::managers::transcription::{
     panic_payload_message, ChunkControl, Transcription, TranscriptionManager,
 };
@@ -50,18 +51,22 @@ pub struct TranscriptionJob {
     pub status: TranscriptionJobStatus,
 }
 
-/// A meeting's transcription, run on the job thread so it holds the model and
-/// yields to dictation like any other job.
-pub type MeetingJob = Box<dyn FnOnce(&dyn ChunkControl) + Send>;
-
 enum Job {
     Entry(i64),
-    Meeting(MeetingJob),
+    /// A meeting's transcription, by its id: it runs from `meeting.json` on
+    /// the job thread, so it holds the model and yields to dictation like
+    /// any other job.
+    Meeting {
+        id: String,
+        rerun: Rerun,
+    },
 }
 
 struct Running {
     /// `None` for a meeting, which has no History entry.
     entry_id: Option<i64>,
+    /// `None` for a History entry.
+    meeting_id: Option<String>,
     cancelled: Arc<AtomicBool>,
 }
 
@@ -73,7 +78,7 @@ struct Jobs {
     /// Entry ids of files waiting to be transcribed.
     files: VecDeque<i64>,
     /// Meetings waiting to be transcribed, after every History job.
-    meetings: VecDeque<MeetingJob>,
+    meetings: VecDeque<(String, Rerun)>,
     running: Option<Running>,
 }
 
@@ -91,6 +96,24 @@ impl Jobs {
             && self.retries.is_empty()
             && self.files.is_empty()
             && self.meetings.is_empty()
+    }
+
+    /// Queues the meeting `id`, unless it's running. Queued already, it runs
+    /// once, everything again if either asked for that.
+    fn queue_meeting(&mut self, id: &str, rerun: Rerun) -> Result<()> {
+        if self
+            .running
+            .as_ref()
+            .is_some_and(|r| r.meeting_id.as_deref() == Some(id))
+        {
+            return Err(anyhow!("Meeting {id} is being transcribed"));
+        }
+        match self.meetings.iter_mut().find(|(queued, _)| queued == id) {
+            Some((_, queued)) if rerun == Rerun::All => *queued = Rerun::All,
+            Some(_) => {}
+            None => self.meetings.push_back((id.to_string(), rerun)),
+        }
+        Ok(())
     }
 
     /// Drops the entry from the queues; whether it was in one.
@@ -230,15 +253,30 @@ impl TranscriptionJobManager {
         }
     }
 
-    /// Queues a meeting's transcription behind every History job.
-    pub fn queue_meeting(&self, job: MeetingJob) {
+    /// Queues the meeting `id` behind every History job, after `prepare`
+    /// readies its folder; neither happens while it's being transcribed.
+    pub fn queue_meeting(
+        &self,
+        id: &str,
+        rerun: Rerun,
+        prepare: impl FnOnce() -> Result<()>,
+    ) -> Result<()> {
         {
             let mut jobs = self.lock();
-            jobs.meetings.push_back(job);
+            if jobs
+                .running
+                .as_ref()
+                .is_some_and(|r| r.meeting_id.as_deref() == Some(id))
+            {
+                return Err(anyhow!("Meeting {id} is being transcribed"));
+            }
+            prepare()?;
+            jobs.queue_meeting(id, rerun)?;
             self.sync_job_active(&jobs);
         }
         crate::tray::update_tray_menu(&self.app);
         self.wake.notify_one();
+        Ok(())
     }
 
     /// Keeps the model held for as long as any job is queued or running.
@@ -264,8 +302,8 @@ impl TranscriptionJobManager {
                     {
                         break Job::Entry(entry_id);
                     }
-                    if let Some(meeting) = jobs.meetings.pop_front() {
-                        break Job::Meeting(meeting);
+                    if let Some((id, rerun)) = jobs.meetings.pop_front() {
+                        break Job::Meeting { id, rerun };
                     }
                     jobs = self
                         .wake
@@ -273,28 +311,33 @@ impl TranscriptionJobManager {
                         .unwrap_or_else(|poisoned| poisoned.into_inner());
                 };
                 let cancelled = Arc::new(AtomicBool::new(false));
+                let (entry_id, meeting_id) = match &job {
+                    Job::Entry(entry_id) => (Some(*entry_id), None),
+                    Job::Meeting { id, .. } => (None, Some(id.clone())),
+                };
                 jobs.running = Some(Running {
-                    entry_id: match job {
-                        Job::Entry(entry_id) => Some(entry_id),
-                        Job::Meeting(_) => None,
-                    },
+                    entry_id,
+                    meeting_id,
                     cancelled: Arc::clone(&cancelled),
                 });
                 (job, cancelled)
             };
             let entry_id = match job {
                 Job::Entry(entry_id) => entry_id,
-                Job::Meeting(run) => {
+                Job::Meeting { id, rerun } => {
                     let control = Control {
                         manager: self,
                         entry_id: None,
                         cancelled: &cancelled,
                         percent: Cell::new(0),
                     };
-                    // The meeting reports its own failures; a panic is only
-                    // logged, so the queue keeps going.
-                    if let Err(payload) = catch_unwind(AssertUnwindSafe(|| run(&control))) {
-                        error!("{}", crashed(payload.as_ref()));
+                    // The meeting reports its own failures. A panic fails
+                    // only this meeting, so the queue keeps going.
+                    let run = || meetings::run_job(&self.app, &id, rerun, &control);
+                    if let Err(payload) = catch_unwind(AssertUnwindSafe(run)) {
+                        let e = crashed(payload.as_ref());
+                        error!("Meeting {id}: {e}");
+                        meetings::fail_job(&self.app, &id, &format!("{e:#}"));
                     }
                     self.end_running();
                     continue;
@@ -465,5 +508,41 @@ impl ChunkControl for Control<'_> {
         }
         self.manager
             .emit(entry_id, TranscriptionJobStatus::Running { percent });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn queued(jobs: &Jobs) -> Vec<(&str, Rerun)> {
+        jobs.meetings
+            .iter()
+            .map(|(id, r)| (id.as_str(), *r))
+            .collect()
+    }
+
+    #[test]
+    fn a_meeting_queued_twice_runs_once_and_everything_wins() {
+        let mut jobs = Jobs::default();
+        jobs.queue_meeting("a", Rerun::Speakers).unwrap();
+        jobs.queue_meeting("b", Rerun::All).unwrap();
+        jobs.queue_meeting("a", Rerun::All).unwrap();
+        jobs.queue_meeting("a", Rerun::Speakers).unwrap();
+        assert_eq!(queued(&jobs), [("a", Rerun::All), ("b", Rerun::All)]);
+    }
+
+    #[test]
+    fn the_meeting_being_transcribed_cannot_be_queued() {
+        let mut jobs = Jobs {
+            running: Some(Running {
+                entry_id: None,
+                meeting_id: Some("a".into()),
+                cancelled: Arc::default(),
+            }),
+            ..Jobs::default()
+        };
+        assert!(jobs.queue_meeting("a", Rerun::All).is_err());
+        assert!(queued(&jobs).is_empty());
     }
 }

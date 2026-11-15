@@ -962,6 +962,8 @@
     "meetingRecordingFailedTitle": "Meeting Recording Failed",
     "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "meetingSpeakersNotSeparatedTitle": "Speakers Not Separated",
+    "meetingTrackIncompleteTitle": "Meeting Audio Cut Short",
+    "meetingTrackIncomplete": "Part of the meeting wasn't recorded. The transcript covers the rest.",
     "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "Échec de la transcription"
   },

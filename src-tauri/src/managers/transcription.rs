@@ -40,7 +40,7 @@ mod job;
 mod live;
 pub mod policy;
 
-pub use job::{ChunkControl, TimedWord};
+pub use job::{ChunkControl, TimedTranscript, TimedWord};
 
 const STREAM_PERF_LOG_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -1073,6 +1073,14 @@ impl TranscriptionManager {
     /// `audio` runs with: the loaded model, the settings, and the language
     /// resolved for it.
     fn batch_context(&self, audio: &[f32]) -> Result<BatchContext> {
+        let planned = self.batch_plan()?;
+        let speech = self.plan_speech(&planned.settings, &planned.plan, audio);
+        Ok(self.batch_context_with(planned, speech))
+    }
+
+    /// Waits out any model load, then reads what a batch transcription runs
+    /// with before any audio decides its language.
+    fn batch_plan(&self) -> Result<BatchPlan> {
         {
             let mut is_loading = self.is_loading.lock().unwrap();
             while *is_loading {
@@ -1092,13 +1100,30 @@ impl TranscriptionManager {
             .get_current_model()
             .unwrap_or_else(|| settings.selected_model.clone());
         let plan = self.language_plan(&settings, &active_model, &info);
-        let setup = self.setup_for(&info, &settings, &plan, audio);
-        Ok(BatchContext {
+        Ok(BatchPlan {
+            info,
+            settings,
+            active_model,
+            plan,
+        })
+    }
+
+    /// `planned`, with its language resolved from `speech`, as
+    /// [`Self::plan_speech`] gives it.
+    fn batch_context_with(&self, planned: BatchPlan, speech: Option<Vec<f32>>) -> BatchContext {
+        let BatchPlan {
+            info,
+            settings,
+            active_model,
+            plan,
+        } = planned;
+        let setup = self.setup_with_speech(&info, &settings, &plan, speech);
+        BatchContext {
             info,
             settings,
             active_model,
             setup,
-        })
+        }
     }
 
     /// How a transcription on `model_id` picks its language, decided before
@@ -1113,6 +1138,19 @@ impl TranscriptionManager {
         )
     }
 
+    /// The speech `plan` detects the language of in `audio`: none for a
+    /// plan that doesn't detect, and `None` when the detector isn't there.
+    fn plan_speech(&self, settings: &AppSettings, plan: &Plan, audio: &[f32]) -> Option<Vec<f32>> {
+        // No VAD pass when the detector isn't there to use the speech.
+        if !plan.detects() {
+            Some(Vec::new())
+        } else if self.model_manager.language_detector_path().is_some() {
+            Some(self.detection_speech(settings, audio))
+        } else {
+            None
+        }
+    }
+
     /// Resolves `plan` with the transcription's `audio` into the run setup
     /// every run of it uses. Detection runs only for a detect plan.
     fn setup_for(
@@ -1122,14 +1160,19 @@ impl TranscriptionManager {
         plan: &Plan,
         audio: &[f32],
     ) -> RunSetup {
-        // No VAD pass when the detector isn't there to use the speech.
-        let speech = if !plan.detects() {
-            Some(Vec::new())
-        } else if self.model_manager.language_detector_path().is_some() {
-            Some(self.detection_speech(settings, audio))
-        } else {
-            None
-        };
+        let speech = self.plan_speech(settings, plan, audio);
+        self.setup_with_speech(info, settings, plan, speech)
+    }
+
+    /// [`Self::setup_for`] with the speech already found (see
+    /// [`Self::plan_speech`]).
+    fn setup_with_speech(
+        &self,
+        info: &LoadedInfo,
+        settings: &AppSettings,
+        plan: &Plan,
+        speech: Option<Vec<f32>>,
+    ) -> RunSetup {
         let language = plan.decide(speech.as_deref(), |speech, allowed| {
             let path = self
                 .model_manager
@@ -1230,6 +1273,14 @@ impl TranscriptionManager {
                 transcript
             })
     }
+}
+
+/// What a batch transcription runs with before its language is resolved.
+struct BatchPlan {
+    info: LoadedInfo,
+    settings: AppSettings,
+    active_model: String,
+    plan: Plan,
 }
 
 /// What a batch transcription runs with, read once before its first run.

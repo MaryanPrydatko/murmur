@@ -105,17 +105,19 @@ pub fn save(conn: &mut Connection, meeting: &Meeting) -> Result<()> {
     let status = serde_json::to_value(meeting.status)?;
     let tx = conn.transaction()?;
     tx.execute(
-        "INSERT INTO meetings (id, started_at, duration_ms, status, asr_model, diar_model, dir)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO meetings (id, started_at, duration_ms, status, language, asr_model,
+             diar_model, dir)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT (id) DO UPDATE SET started_at = excluded.started_at,
              duration_ms = excluded.duration_ms, status = excluded.status,
-             asr_model = excluded.asr_model, diar_model = excluded.diar_model,
-             dir = excluded.dir",
+             language = excluded.language, asr_model = excluded.asr_model,
+             diar_model = excluded.diar_model, dir = excluded.dir",
         params![
             meeting.id,
             started_at,
             meeting.duration_ms,
             status.as_str(),
+            meeting.language,
             meeting.asr_model,
             meeting.diar_model,
             meeting.dir.to_string_lossy(),
@@ -231,6 +233,19 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<MeetingDetail>> {
     }))
 }
 
+/// Titles a meeting; a blank `title` clears it, and the list shows its date.
+pub fn rename(conn: &Connection, id: &str, title: Option<&str>) -> Result<()> {
+    let title = title.map(str::trim).filter(|t| !t.is_empty());
+    let changed = conn.execute(
+        "UPDATE meetings SET title = ?2 WHERE id = ?1",
+        params![id, title],
+    )?;
+    if changed == 0 {
+        return Err(anyhow!("No meeting {id}"));
+    }
+    Ok(())
+}
+
 /// Names a meeting's speaker; a blank `label` clears the name.
 pub fn rename_speaker(conn: &Connection, id: &str, key: &str, label: Option<&str>) -> Result<()> {
     let label = label.map(str::trim).filter(|l| !l.is_empty());
@@ -272,6 +287,8 @@ mod tests {
             }],
             asr_model: Some("parakeet-ultra-Q8_0".into()),
             diar_model: Some("diar_streaming_sortformer_4spk-v2.1".into()),
+            language: Some("en".into()),
+            attempts: 0,
         }
     }
 
@@ -303,6 +320,7 @@ mod tests {
         let detail = get(&conn, id).unwrap().unwrap();
         assert_eq!(detail.meeting.source, "murmur");
         assert_eq!(detail.meeting.status.as_deref(), Some("done"));
+        assert_eq!(detail.meeting.language.as_deref(), Some("en"));
         assert_eq!(detail.meeting.started_at, Some(1_794_747_802));
         let speakers: Vec<(&str, Option<&str>)> = detail
             .speakers
@@ -321,6 +339,20 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM meeting_tracks", [], |row| row.get(0))
             .unwrap();
         assert_eq!(tracks, 1);
+    }
+
+    #[test]
+    fn a_title_survives_the_meeting_being_saved_again() {
+        let mut conn = db();
+        let id = "2026-11-15_14-03-22";
+        save(&mut conn, &meeting(MeetingStatus::Transcribing)).unwrap();
+        rename(&conn, id, Some(" Standup ")).unwrap();
+        save(&mut conn, &meeting(MeetingStatus::Done)).unwrap();
+        let title = |conn: &Connection| get(conn, id).unwrap().unwrap().meeting.title;
+        assert_eq!(title(&conn).as_deref(), Some("Standup"));
+        rename(&conn, id, Some("  ")).unwrap();
+        assert_eq!(title(&conn), None);
+        assert!(rename(&conn, "elsewhere", Some("x")).is_err());
     }
 
     #[test]

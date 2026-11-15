@@ -50,11 +50,14 @@ pub enum Request {
         want_language: bool,
     },
     StreamReset,
-    /// Followed by the PCM to diarize. The diarizer at `path` is loaded on the
-    /// loaded model's device for this run only, so it never outlives it.
+    /// Diarizes the 16 kHz mono WAV at `audio`, read by the worker so a long
+    /// track is never copied through the parent. The diarizer at `path` is
+    /// loaded on the loaded model's device for this run only, so it never
+    /// outlives it.
     Diarize {
         path: PathBuf,
         options: DiarizeOptions,
+        audio: PathBuf,
     },
 }
 
