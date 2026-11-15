@@ -19,7 +19,7 @@ pub use recovery::reconcile;
 pub use transcript::{Speaker, Utterance};
 
 use anyhow::{anyhow, bail, Context, Result};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,7 +32,8 @@ use crate::managers::transcription_jobs::TranscriptionJobManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::settings::get_settings;
 use capture::{
-    default_monitor_source, monitor_device_id, open_track, stop_track, TrackFeed, TrackRecorder,
+    default_monitor_source, monitor_input, open_recorder, open_track, stop_track, TrackFeed,
+    TrackRecorder,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,7 +115,7 @@ struct ActiveMeeting {
     meeting: Meeting,
     started: Instant,
     tracks: Vec<TrackRecorder>,
-    /// Set when it stops, which ends its ticker.
+    /// Set when it stops, which ends its ticker and output watcher.
     ended: Arc<AtomicBool>,
 }
 
@@ -122,6 +123,9 @@ struct ActiveMeeting {
 /// own, so a dictation opens the microphone again alongside them.
 pub struct MeetingManager {
     app: AppHandle,
+    /// Held through a start or stop, so the two never overlap; `active`
+    /// is only held for moments, never while PulseAudio is asked anything.
+    toggling: Mutex<()>,
     active: Mutex<Option<ActiveMeeting>>,
     /// Read by the tray without waiting on a start or stop in progress.
     recording: AtomicBool,
@@ -131,6 +135,7 @@ impl MeetingManager {
     pub fn new(app: &AppHandle) -> Self {
         Self {
             app: app.clone(),
+            toggling: Mutex::new(()),
             active: Mutex::new(None),
             recording: AtomicBool::new(false),
         }
@@ -167,13 +172,18 @@ impl MeetingManager {
     /// Starts a meeting, or stops the one recording and queues its
     /// transcription. Opens devices, so call it off the main thread.
     pub fn toggle(&self) {
-        let mut active = self.lock();
-        let result = match active.take() {
-            Some(meeting) => self.stop(meeting),
-            None => self.start().map(|meeting| *active = Some(meeting)),
+        let _toggling = self.toggling.lock().unwrap_or_else(PoisonError::into_inner);
+        let result = if self.is_recording() {
+            let active = self.lock().take();
+            self.recording.store(false, Ordering::Release);
+            // Gone already if the app is quitting.
+            active.map_or(Ok(()), |active| self.stop(active))
+        } else {
+            self.start().map(|active| {
+                *self.lock() = Some(active);
+                self.recording.store(true, Ordering::Release);
+            })
         };
-        self.recording.store(active.is_some(), Ordering::Release);
-        drop(active);
         if let Err(e) = result {
             error!("Meeting recording failed: {e:#}");
             notices::raise(
@@ -229,23 +239,40 @@ impl MeetingManager {
         }
     }
 
+    /// Moves the system track of the recording meeting `id` to the output
+    /// `monitor_source` now plays to. `false` if `id` stopped recording.
+    fn move_output(&self, id: &str, monitor_source: &str) -> Result<bool> {
+        let next = open_recorder(TrackKind::System, Some(monitor_input(monitor_source)?))?;
+        let mut guard = self.lock();
+        let Some(active) = guard.as_mut().filter(|a| a.meeting.id == id) else {
+            return Ok(false);
+        };
+        let track = active
+            .tracks
+            .iter_mut()
+            .find(|t| t.kind == TrackKind::System)
+            .ok_or_else(|| anyhow!("Meeting {id} has no system track"))?;
+        let previous = track.move_to(next)?;
+        drop(guard);
+        if let Err(e) = previous.close() {
+            warn!("Failed to close the previous output's recorder: {e}");
+        }
+        info!("Meeting {id}: recording the output from {monitor_source}");
+        Ok(true)
+    }
+
     fn start(&self) -> Result<ActiveMeeting> {
-        let devices = handy_recorder::list_input_devices()?;
         let monitor_source = default_monitor_source()?;
-        let system = monitor_device_id(
-            devices.iter().map(|d| (d.id.as_str(), d.is_monitor)),
-            &monitor_source,
-        )
-        .ok_or_else(|| anyhow!("No input device for the output monitor {monitor_source}"))?
-        .to_string();
+        let system = monitor_input(&monitor_source)?;
         // Like dictation: the selected microphone by name, else the default.
         let mic = get_settings(&self.app)
             .selected_microphone
             .and_then(|name| {
-                devices
-                    .iter()
+                handy_recorder::list_input_devices()
+                    .ok()?
+                    .into_iter()
                     .find(|d| d.name == name && !d.is_monitor)
-                    .map(|d| d.id.clone())
+                    .map(|d| d.id)
             });
         info!("Meeting devices: mic {mic:?}, system {system}");
 
@@ -298,6 +325,10 @@ impl MeetingManager {
         std::thread::Builder::new()
             .name("meeting-ticker".into())
             .spawn(move || tick(&app, &id, feeds, started, &until))?;
+        let (app, id, until) = (self.app.clone(), meeting.id.clone(), Arc::clone(&ended));
+        std::thread::Builder::new()
+            .name("meeting-output".into())
+            .spawn(move || follow_output(&app, &id, monitor_source, &until))?;
         Ok(ActiveMeeting {
             meeting,
             started,
@@ -319,7 +350,8 @@ impl MeetingManager {
     }
 
     /// Stops the recorders, finalizes the tracks and saves the meeting as
-    /// waiting to be transcribed.
+    /// waiting to be transcribed. A track cut short keeps what it got, with
+    /// a warning; the meeting only fails without a track left.
     fn finalize(&self, active: ActiveMeeting) -> Result<Meeting> {
         let ActiveMeeting {
             mut meeting,
@@ -330,28 +362,47 @@ impl MeetingManager {
         ended.store(true, Ordering::Release);
         meeting.duration_ms = started.elapsed().as_millis() as i64;
         meeting.tracks.clear();
-        let mut failure = None;
+        let (mut failure, mut cut_short) = (None, Vec::new());
         for track in tracks {
             match stop_track(&track, started) {
-                Ok((start_offset_ms, duration_ms)) => meeting.tracks.push(MeetingTrack {
-                    kind: track.kind,
-                    file: track.file,
-                    start_offset_ms,
-                    duration_ms,
-                }),
+                Ok(stopped) => {
+                    if let Some(problem) = stopped.problem {
+                        warn!(
+                            "Meeting {} {:?} track cut short: {problem}",
+                            meeting.id, track.kind
+                        );
+                        cut_short.push(format!("{:?}: {problem}", track.kind));
+                    }
+                    meeting.tracks.push(MeetingTrack {
+                        kind: track.kind,
+                        file: track.file,
+                        start_offset_ms: stopped.start_offset_ms,
+                        duration_ms: stopped.duration_ms,
+                    });
+                }
                 Err(e) => failure = Some(e.context(format!("{:?} track", track.kind))),
             }
             if let Err(e) = track.recorder.close() {
                 warn!("Failed to close a meeting recorder: {e}");
             }
         }
-        if let Some(e) = failure {
+        if meeting.tracks.is_empty() {
             meeting.status = MeetingStatus::Failed;
             write_meeting(&self.app, &meeting)?;
-            return Err(e);
+            return Err(failure.unwrap_or_else(|| anyhow!("The meeting has no tracks")));
+        }
+        if let Some(e) = &failure {
+            cut_short.push(format!("{e:#}"));
         }
         meeting.status = MeetingStatus::Transcribing;
         write_meeting(&self.app, &meeting)?;
+        if !cut_short.is_empty() {
+            notices::raise(
+                &self.app,
+                Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
+                    .with_detail(cut_short.join("; ")),
+            );
+        }
         Ok(meeting)
     }
 }
@@ -409,6 +460,37 @@ fn tick(
             app.state::<Arc<MeetingManager>>().save_offsets(id);
         }
         std::thread::sleep(TICK);
+    }
+}
+
+/// How often a recording meeting checks where the output plays.
+const OUTPUT_POLL: Duration = Duration::from_secs(2);
+
+/// Runs while the meeting `id` records: when the default output changes,
+/// moves the system track to it. A check that fails changes nothing.
+fn follow_output(app: &AppHandle, id: &str, mut monitor_source: String, ended: &AtomicBool) {
+    loop {
+        let wait = Instant::now();
+        while wait.elapsed() < OUTPUT_POLL {
+            if ended.load(Ordering::Acquire) {
+                return;
+            }
+            std::thread::sleep(TICK);
+        }
+        let now = match default_monitor_source() {
+            Ok(now) if now != monitor_source => now,
+            Ok(_) => continue,
+            Err(e) => {
+                debug!("Meeting {id}: couldn't check the default output: {e:#}");
+                continue;
+            }
+        };
+        info!("Meeting {id}: the default output is now {now}");
+        match app.state::<Arc<MeetingManager>>().move_output(id, &now) {
+            Ok(true) => monitor_source = now,
+            Ok(false) => return,
+            Err(e) => warn!("Meeting {id}: failed to follow the output to {now}: {e:#}"),
+        }
     }
 }
 

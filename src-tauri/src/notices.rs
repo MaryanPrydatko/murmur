@@ -57,6 +57,9 @@ pub enum NoticeCode {
     // The meeting's system track is all "Them": without a detail, the
     // diarizer isn't downloaded; with one, it's the error it failed with.
     MeetingSpeakersNotSeparated,
+    // Part of a track wasn't recorded (the input or the disk failed); the
+    // detail says which and why. The rest is transcribed.
+    MeetingTrackIncomplete,
 }
 
 impl NoticeCode {
@@ -76,7 +79,8 @@ impl NoticeCode {
             | Self::MeetingTranscriptionFailed => NoticeLevel::Error,
             Self::PostProcessFailed
             | Self::FilePostProcessFailed
-            | Self::MeetingSpeakersNotSeparated => NoticeLevel::Warning,
+            | Self::MeetingSpeakersNotSeparated
+            | Self::MeetingTrackIncomplete => NoticeLevel::Warning,
         }
     }
 
@@ -98,6 +102,7 @@ impl NoticeCode {
             Self::MeetingRecordingFailed => &strings.meeting_recording_failed_title,
             Self::MeetingTranscriptionFailed => &strings.meeting_transcription_failed_title,
             Self::MeetingSpeakersNotSeparated => &strings.meeting_speakers_not_separated_title,
+            Self::MeetingTrackIncomplete => &strings.meeting_track_incomplete_title,
         }
     }
 }

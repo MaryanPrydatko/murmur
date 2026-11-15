@@ -4,7 +4,7 @@
 
 use anyhow::{bail, Context, Result};
 use log::{error, info, warn};
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -141,6 +141,37 @@ pub(super) fn repair_meeting(meeting: &mut Meeting, folder: &Path) {
     meeting.status = MeetingStatus::Transcribing;
 }
 
+/// Where a WAV's `data` chunk header is, and the size it gives.
+fn find_data(file: &mut File, path: &Path) -> Result<(u64, u32)> {
+    let mut riff = [0u8; 12];
+    file.seek(SeekFrom::Start(0))?;
+    file.read_exact(&mut riff)?;
+    if &riff[..4] != b"RIFF" || &riff[8..] != b"WAVE" {
+        bail!("{} is not a WAV", path.display());
+    }
+    let mut at = 12u64;
+    loop {
+        let mut header = [0u8; 8];
+        file.seek(SeekFrom::Start(at))?;
+        file.read_exact(&mut header)
+            .with_context(|| format!("{} has no data chunk", path.display()))?;
+        let size = u32::from_le_bytes(header[4..].try_into()?);
+        if &header[..4] == b"data" {
+            return Ok((at, size));
+        }
+        at += 8 + u64::from(size) + u64::from(size & 1);
+    }
+}
+
+/// The 16-bit samples a WAV's header gives it and those its file holds.
+pub(super) fn wav_lengths(path: &Path) -> Result<(u32, u32)> {
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let (at, size) = find_data(&mut file, path)?;
+    let held = file.metadata()?.len().saturating_sub(at + 8) / 2;
+    Ok((size / 2, u32::try_from(held).unwrap_or(u32::MAX)))
+}
+
 /// Sets a 16-bit mono WAV's sizes from the file's length, as a process that
 /// died before finalizing it never did. Returns its samples.
 pub(super) fn repair_wav(path: &Path) -> Result<u32> {
@@ -149,34 +180,18 @@ pub(super) fn repair_wav(path: &Path) -> Result<u32> {
         .write(true)
         .open(path)
         .with_context(|| format!("Failed to open {}", path.display()))?;
-    let mut riff = [0u8; 12];
-    file.read_exact(&mut riff)?;
-    if &riff[..4] != b"RIFF" || &riff[8..] != b"WAVE" {
-        bail!("{} is not a WAV", path.display());
-    }
-    let len = file.metadata()?.len();
-    let mut at = 12u64;
-    loop {
-        let mut header = [0u8; 8];
-        file.seek(SeekFrom::Start(at))?;
-        file.read_exact(&mut header)
-            .with_context(|| format!("{} has no data chunk", path.display()))?;
-        let size = u64::from(u32::from_le_bytes(header[4..].try_into()?));
-        if &header[..4] == b"data" {
-            let data = at + 8;
-            // Whole samples only.
-            let bytes = (len - data.min(len)) & !1;
-            let bytes = u32::try_from(bytes).context("The track is over 4 GB")?;
-            file.set_len(data + u64::from(bytes))?;
-            file.seek(SeekFrom::Start(at + 4))?;
-            file.write_all(&bytes.to_le_bytes())?;
-            file.seek(SeekFrom::Start(4))?;
-            file.write_all(&(data as u32 - 8 + bytes).to_le_bytes())?;
-            file.sync_all()?;
-            return Ok(bytes / 2);
-        }
-        at += 8 + size + (size & 1);
-    }
+    let (at, _) = find_data(&mut file, path)?;
+    let data = at + 8;
+    // Whole samples only.
+    let bytes = file.metadata()?.len().saturating_sub(data) & !1;
+    let bytes = u32::try_from(bytes).context("The track is over 4 GB")?;
+    file.set_len(data + u64::from(bytes))?;
+    file.seek(SeekFrom::Start(at + 4))?;
+    file.write_all(&bytes.to_le_bytes())?;
+    file.seek(SeekFrom::Start(4))?;
+    file.write_all(&(data as u32 - 8 + bytes).to_le_bytes())?;
+    file.sync_all()?;
+    Ok(bytes / 2)
 }
 
 #[cfg(test)]
@@ -258,6 +273,22 @@ mod tests {
         assert_eq!(samples(&path).len(), 10);
         // Repairing a sound file changes nothing.
         assert_eq!(repair_wav(&path).unwrap(), 10);
+    }
+
+    #[test]
+    fn a_track_shorter_than_its_header_says_is_told_apart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("system.wav");
+        wav(&path, 100);
+        assert_eq!(wav_lengths(&path).unwrap(), (100, 100));
+        let len = std::fs::metadata(&path).unwrap().len();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_len(len - 50)
+            .unwrap();
+        assert_eq!(wav_lengths(&path).unwrap(), (100, 75));
     }
 
     #[test]

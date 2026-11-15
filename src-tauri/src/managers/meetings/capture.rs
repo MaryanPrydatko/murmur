@@ -2,15 +2,16 @@
 //! found through PulseAudio.
 
 use anyhow::{anyhow, Context, Result};
-use handy_recorder::{AudioChunk, Recorder, RecorderConfig, Sink};
+use handy_recorder::{AudioChunk, EndReason, Recorder, RecorderConfig, Sink};
 use hound::{WavSpec, WavWriter};
-use log::info;
+use log::{info, warn};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+use super::recovery::repair_wav;
 use super::TrackKind;
 
 /// Samples between header updates: a crash loses at most 5 s of a track.
@@ -38,8 +39,12 @@ impl TrackFeed {
 /// reads back to then whatever happens to the process.
 pub(super) struct WavSink {
     writer: WavWriter<BufWriter<File>>,
+    path: PathBuf,
     feed: Arc<TrackFeed>,
     unflushed: u32,
+    /// Set when the track moves to another input: the next chunk is placed
+    /// at the time it was captured, after silence for what was missed.
+    realign: bool,
     error: Option<hound::Error>,
 }
 
@@ -54,20 +59,39 @@ impl WavSink {
         Ok(Self {
             writer: WavWriter::create(path, spec)
                 .with_context(|| format!("Failed to create {}", path.display()))?,
+            path: path.to_path_buf(),
             feed,
             unflushed: 0,
+            realign: false,
             error: None,
         })
     }
 
-    /// Finalizes the file. The samples written.
-    fn finish(self) -> Result<u32> {
-        if let Some(e) = self.error {
-            return Err(e.into());
-        }
+    /// Finalizes the file. The samples it holds and, if writing it failed,
+    /// why: then its header is set from what reached the disk.
+    fn finish(self) -> Result<(u32, Option<String>)> {
         let samples = self.writer.len();
-        self.writer.finalize()?;
-        Ok(samples)
+        let problem = match (self.error, self.writer.finalize()) {
+            (None, Ok(())) => return Ok((samples, None)),
+            (Some(e), _) | (None, Err(e)) => e.to_string(),
+        };
+        Ok((repair_wav(&self.path)?, Some(problem)))
+    }
+
+    /// Pads the track with silence up to `at`, from its first sample.
+    fn pad_to(&mut self, at: Instant) -> hound::Result<()> {
+        let Some(&first) = self.feed.first_audio.get() else {
+            return Ok(());
+        };
+        let due = (at.saturating_duration_since(first).as_secs_f64() * 16_000.0) as u32;
+        let missing = due.saturating_sub(self.writer.len());
+        if missing > 0 {
+            info!(
+                "Padding a meeting track with {} ms of silence",
+                missing / 16
+            );
+        }
+        self.write(std::iter::repeat_n(0, missing as usize))
     }
 
     fn write(&mut self, samples: impl IntoIterator<Item = i16>) -> hound::Result<()> {
@@ -92,9 +116,14 @@ impl Sink for WavSink {
             chunk.valid_frames as u64 * 1000 / u64::from(chunk.sample_rate.max(1)),
         );
         let now = Instant::now();
-        self.feed
-            .first_audio
-            .get_or_init(|| now.checked_sub(captured).unwrap_or(now));
+        let at = now.checked_sub(captured).unwrap_or(now);
+        self.feed.first_audio.get_or_init(|| at);
+        if std::mem::take(&mut self.realign) {
+            if let Err(e) = self.pad_to(at) {
+                self.error = Some(e);
+                return;
+            }
+        }
         let samples = chunk.samples[..chunk.valid_frames]
             .iter()
             .map(|&sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
@@ -111,17 +140,48 @@ pub(super) struct TrackRecorder {
     pub recorder: Recorder<WavSink>,
 }
 
+impl TrackRecorder {
+    /// Moves the track to `next`, an input opened and not started, after
+    /// silence for the time the move took. Returns the input it was on, to
+    /// close. If `next` won't start, the track stays where it was.
+    pub fn move_to(&mut self, next: Recorder<WavSink>) -> Result<Recorder<WavSink>> {
+        let mut sink = self.recorder.stop()?.sink;
+        if let Err(e) = sink.pad_to(Instant::now()) {
+            sink.error = Some(e);
+        }
+        sink.realign = true;
+        match next.start(sink) {
+            Ok(()) => Ok(std::mem::replace(&mut self.recorder, next)),
+            Err(failed) => {
+                let error = anyhow!(failed.error).context("Failed to start the new output");
+                if let Err(e) = self.recorder.start(failed.sink) {
+                    warn!(
+                        "Failed to go back to the {:?} input: {}",
+                        self.kind, e.error
+                    );
+                }
+                Err(error)
+            }
+        }
+    }
+}
+
+/// Opens `device`, or the default input, for a meeting track.
+pub(super) fn open_recorder(kind: TrackKind, device: Option<String>) -> Result<Recorder<WavSink>> {
+    Recorder::open(RecorderConfig {
+        device,
+        ..RecorderConfig::speech()
+    })
+    .with_context(|| format!("Failed to open the {kind:?} input"))
+}
+
 pub(super) fn open_track(
     dir: &Path,
     kind: TrackKind,
     device: Option<String>,
 ) -> Result<TrackRecorder> {
     let file = dir.join(kind.file_name());
-    let recorder = Recorder::open(RecorderConfig {
-        device,
-        ..RecorderConfig::speech()
-    })
-    .with_context(|| format!("Failed to open the {kind:?} input"))?;
+    let recorder = open_recorder(kind, device)?;
     let feed = Arc::new(TrackFeed::default());
     recorder
         .start(WavSink::create(&file, Arc::clone(&feed))?)
@@ -134,21 +194,72 @@ pub(super) fn open_track(
     })
 }
 
-/// Stops the track and finalizes its WAV. Its start offset and length in ms.
-pub(super) fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Result<(i64, i64)> {
-    let stopped = track.recorder.stop()?;
-    info!(
-        "Meeting {:?} track ended: {:?}, {} frames dropped",
-        track.kind, stopped.end_reason, stopped.dropped_frames
-    );
-    let samples = stopped.sink.finish()?;
-    let start_offset_ms = track.feed.offset_ms(meeting_started).unwrap_or(0);
-    Ok((start_offset_ms, i64::from(samples) * 1000 / 16_000))
+/// A track, stopped and finalized.
+pub(super) struct StoppedTrack {
+    pub start_offset_ms: i64,
+    pub duration_ms: i64,
+    /// Why part of it is missing, if it is.
+    pub problem: Option<String>,
 }
 
-/// The monitor source of the current default output, by its PulseAudio name.
-#[cfg(target_os = "linux")]
+/// Stops the track and finalizes its WAV. A track the input or the disk
+/// cut short keeps what it got.
+pub(super) fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Result<StoppedTrack> {
+    let (samples, problem) = match track.recorder.stop() {
+        Ok(stopped) => {
+            info!(
+                "Meeting {:?} track ended: {:?}, {} frames dropped",
+                track.kind, stopped.end_reason, stopped.dropped_frames
+            );
+            let ended = match stopped.end_reason {
+                EndReason::StopCalled => None,
+                EndReason::RecorderFailed(e) => Some(format!("The input failed: {e}")),
+                EndReason::SinkPanicked(message) => Some(message),
+            };
+            let (samples, problem) = stopped.sink.finish()?;
+            (samples, problem.or(ended))
+        }
+        // The sink is gone with what it hadn't written: keep what reached
+        // the disk.
+        Err(e) => (repair_wav(&track.file)?, Some(e.to_string())),
+    };
+    Ok(StoppedTrack {
+        start_offset_ms: track.feed.offset_ms(meeting_started).unwrap_or(0),
+        duration_ms: i64::from(samples) * 1000 / 16_000,
+        problem,
+    })
+}
+
+/// The id of the input that records `monitor_source`.
+pub(super) fn monitor_input(monitor_source: &str) -> Result<String> {
+    let devices = handy_recorder::list_input_devices()?;
+    monitor_device_id(
+        devices.iter().map(|d| (d.id.as_str(), d.is_monitor)),
+        monitor_source,
+    )
+    .map(str::to_string)
+    .ok_or_else(|| anyhow!("No input device for the output monitor {monitor_source}"))
+}
+
+/// How long PulseAudio gets to say what the default output is.
+const PULSE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The monitor source of the current default output, by its PulseAudio
+/// name. Asked on a thread of its own, so a server that never answers
+/// costs [`PULSE_TIMEOUT`], not a stuck caller.
 pub(super) fn default_monitor_source() -> Result<String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("pulse-default-output".into())
+        .spawn(move || {
+            let _ = tx.send(query_default_monitor());
+        })?;
+    rx.recv_timeout(PULSE_TIMEOUT)
+        .map_err(|_| anyhow!("PulseAudio didn't say what the default output is"))?
+}
+
+#[cfg(target_os = "linux")]
+fn query_default_monitor() -> Result<String> {
     use std::net::Shutdown;
     use std::os::unix::net::UnixStream;
 
@@ -171,13 +282,13 @@ pub(super) fn default_monitor_source() -> Result<String> {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub(super) fn default_monitor_source() -> Result<String> {
+fn query_default_monitor() -> Result<String> {
     Err(anyhow!("Recording the output is only supported on Linux"))
 }
 
 /// The id of the monitor input named `monitor_source`, from `(id, is_monitor)`
 /// pairs. Ids are `<host>:<name>`.
-pub(super) fn monitor_device_id<'a>(
+fn monitor_device_id<'a>(
     devices: impl IntoIterator<Item = (&'a str, bool)>,
     monitor_source: &str,
 ) -> Option<&'a str> {
@@ -226,6 +337,28 @@ mod tests {
     }
 
     #[test]
+    fn a_track_moved_to_another_output_stays_in_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let feed = Arc::new(TrackFeed::default());
+        let mut sink = WavSink::create(&dir.path().join("system.wav"), Arc::clone(&feed)).unwrap();
+        let tenth = vec![0.5; 1_600];
+        sink.process_chunk(chunk(&tenth));
+        // The move: the old output stops, the new one takes a while to start.
+        std::thread::sleep(Duration::from_millis(300));
+        sink.pad_to(Instant::now()).unwrap();
+        sink.realign = true;
+        std::thread::sleep(Duration::from_millis(200));
+        sink.process_chunk(chunk(&tenth));
+        let heard = Instant::now().saturating_duration_since(*feed.first_audio.get().unwrap());
+        let (samples, problem) = sink.finish().unwrap();
+        assert_eq!(problem, None);
+        // Silence fills the time between, so the track is as long as it ran.
+        let expected = (heard.as_secs_f64() * 16_000.0) as u32;
+        assert!(samples.abs_diff(expected) < 160, "{samples} vs {expected}");
+        assert!(samples >= 8_000);
+    }
+
+    #[test]
     fn a_flushed_then_finalized_track_keeps_every_sample() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("mic.wav");
@@ -233,7 +366,7 @@ mod tests {
         let mut sink = WavSink::create(&path, Arc::clone(&feed)).unwrap();
         let started = Instant::now();
         record(&mut sink);
-        assert_eq!(sink.finish().unwrap(), 96_000);
+        assert_eq!(sink.finish().unwrap(), (96_000, None));
         let samples: Vec<i16> = hound::WavReader::open(&path)
             .unwrap()
             .into_samples()

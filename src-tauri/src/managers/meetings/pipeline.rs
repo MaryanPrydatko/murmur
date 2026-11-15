@@ -11,6 +11,7 @@ use transcribe_cpp::{
     DiarizeExtension, DiarizeOptions, SortformerDiarizeOptions, SortformerPreset,
 };
 
+use super::recovery::wav_lengths;
 use super::transcript::{
     assign_speakers, merge_minor_speakers, merge_utterances, render_transcript, Turn,
 };
@@ -75,12 +76,16 @@ pub(crate) fn fail_job(app: &AppHandle, id: &str, error: &str) {
 fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
     let mut unseparated = None;
+    let mut cut_short = Vec::new();
     let result = (|| -> Result<()> {
         let mut tracks = Vec::new();
         // The language of the track with the most words.
         let mut language: Option<(usize, String)> = None;
         for track in &meeting.tracks {
-            let (samples, total) = read_track(&track.file)?;
+            let (samples, total, short) = read_track(&track.file)?;
+            if short {
+                cut_short.push(format!("{:?}: the file ends early", track.kind));
+            }
             let transcript = tm
                 .transcribe_words_in_chunks(samples, total, control)?
                 .ok_or_else(|| anyhow!("Transcription was stopped"))?;
@@ -161,6 +166,13 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
                 }
                 None => {}
             }
+            if !cut_short.is_empty() {
+                notices::raise(
+                    app,
+                    Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
+                        .with_detail(cut_short.join("; ")),
+                );
+            }
         }
         Err(e) => {
             error!("Meeting {} transcription failed: {e:#}", meeting.id);
@@ -176,16 +188,21 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
     }
 }
 
-/// A track's samples, read as they're needed, and how many there are.
-fn read_track(file: &Path) -> Result<(impl Iterator<Item = f32>, usize)> {
+/// A track's samples, read as they're needed, how many there are, and
+/// whether the file holds fewer than its header says.
+fn read_track(file: &Path) -> Result<(impl Iterator<Item = f32>, usize, bool)> {
+    let (said, held) = wav_lengths(file)?;
+    if held < said {
+        warn!("{} holds {held} of its {said} samples", file.display());
+    }
     let reader = hound::WavReader::open(file)
         .with_context(|| format!("Failed to open {}", file.display()))?;
-    let total = reader.duration() as usize;
+    let total = said.min(held) as usize;
     let samples = reader
         .into_samples::<i16>()
         .map_while(Result::ok)
         .map(|s| s as f32 / i16::MAX as f32);
-    Ok((samples, total))
+    Ok((samples, total, held < said))
 }
 
 /// Who spoke when on the system track, in one run over all of it, or why
