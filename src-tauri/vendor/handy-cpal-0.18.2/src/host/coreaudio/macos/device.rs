@@ -377,7 +377,7 @@ impl Device {
         }
     }
 
-    /// Input streams on this device record what it plays (process tap, macOS 14.6+).
+    /// Input streams on this device record what it plays (process tap, macOS 14.2+).
     pub fn with_loopback(mut self) -> Self {
         self.loopback = true;
         self

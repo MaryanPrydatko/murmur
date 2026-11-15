@@ -57,7 +57,7 @@ pub use sink::{AudioChunk, CollectingSink, Sink};
 pub use types::{Channels, EndReason, Format, RecorderConfig, RecorderInfo};
 
 /// `RecorderConfig::device` value that records what the default output
-/// device plays (Core Audio process tap, macOS 14.6+, needs
+/// device plays (Core Audio process tap, macOS 14.2+, needs
 /// `NSAudioCaptureUsageDescription`). macOS only.
 ///
 /// Samples that are all exactly zero mean macOS didn't allow the recording:

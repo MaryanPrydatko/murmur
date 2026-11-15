@@ -306,7 +306,29 @@ pub(super) fn monitor_input(monitor_source: &str) -> Result<String> {
 /// [`default_monitor_source`]'s callers when to open it again.
 #[cfg(target_os = "macos")]
 pub(super) fn monitor_input(_output: &str) -> Result<String> {
+    let os = objc2_foundation::NSProcessInfo::processInfo().operatingSystemVersion();
+    require_tap((os.majorVersion, os.minorVersion))?;
     Ok(handy_recorder::SYSTEM_OUTPUT_DEVICE.to_string())
+}
+
+/// The first macOS that has the tap (`AudioHardwareCreateProcessTap`).
+#[cfg(target_os = "macos")]
+const TAP_MIN_MACOS: (isize, isize) = (14, 2);
+
+/// Core Audio is weak-linked for the sake of an older macOS, where the tap
+/// isn't there to call: say so instead of opening it.
+#[cfg(target_os = "macos")]
+fn require_tap(macos: (isize, isize)) -> Result<()> {
+    if macos < TAP_MIN_MACOS {
+        anyhow::bail!(
+            "Meetings need macOS {}.{} or newer, this Mac has {}.{}",
+            TAP_MIN_MACOS.0,
+            TAP_MIN_MACOS.1,
+            macos.0,
+            macos.1
+        );
+    }
+    Ok(())
 }
 
 /// How long PulseAudio gets to say what the default output is.
@@ -564,6 +586,18 @@ mod tests {
             .unwrap()
             .into_samples::<i16>()
             .all(|s| s.unwrap() == 0));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_macos_without_the_tap_is_told_which_one_has_it() {
+        for old in [(13, 6), (14, 0), (14, 1)] {
+            let error = require_tap(old).unwrap_err().to_string();
+            assert!(error.starts_with("Meetings need macOS 14.2 or newer"));
+        }
+        for new in [(14, 2), (14, 6), (15, 0), (26, 1)] {
+            assert!(require_tap(new).is_ok());
+        }
     }
 
     #[test]
