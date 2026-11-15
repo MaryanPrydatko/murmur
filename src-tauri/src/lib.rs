@@ -1038,7 +1038,10 @@ pub fn run(cli_args: CliArgs) {
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
                     .title("Murmur")
                     .inner_size(utils::MAIN_WINDOW_SIZE.0, utils::MAIN_WINDOW_SIZE.1)
-                    .min_inner_size(utils::MAIN_WINDOW_SIZE.0, utils::MAIN_WINDOW_SIZE.1)
+                    .min_inner_size(
+                        utils::MAIN_WINDOW_MIN_SIZE.0,
+                        utils::MAIN_WINDOW_MIN_SIZE.1,
+                    )
                     .resizable(true)
                     .maximizable(true)
                     .visible(false);
@@ -1060,10 +1063,13 @@ pub fn run(cli_args: CliArgs) {
             {
                 let bar = utils::measure_title_bar(&main_window);
                 if bar > 0.0 {
+                    let (min_width, min_height) = utils::MAIN_WINDOW_MIN_SIZE;
                     let (width, height) = utils::MAIN_WINDOW_SIZE;
-                    let size = tauri::LogicalSize::new(width, height + bar);
-                    let _ = main_window.set_min_size(Some(size));
-                    let _ = main_window.set_size(size);
+                    let _ = main_window.set_min_size(Some(tauri::LogicalSize::new(
+                        min_width,
+                        min_height + bar,
+                    )));
+                    let _ = main_window.set_size(tauri::LogicalSize::new(width, height + bar));
                     let _ = main_window.center();
                 }
             }

@@ -261,6 +261,12 @@
   background-color: var(--scrollbar-thumb-hover);
 }
 
+/* The picked sidebar item: dark ink on pink in both themes. */
+.sidebar-item[aria-current="page"] {
+  background: color-mix(in srgb, var(--color-logo-primary) 80%, transparent);
+  color: var(--light-color-text);
+}
+
 .wordmark {
   display: block;
   font: 700 25px/30px var(--font-display);

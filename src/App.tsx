@@ -35,6 +35,7 @@ import { useSettingsStore } from "./stores/settingsStore";
 import { commands } from "@/bindings";
 import { deleteRetiredModel } from "@/lib/models/retired";
 import { NoticePanel } from "@/components/notices/NoticePanel";
+import { useMeetingsSync } from "@/components/settings/meetings/meetingsStore";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 // flow is first-run onboarding; the rest are single screens for returning users.
@@ -83,7 +84,7 @@ function App() {
   // is still on disk: they must update it before the app can transcribe.
   const [migrationModelId, setMigrationModelId] = useState<string | null>(null);
   const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("general");
+    useState<SidebarSection>("meetings");
   const showHistory = useCallback(() => setCurrentSection("history"), []);
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
@@ -94,6 +95,7 @@ function App() {
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);
+  useMeetingsSync();
   const settingsScrollRef = useRef<HTMLDivElement>(null);
   // Reset the scroll position whenever the active section changes.
   useLayoutEffect(() => {
@@ -332,12 +334,12 @@ function App() {
           />
           {/* Scrollable content area */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
-              {/* Models fills the window: its table scrolls, not the page. */}
-              <div
-                className={`flex flex-col items-center p-4 gap-4 ${currentSection === "models" ? "h-full" : ""}`}
-              >
-                <SecureInputWarning />
+            {currentSection === "meetings" ? (
+              // Meetings fills the window and scrolls inside its panes.
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="px-4 pt-3 empty:hidden">
+                  <SecureInputWarning />
+                </div>
                 {renderSettingsContent(
                   currentSection,
                   setOnboardingPreview,
@@ -346,7 +348,23 @@ function App() {
                   setCurrentSection,
                 )}
               </div>
-            </div>
+            ) : (
+              <div ref={settingsScrollRef} className="flex-1 overflow-y-auto">
+                {/* Models fills the window: its table scrolls, not the page. */}
+                <div
+                  className={`flex flex-col items-center p-4 gap-4 ${currentSection === "models" ? "h-full" : ""}`}
+                >
+                  <SecureInputWarning />
+                  {renderSettingsContent(
+                    currentSection,
+                    setOnboardingPreview,
+                    runOnboarding,
+                    runModelMigration,
+                    setCurrentSection,
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {/* Fixed footer at bottom */}
