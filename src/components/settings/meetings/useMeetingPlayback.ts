@@ -147,8 +147,10 @@ export const useMeetingPlayback = (
 
   const startAll = useCallback(
     (list: LoadedTrack[], at: number) => {
+      // Tracks can end a little short of the meeting's duration.
+      const ended = list.every((x) => x.audio.ended);
       const from = playbackStart(
-        at,
+        ended ? durationS : at,
         durationS,
         list.map((x) => x.offset),
       );
