@@ -70,6 +70,7 @@ struct MenuInputs {
     downloaded_models: Vec<(String, String)>,
     locale: String,
     update_checks_enabled: bool,
+    meeting_recording: bool,
     /// The language submenu, when the selected model has languages to pick.
     language: Option<LanguageMenu>,
 }
@@ -393,6 +394,9 @@ fn compute_desired(app: &AppHandle, icon_state: TrayIconState) -> TrayDesired {
             downloaded_models,
             locale: settings.app_language,
             update_checks_enabled: settings.update_checks_enabled,
+            meeting_recording: app
+                .try_state::<Arc<crate::managers::meetings::MeetingManager>>()
+                .is_some_and(|meetings| meetings.is_recording()),
             language,
         },
     }
@@ -689,6 +693,17 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
         true,
         None::<&str>,
     )?;
+    let meeting_i = MenuItem::with_id(
+        app,
+        "toggle_meeting",
+        if inputs.meeting_recording {
+            &strings.stop_meeting
+        } else {
+            &strings.start_meeting
+        },
+        true,
+        None::<&str>,
+    )?;
     let quit_i = MenuItem::with_id(app, "quit", &strings.quit, true, quit_accelerator)?;
     let separator = || PredefinedMenuItem::separator(app);
 
@@ -701,6 +716,7 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
                 &separator()?,
                 &cancel_i,
                 &separator()?,
+                &meeting_i,
                 &copy_last_transcript_i,
                 &separator()?,
                 &settings_i,
@@ -740,6 +756,7 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
             &[
                 &version_i,
                 &separator()?,
+                &meeting_i,
                 &copy_last_transcript_i,
                 &separator()?,
                 &model_submenu,
@@ -751,9 +768,10 @@ fn build_menu(app: &AppHandle, inputs: &MenuInputs) -> tauri::Result<(Menu<tauri
                 &quit_i,
             ],
         )?;
-        // Right below the model submenu: version, separator, copy, separator, model.
+        // Right below the model submenu: version, separator, meeting, copy,
+        // separator, model.
         if let Some(language) = &inputs.language {
-            menu.insert(&language_submenu(app, &strings, language)?, 5)?;
+            menu.insert(&language_submenu(app, &strings, language)?, 6)?;
         }
         menu
     };
@@ -988,6 +1006,7 @@ mod tests {
             downloaded_models: vec![("small".to_string(), "Small".to_string())],
             locale: "en".to_string(),
             update_checks_enabled: true,
+            meeting_recording: false,
             language: None,
         }
     }

@@ -227,6 +227,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(history_manager.clone());
     app_handle.manage(tray::TrayState::new());
     app_handle.manage(TranscriptionJobManager::new(app_handle));
+    app_handle.manage(Arc::new(managers::meetings::MeetingManager::new(
+        app_handle,
+    )));
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -326,6 +329,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 }
                 transcription_manager.request_unload();
                 log::info!("Model unloaded via tray.");
+            }
+            "toggle_meeting" => {
+                signal_handle::toggle_meeting(app);
             }
             "cancel" => {
                 use crate::utils::cancel_current_operation;
@@ -916,6 +922,8 @@ pub fn run(cli_args: CliArgs) {
                 signal_handle::send_transcription_input(app, "transcribe", "CLI");
             } else if args.iter().any(|a| a == "--toggle-post-process") {
                 signal_handle::send_transcription_input(app, "transcribe_with_post_process", "CLI");
+            } else if args.iter().any(|a| a == "--toggle-meeting") {
+                signal_handle::toggle_meeting(app);
             } else if args.iter().any(|a| a == "--cancel") {
                 crate::utils::cancel_current_operation(app);
             } else {

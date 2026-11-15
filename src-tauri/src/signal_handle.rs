@@ -1,7 +1,9 @@
+use crate::managers::meetings::MeetingManager;
 use crate::TranscriptionCoordinator;
 #[cfg(unix)]
 use log::debug;
 use log::warn;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "macos")]
@@ -21,6 +23,17 @@ pub fn send_transcription_input(app: &AppHandle, binding_id: &str, source: &str)
     } else {
         warn!("TranscriptionCoordinator not initialized");
     }
+}
+
+/// Start or stop a meeting, off the calling thread: it opens audio devices.
+/// Used by the CLI flag and the tray.
+pub fn toggle_meeting(app: &AppHandle) {
+    let Some(meetings) = app.try_state::<Arc<MeetingManager>>() else {
+        warn!("MeetingManager not initialized");
+        return;
+    };
+    let meetings = Arc::clone(&meetings);
+    std::thread::spawn(move || meetings.toggle());
 }
 
 /// Listen for Unix signals that remotely toggle transcription.
