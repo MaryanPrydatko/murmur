@@ -65,4 +65,20 @@ pub struct CliArgs {
     /// Emit --transcribe-file results as JSON.
     #[arg(long)]
     pub json: bool,
+
+    /// Import the meetings Superwhisper, Wispr Flow and Spokenly kept, print
+    /// what was imported and exit. A meeting is imported once: a second run
+    /// imports nothing. Meetings only Spokenly had are transcribed on the
+    /// app's next start.
+    #[arg(long)]
+    pub import_meetings: bool,
+
+    /// With --import-meetings: say what would be imported, writing nothing.
+    #[arg(long, requires = "import_meetings")]
+    pub dry_run: bool,
+
+    /// With --import-meetings: also write each imported transcript's note
+    /// into the Obsidian vault set in Settings.
+    #[arg(long, requires = "import_meetings")]
+    pub with_notes: bool,
 }

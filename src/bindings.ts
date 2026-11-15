@@ -783,6 +783,47 @@ async renameSpeaker(meetingId: string, key: string, label: string | null) : Prom
 }
 },
 /**
+ * Imports the meetings Superwhisper, Wispr Flow and Spokenly kept that
+ * weren't imported before; with `dry_run`, only says what it would do.
+ * With `write_notes`, each imported transcript also gets its note.
+ */
+async importMeetings(dryRun: boolean, writeNotes: boolean) : Promise<Result<ImportReport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_meetings", { dryRun, writeNotes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Writes a transcribed meeting's note into the vault, unless its note is
+ * there already. The note's path.
+ */
+async exportMeetingNote(id: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_meeting_note", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeObsidianVaultPathSetting(path: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_obsidian_vault_path_setting", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeObsidianNotesFolderSetting(folder: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_obsidian_notes_folder_setting", { folder }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1084,10 +1125,8 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 }
 },
 /**
- * Checks if the Mac is a laptop by detecting battery presence
- * 
- * This uses pmset to check for battery information.
- * Returns true if a battery is detected (laptop), false otherwise (desktop)
+ * Stub implementation for non-macOS platforms
+ * Always returns false since laptop detection is macOS-specific
  */
 async isLaptop() : Promise<Result<boolean, string>> {
     try {
@@ -1231,7 +1270,16 @@ language_detection_window_secs?: number;
  * not gated on this — that follows model capability. Migrated from the old
  * `overlay_position` (position `none` → style `None`).
  */
-overlay_style?: OverlayStyle }
+overlay_style?: OverlayStyle; 
+/**
+ * The Obsidian vault a finished meeting's note goes into; no notes
+ * while unset.
+ */
+obsidian_vault_path?: string | null; 
+/**
+ * The folder in the vault the notes go into.
+ */
+obsidian_notes_folder?: string }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type AutoUnavailableReason = 
@@ -1292,6 +1340,34 @@ export type ImplementationChangeResult = { success: boolean;
  * List of binding IDs that were reset to defaults due to incompatibility
  */
 reset_bindings: string[] }
+/**
+ * What an import did, or in a dry run would do. Ids and counts only.
+ */
+export type ImportReport = { dry_run: boolean; sources: SourceCount[]; 
+/**
+ * Records folded into another app's copy of the same meeting.
+ */
+merged: number; already_imported: number; 
+/**
+ * Files Spokenly transcribed that match no meeting.
+ */
+not_meetings: number; 
+/**
+ * Meetings only Spokenly had, whose audio is gone.
+ */
+no_audio: number; 
+/**
+ * Meetings imported with their transcript.
+ */
+imported: number; 
+/**
+ * Meetings only Spokenly had, to be transcribed here.
+ */
+to_transcribe: number; failed: number; notes: number; 
+/**
+ * What failed, by path or meeting id.
+ */
+errors: string[] }
 export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_pid: number | null; culprit_name: string | null; 
 /**
  * Counts only — key identity is deliberately never captured.
@@ -1422,7 +1498,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingNoteFailed"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.
@@ -1552,6 +1628,12 @@ export type ShortcutActivation =
 "hold_or_toggle"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 export type SoundTheme = "marimba" | "pop" | "custom"
+/**
+ * In order of precedence: a meeting's names, summary and transcript come
+ * from the first of these that has it.
+ */
+export type Source = "wispr" | "superwhisper" | "spokenly"
+export type SourceCount = { source: Source; found: number; unreadable: number; stubs: number }
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */

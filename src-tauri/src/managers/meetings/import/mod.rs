@@ -563,8 +563,11 @@ pub fn import(
         &mut |meeting| super::write_meeting(app, meeting),
     )?;
     info!(
-        "Imported {} meetings, {} to transcribe",
-        report.imported, report.to_transcribe
+        "Meeting import{}: {} with transcript, {} to transcribe, {} failed",
+        if dry_run { " (dry run)" } else { "" },
+        report.imported,
+        report.to_transcribe,
+        report.failed
     );
     if requeue {
         if let Some(meetings) = app.try_state::<Arc<MeetingManager>>() {
