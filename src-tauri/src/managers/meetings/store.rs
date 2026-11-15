@@ -233,6 +233,19 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<MeetingDetail>> {
     }))
 }
 
+/// Titles a meeting; a blank `title` clears it, and the list shows its date.
+pub fn rename(conn: &Connection, id: &str, title: Option<&str>) -> Result<()> {
+    let title = title.map(str::trim).filter(|t| !t.is_empty());
+    let changed = conn.execute(
+        "UPDATE meetings SET title = ?2 WHERE id = ?1",
+        params![id, title],
+    )?;
+    if changed == 0 {
+        return Err(anyhow!("No meeting {id}"));
+    }
+    Ok(())
+}
+
 /// Names a meeting's speaker; a blank `label` clears the name.
 pub fn rename_speaker(conn: &Connection, id: &str, key: &str, label: Option<&str>) -> Result<()> {
     let label = label.map(str::trim).filter(|l| !l.is_empty());
@@ -326,6 +339,20 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM meeting_tracks", [], |row| row.get(0))
             .unwrap();
         assert_eq!(tracks, 1);
+    }
+
+    #[test]
+    fn a_title_survives_the_meeting_being_saved_again() {
+        let mut conn = db();
+        let id = "2026-11-15_14-03-22";
+        save(&mut conn, &meeting(MeetingStatus::Transcribing)).unwrap();
+        rename(&conn, id, Some(" Standup ")).unwrap();
+        save(&mut conn, &meeting(MeetingStatus::Done)).unwrap();
+        let title = |conn: &Connection| get(conn, id).unwrap().unwrap().meeting.title;
+        assert_eq!(title(&conn).as_deref(), Some("Standup"));
+        rename(&conn, id, Some("  ")).unwrap();
+        assert_eq!(title(&conn), None);
+        assert!(rename(&conn, "elsewhere", Some("x")).is_err());
     }
 
     #[test]

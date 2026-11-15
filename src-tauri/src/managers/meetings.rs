@@ -21,11 +21,13 @@ pub use transcript::{Speaker, Utterance};
 use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
+use tauri_specta::Event;
 
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription_jobs::TranscriptionJobManager;
@@ -99,6 +101,46 @@ impl Meeting {
     fn begin_attempt(&mut self) {
         self.attempts = self.attempts.saturating_add(1);
         self.status = MeetingStatus::Transcribing;
+    }
+}
+
+/// A meeting's folder or row changed: its status, tracks, title or
+/// transcript.
+#[derive(Clone, Debug, Serialize, Deserialize, Type, tauri_specta::Event)]
+pub struct MeetingChanged {
+    pub id: String,
+}
+
+/// What a meeting's transcription is doing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingStep {
+    /// Transcribing the microphone.
+    Mic,
+    /// Transcribing the output, or imported audio.
+    System,
+    /// Telling the output's speakers apart, which reports no percent.
+    Speakers,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Type, tauri_specta::Event)]
+pub struct MeetingProgress {
+    pub id: String,
+    pub step: MeetingStep,
+    pub percent: Option<u8>,
+}
+
+/// The loudest sample of each track since the last, 0 to 1, sent 30 times
+/// a second while a meeting records.
+#[derive(Clone, Debug, Serialize, Deserialize, Type, tauri_specta::Event)]
+pub struct MeetingLevels {
+    pub mic: f32,
+    pub system: f32,
+}
+
+pub(crate) fn emit_changed(app: &AppHandle, id: &str) {
+    if let Err(e) = (MeetingChanged { id: id.to_string() }).emit(app) {
+        warn!("Failed to emit a meeting change: {e}");
     }
 }
 
@@ -320,7 +362,10 @@ impl MeetingManager {
         notices::clear(&self.app, NoticeSource::Meeting);
         info!("Meeting {} recording", meeting.id);
         let ended = Arc::new(AtomicBool::new(false));
-        let feeds = tracks.iter().map(|t| Arc::clone(&t.feed)).collect();
+        let feeds = tracks
+            .iter()
+            .map(|t| (t.kind, Arc::clone(&t.feed)))
+            .collect();
         let (app, id, until) = (self.app.clone(), meeting.id.clone(), Arc::clone(&ended));
         std::thread::Builder::new()
             .name("meeting-ticker".into())
@@ -437,20 +482,36 @@ fn check_track(file: &Path) -> Result<()> {
 /// How often a recording meeting's ticker runs.
 const TICK: Duration = Duration::from_millis(1000 / 30);
 
-/// Runs while the meeting `id` records: saves each track's start offset
-/// once its audio arrives, so a meeting that never stops can still be lined
-/// up.
+/// Runs while the meeting `id` records: sends the tracks' levels, and
+/// saves each track's start offset once its audio arrives, so a meeting
+/// that never stops can still be lined up.
 fn tick(
     app: &AppHandle,
     id: &str,
-    feeds: Vec<Arc<TrackFeed>>,
+    feeds: Vec<(TrackKind, Arc<TrackFeed>)>,
     started: Instant,
     ended: &AtomicBool,
 ) {
     let mut known = vec![false; feeds.len()];
+    let mut sent = 0u64;
+    let mut next = Instant::now();
     while !ended.load(Ordering::Acquire) {
+        let mut levels = MeetingLevels {
+            mic: 0.0,
+            system: 0.0,
+        };
+        for (kind, feed) in &feeds {
+            match kind {
+                TrackKind::Mic => levels.mic = feed.take_peak(),
+                TrackKind::System | TrackKind::Mixed => levels.system = feed.take_peak(),
+            }
+        }
+        match levels.emit(app) {
+            Ok(()) => sent += 1,
+            Err(e) => debug!("Failed to emit meeting levels: {e}"),
+        }
         let mut arrived = false;
-        for (feed, known) in feeds.iter().zip(&mut known) {
+        for ((_, feed), known) in feeds.iter().zip(&mut known) {
             if !*known && feed.offset_ms(started).is_some() {
                 *known = true;
                 arrived = true;
@@ -459,8 +520,10 @@ fn tick(
         if arrived {
             app.state::<Arc<MeetingManager>>().save_offsets(id);
         }
-        std::thread::sleep(TICK);
+        next += TICK;
+        std::thread::sleep(next.saturating_duration_since(Instant::now()));
     }
+    debug!("Meeting {id}: sent {sent} level updates");
 }
 
 /// How often a recording meeting checks where the output plays.
@@ -523,6 +586,7 @@ pub(crate) fn write_meeting(app: &AppHandle, meeting: &Meeting) -> Result<()> {
     {
         error!("Failed to store meeting {}: {e:#}", meeting.id);
     }
+    emit_changed(app, &meeting.id);
     Ok(())
 }
 

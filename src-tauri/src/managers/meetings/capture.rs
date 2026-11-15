@@ -8,6 +8,7 @@ use log::{info, warn};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -22,6 +23,9 @@ const FLUSH_SAMPLES: u32 = 80_000;
 pub(super) struct TrackFeed {
     /// When the first sample was captured.
     first_audio: OnceLock<Instant>,
+    /// The loudest sample since the last read, as `f32` bits: for a
+    /// non-negative float those order like the float.
+    peak: AtomicU32,
 }
 
 impl TrackFeed {
@@ -30,6 +34,11 @@ impl TrackFeed {
         self.first_audio
             .get()
             .map(|at| at.saturating_duration_since(started).as_millis() as i64)
+    }
+
+    /// The loudest sample since the last call, 0 to 1.
+    pub fn take_peak(&self) -> f32 {
+        f32::from_bits(self.peak.swap(0, Ordering::Relaxed))
     }
 }
 
@@ -124,7 +133,12 @@ impl Sink for WavSink {
                 return;
             }
         }
-        let samples = chunk.samples[..chunk.valid_frames]
+        let audio = &chunk.samples[..chunk.valid_frames];
+        let peak = audio
+            .iter()
+            .fold(0.0f32, |peak, s| peak.max(s.abs().min(1.0)));
+        self.feed.peak.fetch_max(peak.to_bits(), Ordering::Relaxed);
+        let samples = audio
             .iter()
             .map(|&sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
         if let Err(e) = self.write(samples) {
@@ -377,6 +391,8 @@ mod tests {
             .iter()
             .all(|&s| s == (0.25 * i16::MAX as f32) as i16));
         assert!(feed.offset_ms(started).is_some());
+        assert_eq!(feed.take_peak(), 0.25);
+        assert_eq!(feed.take_peak(), 0.0, "read once");
     }
 
     #[test]

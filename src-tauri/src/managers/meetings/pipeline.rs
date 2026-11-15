@@ -2,11 +2,13 @@
 //! track diarized, and the transcript written. Runs on the job thread.
 
 use anyhow::{anyhow, bail, Context, Result};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Manager};
+use tauri_specta::Event;
 use transcribe_cpp::{
     DiarizeExtension, DiarizeOptions, SortformerDiarizeOptions, SortformerPreset,
 };
@@ -16,8 +18,8 @@ use super::transcript::{
     assign_speakers, merge_minor_speakers, merge_utterances, render_transcript, Turn,
 };
 use super::{
-    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingStatus, Rerun, Speaker,
-    TrackKind,
+    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingProgress, MeetingStatus,
+    MeetingStep, Rerun, Speaker, TrackKind,
 };
 use crate::engine_supervisor::EngineError;
 use crate::managers::history::HistoryManager;
@@ -83,12 +85,17 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
         // The language of the track with the most words.
         let mut language: Option<(usize, String)> = None;
         for track in &meeting.tracks {
+            let step = match track.kind {
+                TrackKind::Mic => MeetingStep::Mic,
+                TrackKind::System | TrackKind::Mixed => MeetingStep::System,
+            };
             let transcript = track_words(rerun, &meeting.dir, track.kind, || {
                 let (samples, total, short) = read_track(&track.file)?;
                 if short {
                     cut_short.push(format!("{:?}: the file ends early", track.kind));
                 }
-                tm.transcribe_words_in_chunks(samples, total, control)
+                let reporting = Reporting::new(app, &meeting.id, step, control);
+                tm.transcribe_words_in_chunks(samples, total, &reporting)
             })?
             .ok_or_else(|| anyhow!("Transcription was stopped"))?;
             let track_words = transcript.words;
@@ -110,6 +117,7 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 // Nobody spoke, so there's no one to tell apart.
                 TrackKind::System | TrackKind::Mixed if track_words.is_empty() => Vec::new(),
                 TrackKind::System | TrackKind::Mixed => {
+                    emit_progress(app, &meeting.id, MeetingStep::Speakers, None);
                     match diarize_track(app, &track.file, control)? {
                         Ok(turns) => {
                             meeting.diar_model = Some(crate::catalog::DIARIZER_CATALOG_ID.into());
@@ -186,6 +194,58 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 )
                 .with_detail(format!("{e:#}")),
             );
+        }
+    }
+}
+
+fn emit_progress(app: &AppHandle, id: &str, step: MeetingStep, percent: Option<u8>) {
+    let progress = MeetingProgress {
+        id: id.to_string(),
+        step,
+        percent,
+    };
+    match progress.emit(app) {
+        Ok(()) => debug!("Meeting {id}: {step:?} {percent:?}"),
+        Err(e) => warn!("Failed to emit meeting progress: {e}"),
+    }
+}
+
+/// The job's control, reporting a track's progress as the meeting's.
+struct Reporting<'a> {
+    app: &'a AppHandle,
+    id: &'a str,
+    step: MeetingStep,
+    control: &'a dyn ChunkControl,
+    /// The last percent sent.
+    percent: Cell<Option<u8>>,
+}
+
+impl<'a> Reporting<'a> {
+    fn new(
+        app: &'a AppHandle,
+        id: &'a str,
+        step: MeetingStep,
+        control: &'a dyn ChunkControl,
+    ) -> Self {
+        Self {
+            app,
+            id,
+            step,
+            control,
+            percent: Cell::new(None),
+        }
+    }
+}
+
+impl ChunkControl for Reporting<'_> {
+    fn proceed(&self) -> bool {
+        self.control.proceed()
+    }
+
+    fn progress(&self, done: usize, total: usize) {
+        let percent = (done * 100 / total.max(1)).min(100) as u8;
+        if self.percent.replace(Some(percent)) != Some(percent) {
+            emit_progress(self.app, self.id, self.step, Some(percent));
         }
     }
 }

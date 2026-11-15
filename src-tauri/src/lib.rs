@@ -798,6 +798,10 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::list_meetings,
             commands::meetings::get_meeting,
             commands::meetings::rename_speaker,
+            commands::meetings::rename_meeting,
+            commands::meetings::retranscribe_meeting,
+            commands::meetings::rediarize_meeting,
+            commands::meetings::active_meeting,
             commands::models::is_language_detector_downloaded,
             commands::models::delete_model,
             commands::models::get_retired_models,
@@ -852,6 +856,9 @@ pub fn run(cli_args: CliArgs) {
             transcription_coordinator::RecordingStateEvent,
             actions::TranscriptionCompleteEvent,
             notices::NoticesChanged,
+            managers::meetings::MeetingChanged,
+            managers::meetings::MeetingProgress,
+            managers::meetings::MeetingLevels,
         ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
