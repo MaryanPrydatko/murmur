@@ -5,11 +5,12 @@
 //! `mic.wav`, `system.wav`, `meeting.json` and, once transcribed,
 //! `transcript.md`.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use handy_recorder::{AudioChunk, Recorder, RecorderConfig, Sink};
 use hound::{WavSpec, WavWriter};
 use log::{error, info, warn};
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -17,7 +18,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
+use transcribe_cpp::{
+    DiarizeExtension, DiarizeOptions, SortformerDiarizeOptions, SortformerPreset,
+};
 
+use crate::engine_supervisor::EngineError;
+use crate::managers::model::ModelManager;
 use crate::managers::transcription::{ChunkControl, TimedWord, TranscriptionManager};
 use crate::managers::transcription_jobs::TranscriptionJobManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
@@ -25,6 +31,15 @@ use crate::settings::get_settings;
 
 /// A pause longer than this starts a new utterance.
 const MAX_WORD_GAP_MS: i64 = 1_500;
+
+/// A diarized speaker with less of the track's speech than this percentage
+/// is taken for the diarizer splitting off part of someone else. On two real
+/// meetings Sortformer added one or two such speakers, with 1 and 10 turns
+/// against about 200 for each real one (10 of ~410 turns is 2.4%).
+const MIN_SPEAKER_SHARE_PCT: i64 = 3;
+
+/// Tries at diarizing when a dictation's cancel interrupts it.
+const MAX_DIARIZE_ATTEMPTS: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -49,20 +64,52 @@ impl TrackKind {
             Self::System => "system.wav",
         }
     }
+}
 
-    /// The microphone is the user; the output is everyone else.
-    fn speaker(self) -> Speaker {
+/// The microphone is the user; the output is everyone else, told apart when
+/// the diarizer ran.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Speaker {
+    Me,
+    /// The output, not told apart.
+    Them,
+    /// One person on the output, numbered from 1 in the order they first
+    /// spoke.
+    Remote(u8),
+}
+
+impl Speaker {
+    fn name(self) -> String {
         match self {
-            Self::Mic => Speaker::Me,
-            Self::System => Speaker::Them,
+            Self::Me => "Me".into(),
+            Self::Them => "Them".into(),
+            Self::Remote(n) => format!("Speaker {n}"),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-pub enum Speaker {
-    Me,
-    Them,
+/// A stretch of the system track one diarized speaker talks in, in ms from
+/// the track's start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Turn {
+    t0_ms: i64,
+    t1_ms: i64,
+    speaker: u8,
+}
+
+impl Turn {
+    fn len(&self) -> i64 {
+        self.t1_ms - self.t0_ms
+    }
+
+    fn overlap(&self, t0_ms: i64, t1_ms: i64) -> i64 {
+        (self.t1_ms.min(t1_ms) - self.t0_ms.max(t0_ms)).max(0)
+    }
+
+    /// 0 inside the turn.
+    fn distance(&self, at_ms: i64) -> i64 {
+        (self.t0_ms - at_ms).max(at_ms - self.t1_ms).max(0)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -339,23 +386,47 @@ fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Result<i64> {
         .unwrap_or(0))
 }
 
+/// Why the system track's speakers weren't told apart.
+enum Unseparated {
+    NoModel,
+    Failed(anyhow::Error),
+}
+
 /// Transcribes every track and writes the transcript. Runs on the job thread.
 fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
+    let mut unseparated = None;
     let result = (|| -> Result<()> {
         let mut tracks = Vec::new();
         for track in &meeting.tracks {
-            let reader = hound::WavReader::open(&track.file)?;
-            let total = reader.duration() as usize;
-            let samples = reader
-                .into_samples::<i16>()
-                .map_while(Result::ok)
-                .map(|s| s as f32 / i16::MAX as f32);
-            let words = tm
+            let (samples, total) = read_track(&track.file)?;
+            let track_words = tm
                 .transcribe_words_in_chunks(samples, total, control)?
                 .ok_or_else(|| anyhow!("Transcription was stopped"))?;
-            info!("Meeting {:?} track: {} words", track.kind, words.len());
-            tracks.push((track.kind.speaker(), track.start_offset_ms, words));
+            info!(
+                "Meeting {:?} track: {} words",
+                track.kind,
+                track_words.len()
+            );
+            let speakers = match track.kind {
+                TrackKind::Mic => vec![Speaker::Me; track_words.len()],
+                // Nobody spoke, so there's no one to tell apart.
+                TrackKind::System if track_words.is_empty() => Vec::new(),
+                TrackKind::System => match diarize_track(app, &track.file, control)? {
+                    Ok(turns) => assign_speakers(&track_words, &merge_minor_speakers(turns)),
+                    Err(why) => {
+                        if let Unseparated::Failed(e) = &why {
+                            warn!("Meeting {} diarization failed: {e:#}", meeting.id);
+                        }
+                        unseparated = Some(why);
+                        vec![Speaker::Them; track_words.len()]
+                    }
+                },
+            };
+            tracks.push((
+                track.start_offset_ms,
+                speakers.into_iter().zip(track_words).collect(),
+            ));
         }
         let utterances = merge_utterances(tracks);
         let path = meeting.dir.join("transcript.md");
@@ -373,6 +444,17 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
         Ok(()) => {
             info!("Meeting {} transcribed", meeting.id);
             notices::clear(app, NoticeSource::Meeting);
+            let notice = Notice::new(
+                NoticeCode::MeetingSpeakersNotSeparated,
+                NoticeSource::Meeting,
+            );
+            match unseparated {
+                Some(Unseparated::NoModel) => notices::raise(app, notice),
+                Some(Unseparated::Failed(e)) => {
+                    notices::raise(app, notice.with_detail(format!("{e:#}")))
+                }
+                None => {}
+            }
         }
         Err(e) => {
             error!("Meeting {} transcription failed: {e:#}", meeting.id);
@@ -386,6 +468,138 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl)
             );
         }
     }
+}
+
+/// A track's samples, read as they're needed, and how many there are.
+fn read_track(file: &Path) -> Result<(impl Iterator<Item = f32>, usize)> {
+    let reader = hound::WavReader::open(file)
+        .with_context(|| format!("Failed to open {}", file.display()))?;
+    let total = reader.duration() as usize;
+    let samples = reader
+        .into_samples::<i16>()
+        .map_while(Result::ok)
+        .map(|s| s as f32 / i16::MAX as f32);
+    Ok((samples, total))
+}
+
+/// Who spoke when on the system track, in one run over all of it, or why
+/// not. Fails only when `control` stopped the transcription.
+fn diarize_track(
+    app: &AppHandle,
+    file: &Path,
+    control: &dyn ChunkControl,
+) -> Result<Result<Vec<Turn>, Unseparated>> {
+    let Some(model) = app.state::<Arc<ModelManager>>().diarizer_path() else {
+        return Ok(Err(Unseparated::NoModel));
+    };
+    let tm = app.state::<Arc<TranscriptionManager>>();
+    let options = DiarizeOptions {
+        family: Some(DiarizeExtension::Sortformer(SortformerDiarizeOptions {
+            preset: Some(SortformerPreset::VeryHighLatency),
+        })),
+    };
+    let mut attempts = 0;
+    loop {
+        if !control.proceed() {
+            bail!("Transcription was stopped");
+        }
+        attempts += 1;
+        // Read again for each try rather than keep a second copy of the track.
+        let pcm: Vec<f32> = match read_track(file) {
+            Ok((samples, _)) => samples.collect(),
+            Err(e) => return Ok(Err(Unseparated::Failed(e))),
+        };
+        let started = Instant::now();
+        match tm.diarize(model.clone(), options.clone(), pcm) {
+            Ok(segments) => {
+                info!(
+                    "Diarized the system track in {} ms: {} turns",
+                    started.elapsed().as_millis(),
+                    segments.len()
+                );
+                return Ok(Ok(segments
+                    .into_iter()
+                    .filter(|s| s.t1_ms > s.t0_ms && s.speaker_id >= 1)
+                    .map(|s| Turn {
+                        t0_ms: s.t0_ms,
+                        t1_ms: s.t1_ms,
+                        speaker: s.speaker_id as u8,
+                    })
+                    .collect()));
+            }
+            Err(EngineError::Cancelled) if attempts < MAX_DIARIZE_ATTEMPTS => {
+                warn!("Diarization was cancelled; trying it again");
+            }
+            Err(e) => return Ok(Err(Unseparated::Failed(e.into()))),
+        }
+    }
+}
+
+/// Merges each speaker with under [`MIN_SPEAKER_SHARE_PCT`] of the speech
+/// into the main speaker their turn overlaps most, or else the nearest one,
+/// then numbers speakers from 1 in the order they first speak.
+fn merge_minor_speakers(mut turns: Vec<Turn>) -> Vec<Turn> {
+    let mut talk: BTreeMap<u8, i64> = BTreeMap::new();
+    for turn in &turns {
+        *talk.entry(turn.speaker).or_default() += turn.len();
+    }
+    let total: i64 = talk.values().sum();
+    let is_minor = |speaker: u8| talk[&speaker] * 100 < MIN_SPEAKER_SHARE_PCT * total;
+    for (speaker, ms) in &talk {
+        info!(
+            "Diarized speaker {speaker}: {:.1}s, {:.1}% of the speech",
+            *ms as f64 / 1000.0,
+            *ms as f64 * 100.0 / total.max(1) as f64
+        );
+    }
+
+    let main: Vec<Turn> = turns
+        .iter()
+        .filter(|t| !is_minor(t.speaker))
+        .copied()
+        .collect();
+    for turn in turns.iter_mut().filter(|t| is_minor(t.speaker)) {
+        let overlapping = main
+            .iter()
+            .max_by_key(|m| m.overlap(turn.t0_ms, turn.t1_ms))
+            .filter(|m| m.overlap(turn.t0_ms, turn.t1_ms) > 0);
+        let nearest = || {
+            main.iter()
+                .min_by_key(|m| m.distance(turn.t0_ms).min(m.distance(turn.t1_ms)))
+        };
+        if let Some(into) = overlapping.or_else(nearest) {
+            turn.speaker = into.speaker;
+        }
+    }
+
+    turns.sort_by_key(|t| (t.t0_ms, t.t1_ms));
+    let mut numbers: Vec<u8> = Vec::new();
+    for turn in &mut turns {
+        let index = match numbers.iter().position(|&s| s == turn.speaker) {
+            Some(index) => index,
+            None => {
+                numbers.push(turn.speaker);
+                numbers.len() - 1
+            }
+        };
+        turn.speaker = index as u8 + 1;
+    }
+    turns
+}
+
+/// Each word's speaker: the turn it overlaps most, or else the nearest one.
+/// Turns can overlap and come in any order. Without turns, it's [`Speaker::Them`].
+fn assign_speakers(words: &[TimedWord], turns: &[Turn]) -> Vec<Speaker> {
+    words
+        .iter()
+        .map(|w| {
+            let middle = (w.t0_ms + w.t1_ms) / 2;
+            turns
+                .iter()
+                .max_by_key(|t| (t.overlap(w.t0_ms, w.t1_ms), -t.distance(middle)))
+                .map_or(Speaker::Them, |t| Speaker::Remote(t.speaker))
+        })
+        .collect()
 }
 
 fn write_meeting(meeting: &Meeting) -> Result<()> {
@@ -436,14 +650,14 @@ fn monitor_device_id<'a>(
         .find(|id| id.split_once(':').map(|(_, name)| name) == Some(monitor_source))
 }
 
-/// Interleaves each speaker's words, placed by their track's start offset,
-/// into utterances: one breaks when the speaker changes or after a pause
-/// longer than [`MAX_WORD_GAP_MS`].
-fn merge_utterances(tracks: Vec<(Speaker, i64, Vec<TimedWord>)>) -> Vec<Utterance> {
+/// Interleaves each track's words and their speakers, placed by the track's
+/// start offset, into utterances: one breaks when the speaker changes or
+/// after a pause longer than [`MAX_WORD_GAP_MS`].
+fn merge_utterances(tracks: Vec<(i64, Vec<(Speaker, TimedWord)>)>) -> Vec<Utterance> {
     let mut words: Vec<(Speaker, TimedWord)> = tracks
         .into_iter()
-        .flat_map(|(speaker, offset, words)| {
-            words.into_iter().map(move |w| {
+        .flat_map(|(offset, words)| {
+            words.into_iter().map(move |(speaker, w)| {
                 (
                     speaker,
                     TimedWord {
@@ -488,8 +702,8 @@ fn render_transcript(meeting: &Meeting, utterances: &[Utterance]) -> String {
     let mut out = format!("# Meeting {date} ({})\n", clock(meeting.duration_ms));
     for u in utterances {
         out.push_str(&format!(
-            "\n**{:?}** {} {}\n",
-            u.speaker,
+            "\n**{}** {} {}\n",
+            u.speaker.name(),
             clock(u.t0_ms),
             u.text
         ));
@@ -556,12 +770,25 @@ mod tests {
         );
     }
 
+    /// One track's words, all said by `speaker`.
+    fn by(speaker: Speaker, words: Vec<TimedWord>) -> Vec<(Speaker, TimedWord)> {
+        words.into_iter().map(|w| (speaker, w)).collect()
+    }
+
+    fn turn(t0_ms: i64, t1_ms: i64, speaker: u8) -> Turn {
+        Turn {
+            t0_ms,
+            t1_ms,
+            speaker,
+        }
+    }
+
     #[test]
     fn places_each_track_by_its_start_offset() {
         let utterances = merge_utterances(vec![
-            (Speaker::Me, 0, vec![word(1_000, 1_400, "hi")]),
+            (0, by(Speaker::Me, vec![word(1_000, 1_400, "hi")])),
             // The system track started 2 s in, so its 0 ms is meeting 2 s.
-            (Speaker::Them, 2_000, vec![word(0, 300, "hello")]),
+            (2_000, by(Speaker::Them, vec![word(0, 300, "hello")])),
         ]);
         assert_eq!(
             utterances,
@@ -576,20 +803,24 @@ mod tests {
     fn breaks_utterances_on_speaker_change_and_long_pauses() {
         let utterances = merge_utterances(vec![
             (
-                Speaker::Me,
                 0,
-                vec![
-                    word(0, 400, "so"),
-                    word(500, 900, "yes"),
-                    // 1.6 s after "yes": a new utterance.
-                    word(2_500, 2_900, "anyway"),
-                    word(9_000, 9_400, "right"),
-                ],
+                by(
+                    Speaker::Me,
+                    vec![
+                        word(0, 400, "so"),
+                        word(500, 900, "yes"),
+                        // 1.6 s after "yes": a new utterance.
+                        word(2_500, 2_900, "anyway"),
+                        word(9_000, 9_400, "right"),
+                    ],
+                ),
             ),
             (
-                Speaker::Them,
                 0,
-                vec![word(4_000, 4_500, "sure"), word(5_000, 5_500, "thing")],
+                by(
+                    Speaker::Them,
+                    vec![word(4_000, 4_500, "sure"), word(5_000, 5_500, "thing")],
+                ),
             ),
         ]);
         assert_eq!(
@@ -615,11 +846,126 @@ mod tests {
         };
         let utterances = [
             said(83_000, 84_000, Speaker::Me, "hi"),
-            said(3_661_000, 3_662_000, Speaker::Them, "bye"),
+            said(3_661_000, 3_662_000, Speaker::Remote(2), "bye"),
+            said(3_663_000, 3_664_000, Speaker::Them, "ok"),
         ];
         assert_eq!(
             render_transcript(&meeting, &utterances),
-            "# Meeting 2026-11-15 14:03 (01:02:05)\n\n**Me** 00:01:23 hi\n\n**Them** 01:01:01 bye\n"
+            "# Meeting 2026-11-15 14:03 (01:02:05)\n\n**Me** 00:01:23 hi\n\n\
+             **Speaker 2** 01:01:01 bye\n\n**Them** 01:01:03 ok\n"
+        );
+    }
+
+    #[test]
+    fn gives_each_word_the_turn_it_overlaps_most() {
+        // Turns come grouped by speaker and can overlap.
+        let turns = [
+            turn(0, 2_100, 1),
+            turn(5_000, 6_000, 1),
+            turn(1_900, 4_000, 2),
+        ];
+        let words = [
+            word(100, 500, "hello"),
+            // 2000..2300 overlaps speaker 1 by 100 ms, speaker 2 by 300 ms.
+            word(2_000, 2_300, "well"),
+            word(5_200, 5_600, "yes"),
+        ];
+        assert_eq!(
+            assign_speakers(&words, &turns),
+            [Speaker::Remote(1), Speaker::Remote(2), Speaker::Remote(1)]
+        );
+    }
+
+    #[test]
+    fn gives_a_word_between_turns_the_nearest_one() {
+        let turns = [turn(0, 1_000, 1), turn(3_000, 4_000, 2)];
+        let words = [word(1_200, 1_400, "um"), word(2_600, 2_800, "so")];
+        assert_eq!(
+            assign_speakers(&words, &turns),
+            [Speaker::Remote(1), Speaker::Remote(2)]
+        );
+    }
+
+    #[test]
+    fn words_without_turns_are_them() {
+        assert_eq!(assign_speakers(&[word(0, 300, "hi")], &[]), [Speaker::Them]);
+    }
+
+    #[test]
+    fn merges_a_speaker_with_too_little_speech_into_the_one_it_overlaps() {
+        let turns = vec![
+            turn(0, 50_000, 1),
+            turn(50_000, 100_000, 2),
+            // 1 s of 101 s: under 3%, and inside speaker 2's turn.
+            turn(60_000, 61_000, 3),
+        ];
+        assert_eq!(
+            merge_minor_speakers(turns),
+            [
+                turn(0, 50_000, 1),
+                turn(50_000, 100_000, 2),
+                turn(60_000, 61_000, 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn merges_a_lone_minor_turn_into_the_nearest_speaker() {
+        let turns = vec![
+            turn(0, 40_000, 1),
+            turn(60_000, 100_000, 2),
+            // Overlaps nobody; 4 s from speaker 2, 15 s from speaker 1.
+            turn(55_000, 56_000, 3),
+        ];
+        assert_eq!(merge_minor_speakers(turns)[1], turn(55_000, 56_000, 2));
+    }
+
+    #[test]
+    fn keeps_a_quiet_speaker_above_the_threshold() {
+        // 4 s of 104 s is 3.8%.
+        let turns = vec![
+            turn(0, 50_000, 1),
+            turn(50_000, 100_000, 2),
+            turn(100_000, 104_000, 3),
+        ];
+        let speakers: Vec<u8> = merge_minor_speakers(turns)
+            .iter()
+            .map(|t| t.speaker)
+            .collect();
+        assert_eq!(speakers, [1, 2, 3]);
+    }
+
+    #[test]
+    fn numbers_speakers_in_the_order_they_first_speak() {
+        // The diarizer's ids are its own; Speaker 1 is whoever talks first.
+        let turns = vec![
+            turn(10_000, 20_000, 4),
+            turn(0, 10_000, 2),
+            turn(20_000, 30_000, 2),
+        ];
+        assert_eq!(
+            merge_minor_speakers(turns),
+            [
+                turn(0, 10_000, 1),
+                turn(10_000, 20_000, 2),
+                turn(20_000, 30_000, 1)
+            ]
+        );
+    }
+
+    #[test]
+    fn breaks_an_utterance_where_the_system_speaker_changes() {
+        let system = vec![
+            (Speaker::Remote(1), word(0, 400, "how")),
+            (Speaker::Remote(1), word(500, 900, "are")),
+            (Speaker::Remote(2), word(1_000, 1_400, "fine")),
+        ];
+        assert_eq!(
+            merge_utterances(vec![(0, system)]),
+            [
+                said(0, 900, Speaker::Remote(1), "how are"),
+                said(1_000, 1_400, Speaker::Remote(2), "fine"),
+            ]
         );
     }
 }

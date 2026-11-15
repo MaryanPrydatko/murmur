@@ -4,8 +4,9 @@
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::ops::Range;
+use std::path::PathBuf;
 use std::time::Instant;
-use transcribe_cpp::{RunOptions, TimestampKind, Transcript};
+use transcribe_cpp::{DiarizeOptions, RunOptions, SpeakerSegment, TimestampKind, Transcript};
 
 use super::{
     agreed_language, engine_error, post_process_transcription_text, real_time_factor, BatchContext,
@@ -141,6 +142,20 @@ impl TranscriptionManager {
                 })
                 .collect(),
         ))
+    }
+
+    /// Who spoke when in `pcm`, by the diarizer at `model`, on the loaded
+    /// transcription model's device. A dictation's cancel stops it like a
+    /// chunk, as [`EngineError::Cancelled`].
+    pub fn diarize(
+        &self,
+        model: PathBuf,
+        options: DiarizeOptions,
+        pcm: Vec<f32>,
+    ) -> std::result::Result<Vec<SpeakerSegment>, EngineError> {
+        self.touch_activity();
+        self.engine
+            .diarize_since(self.engine.cancel_mark(), model, options, pcm)
     }
 
     /// Cuts the audio at pauses as `pieces` arrive and decodes each chunk,

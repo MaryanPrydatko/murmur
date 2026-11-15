@@ -737,6 +737,18 @@ async downloadLanguageDetector() : Promise<Result<null, string>> {
 }
 },
 /**
+ * Download the speaker diarizer meetings use. Reports like
+ * [`download_language_detector`], under `DIARIZER_ID`.
+ */
+async downloadDiarizer() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("download_diarizer") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1356,7 +1368,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.

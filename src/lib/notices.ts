@@ -1,11 +1,16 @@
 import type { TFunction } from "i18next";
 import { platform } from "@tauri-apps/plugin-os";
-import type { NoticeCode } from "@/bindings";
+import { commands, type Notice, type NoticeCode } from "@/bindings";
+
+/** Download id of the speaker diarizer (`DIARIZER_ID` in Rust). */
+export const DIARIZER_ID = "diarizer";
 
 interface NoticeDisplay {
   title: string;
   // Without one, the Live overlay shows the notice's detail instead.
   explanation?: (t: TFunction) => string;
+  // A button that fixes what the notice reports, when there is one.
+  action?: (notice: Notice) => { label: string; run: () => void } | undefined;
 }
 
 // See "Error notices" in AGENTS.md for how to add a code.
@@ -63,6 +68,17 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
   },
   MeetingTranscriptionFailed: {
     title: "errors.meetingTranscriptionFailedTitle",
+  },
+  MeetingSpeakersNotSeparated: {
+    title: "errors.meetingSpeakersNotSeparatedTitle",
+    // With a detail the diarizer failed; without one it isn't downloaded.
+    action: (notice) =>
+      notice.detail
+        ? undefined
+        : {
+            label: "errors.downloadSpeakerModel",
+            run: () => void commands.downloadDiarizer(),
+          },
   },
 };
 

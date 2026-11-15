@@ -54,6 +54,9 @@ pub enum NoticeCode {
     FilePostProcessFailed,
     MeetingRecordingFailed,
     MeetingTranscriptionFailed,
+    // The meeting's system track is all "Them": without a detail, the
+    // diarizer isn't downloaded; with one, it's the error it failed with.
+    MeetingSpeakersNotSeparated,
 }
 
 impl NoticeCode {
@@ -71,7 +74,9 @@ impl NoticeCode {
             | Self::FileTranscriptionFailed
             | Self::MeetingRecordingFailed
             | Self::MeetingTranscriptionFailed => NoticeLevel::Error,
-            Self::PostProcessFailed | Self::FilePostProcessFailed => NoticeLevel::Warning,
+            Self::PostProcessFailed
+            | Self::FilePostProcessFailed
+            | Self::MeetingSpeakersNotSeparated => NoticeLevel::Warning,
         }
     }
 
@@ -92,6 +97,7 @@ impl NoticeCode {
             Self::FilePostProcessFailed => &strings.file_post_process_failed_title,
             Self::MeetingRecordingFailed => &strings.meeting_recording_failed_title,
             Self::MeetingTranscriptionFailed => &strings.meeting_transcription_failed_title,
+            Self::MeetingSpeakersNotSeparated => &strings.meeting_speakers_not_separated_title,
         }
     }
 }

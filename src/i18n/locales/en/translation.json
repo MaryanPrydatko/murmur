@@ -961,6 +961,8 @@
     "fileTranscriptionFailedTitle": "File Transcription Failed",
     "meetingRecordingFailedTitle": "Meeting Recording Failed",
     "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
+    "meetingSpeakersNotSeparatedTitle": "Speakers Not Separated",
+    "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "Transcription Failed"
   },
   "notices": {

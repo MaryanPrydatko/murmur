@@ -135,13 +135,21 @@ export const NoticePanel: React.FC = () => {
     ...notices
       .filter((notice) => isShown(notice.source))
       .map((notice) => {
-        const { title, explanation } = noticeDisplay(notice.code);
+        const { title, explanation, action } = noticeDisplay(notice.code);
+        const fix = action?.(notice);
         return {
           id: notice.source,
           level: notice.level,
           title: t(title),
           explanation: explanation?.(t),
           detail: notice.detail,
+          action: fix && {
+            label: t(fix.label),
+            onClick: () => {
+              fix.run();
+              dismiss(notice);
+            },
+          },
           onDismiss: () => dismiss(notice),
         };
       }),
