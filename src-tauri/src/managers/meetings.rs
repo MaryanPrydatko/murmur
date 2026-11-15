@@ -22,6 +22,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -171,6 +172,10 @@ pub struct MeetingManager {
     /// is only held for moments, never while PulseAudio is asked anything.
     toggling: Mutex<()>,
     active: Mutex<Option<ActiveMeeting>>,
+    /// Why tracks of meetings stopped this run were cut short, by meeting
+    /// id, for their transcription to warn about again after it clears
+    /// the meeting's notices.
+    cut_short: Mutex<HashMap<String, String>>,
     /// Read by the tray without waiting on a start or stop in progress.
     recording: AtomicBool,
 }
@@ -181,6 +186,7 @@ impl MeetingManager {
             app: app.clone(),
             toggling: Mutex::new(()),
             active: Mutex::new(None),
+            cut_short: Mutex::default(),
             recording: AtomicBool::new(false),
         }
     }
@@ -191,6 +197,15 @@ impl MeetingManager {
 
     fn lock(&self) -> MutexGuard<'_, Option<ActiveMeeting>> {
         self.active.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Why the tracks of the meeting `id` were cut short while recording,
+    /// once.
+    pub(crate) fn take_cut_short(&self, id: &str) -> Option<String> {
+        self.cut_short
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id)
     }
 
     /// The id of the meeting recording now.
@@ -444,10 +459,15 @@ impl MeetingManager {
         meeting.status = MeetingStatus::Transcribing;
         write_meeting(&self.app, &meeting)?;
         if !cut_short.is_empty() {
+            let detail = cut_short.join("; ");
+            self.cut_short
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(meeting.id.clone(), detail.clone());
             notices::raise(
                 &self.app,
                 Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
-                    .with_detail(cut_short.join("; ")),
+                    .with_detail(detail),
             );
         }
         Ok(meeting)

@@ -197,7 +197,11 @@ impl TranscriptionManager {
         audio: PathBuf,
         samples: usize,
     ) -> std::result::Result<Vec<SpeakerSegment>, EngineError> {
-        self.touch_activity();
+        // The diarizer runs beside the transcription model, which a
+        // speakers-only rerun hasn't loaded.
+        self.begin_batch();
+        self.batch_plan()
+            .map_err(|e| EngineError::Failed(format!("{e:#}")))?;
         self.engine
             .diarize_since(self.engine.cancel_mark(), model, options, audio, samples)
     }

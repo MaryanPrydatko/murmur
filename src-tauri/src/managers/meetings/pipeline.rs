@@ -18,8 +18,8 @@ use super::transcript::{
     assign_speakers, merge_minor_speakers, merge_utterances, render_transcript, Turn,
 };
 use super::{
-    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingProgress, MeetingStatus,
-    MeetingStep, Rerun, Speaker, TrackKind,
+    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingManager, MeetingProgress,
+    MeetingStatus, MeetingStep, Rerun, Speaker, TrackKind,
 };
 use crate::engine_supervisor::EngineError;
 use crate::managers::history::HistoryManager;
@@ -79,8 +79,16 @@ pub(crate) fn fail_job(app: &AppHandle, id: &str, error: &str) {
 fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
     let mut unseparated = None;
-    let mut cut_short = Vec::new();
-    let result = (|| -> Result<()> {
+    // Tracks cut short while recording, then any whose file ends early.
+    let mut cut_short: Vec<String> = app
+        .state::<Arc<MeetingManager>>()
+        .take_cut_short(&meeting.id)
+        .into_iter()
+        .collect();
+    let mut transcribed = false;
+    // Whether the transcript was written: a speakers-only rerun that can't
+    // tell them apart keeps the one there is.
+    let result = (|| -> Result<bool> {
         let mut tracks = Vec::new();
         // The language of the track with the most words.
         let mut language: Option<(usize, String)> = None;
@@ -90,6 +98,7 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 TrackKind::System | TrackKind::Mixed => MeetingStep::System,
             };
             let transcript = track_words(rerun, &meeting.dir, track.kind, || {
+                transcribed = true;
                 let (samples, total, short) = read_track(&track.file)?;
                 if short {
                     cut_short.push(format!("{:?}: the file ends early", track.kind));
@@ -128,6 +137,9 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                                 warn!("Meeting {} diarization failed: {e:#}", meeting.id);
                             }
                             unseparated = Some(why);
+                            if rerun == Rerun::Speakers {
+                                return Ok(false);
+                            }
                             vec![Speaker::Them; track_words.len()]
                         }
                     }
@@ -138,7 +150,9 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 speakers.into_iter().zip(track_words).collect(),
             ));
         }
-        meeting.asr_model = tm.get_current_model();
+        if transcribed {
+            meeting.asr_model = tm.get_current_model();
+        }
         meeting.language = language.map(|(_, language)| language);
         let utterances = merge_utterances(tracks);
         let path = meeting.dir.join("transcript.md");
@@ -151,20 +165,28 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
         {
             error!("Failed to store meeting {}'s transcript: {e:#}", meeting.id);
         }
-        Ok(())
+        Ok(true)
     })();
     meeting.status = match &result {
-        Ok(()) => MeetingStatus::Done,
-        Err(_) => MeetingStatus::Failed,
+        Ok(true) => MeetingStatus::Done,
+        Ok(false) if meeting.dir.join("transcript.md").exists() => MeetingStatus::Done,
+        Ok(false) | Err(_) => MeetingStatus::Failed,
     };
     if let Err(e) = write_meeting(app, &meeting) {
         error!("Failed to save meeting {}: {e:#}", meeting.id);
     }
     match result {
-        Ok(()) => {
-            info!("Meeting {} transcribed", meeting.id);
+        Ok(written) => {
             notices::clear(app, NoticeSource::Meeting);
-            super::notes::on_done(app, &meeting.id);
+            if written {
+                info!("Meeting {} transcribed", meeting.id);
+                super::notes::on_done(app, &meeting.id);
+            } else {
+                info!(
+                    "Meeting {}: speakers not told apart; kept its transcript",
+                    meeting.id
+                );
+            }
             let notice = Notice::new(
                 NoticeCode::MeetingSpeakersNotSeparated,
                 NoticeSource::Meeting,
