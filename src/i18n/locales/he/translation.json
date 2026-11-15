@@ -3,6 +3,8 @@
     "settings": "הגדרות...",
     "checkUpdates": "בדוק עדכונים...",
     "copyLastTranscript": "העתק את התמלול האחרון",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "פרוק מודל",
     "model": "מודל",
     "quit": "יציאה",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "תומלל ללא עיבוד משלים",
     "filePostProcessFailed": "העיבוד המשלים לא הסתיים, ולכן התמלול נשמר כפי שהוא.",
     "fileTranscriptionFailedTitle": "תמלול הקובץ נכשל",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "התמלול נכשל"
   },
   "notices": {

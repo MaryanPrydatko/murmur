@@ -3,6 +3,8 @@
     "settings": "Ayarlar...",
     "checkUpdates": "Güncellemeleri Kontrol Et...",
     "copyLastTranscript": "Son Transkripti Kopyala",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "Modeli Boşalt",
     "model": "Model",
     "quit": "Çıkış",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "Son işlem olmadan yazıya döküldü",
     "filePostProcessFailed": "Son işlem tamamlanmadı, bu yüzden metin olduğu gibi kaydedildi.",
     "fileTranscriptionFailedTitle": "Dosya transkripsiyonu başarısız oldu",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "Transkripsiyon başarısız oldu"
   },
   "notices": {

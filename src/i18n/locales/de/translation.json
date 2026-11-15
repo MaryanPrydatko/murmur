@@ -3,6 +3,8 @@
     "settings": "Einstellungen...",
     "checkUpdates": "Nach Updates suchen...",
     "copyLastTranscript": "Letzte Transkription kopieren",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "Modell entladen",
     "model": "Modell",
     "quit": "Beenden",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "Ohne Nachbearbeitung transkribiert",
     "filePostProcessFailed": "Die Nachbearbeitung wurde nicht abgeschlossen, daher wurde das Transkript unverändert gespeichert.",
     "fileTranscriptionFailedTitle": "Dateitranskription fehlgeschlagen",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "Transkription fehlgeschlagen"
   },
   "notices": {

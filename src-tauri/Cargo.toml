@@ -184,6 +184,9 @@ gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
 # version against the release that introduced damage-based compositing.
 webkit2gtk-sys = "2.0"
 gtk = "0.18"
+# Finds the default output's monitor for meeting recording; the version
+# handy-recorder already uses.
+pulseaudio = "0.3.1"
 transcribe-cpp = { version = "0.4.2", default-features = false, features = [
   "dynamic-backends",
   "vulkan",

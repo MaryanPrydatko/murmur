@@ -3,6 +3,8 @@
     "settings": "설정...",
     "checkUpdates": "업데이트 확인...",
     "copyLastTranscript": "마지막 녹음 내용 복사",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "모델 언로드",
     "model": "모델",
     "quit": "종료",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "후처리 없이 받아씀",
     "filePostProcessFailed": "후처리가 완료되지 않아 받아쓰기 결과를 그대로 저장했습니다.",
     "fileTranscriptionFailedTitle": "파일 음성 인식 실패",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "음성 인식 실패"
   },
   "notices": {

@@ -3,6 +3,8 @@
     "settings": "Настройки...",
     "checkUpdates": "Проверка за актуализации...",
     "copyLastTranscript": "Копиране на последния транскрипт",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "Разтоварване на модела",
     "model": "Модел",
     "quit": "Изход",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "Транскрибирано без постобработка",
     "filePostProcessFailed": "Постобработката не завърши, затова транскрипцията беше запазена без промени.",
     "fileTranscriptionFailedTitle": "Неуспешна транскрипция на файла",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "Неуспешна транскрипция"
   },
   "notices": {

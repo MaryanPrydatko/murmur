@@ -3,6 +3,8 @@
     "settings": "Налаштування...",
     "checkUpdates": "Перевірити оновлення...",
     "copyLastTranscript": "Скопіювати останню транскрипцію",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "Вивантажити модель",
     "model": "Модель",
     "quit": "Вийти",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "Розшифровано без постобробки",
     "filePostProcessFailed": "Постобробка не завершилася, тому розшифровку збережено як є.",
     "fileTranscriptionFailedTitle": "Помилка транскрипції файлу",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "Помилка транскрипції"
   },
   "notices": {

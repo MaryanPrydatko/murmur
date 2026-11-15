@@ -3,6 +3,8 @@
     "settings": "الإعدادات...",
     "checkUpdates": "التحقق من وجود تحديثات...",
     "copyLastTranscript": "نسخ آخر نص تم تفريغه",
+    "startMeeting": "Start Meeting",
+    "stopMeeting": "Stop Meeting",
     "unloadModel": "تفريغ النموذج",
     "model": "النموذج",
     "quit": "إنهاء",
@@ -957,6 +959,8 @@
     "filePostProcessFailedTitle": "نُسخ بدون معالجة لاحقة",
     "filePostProcessFailed": "لم تكتمل المعالجة اللاحقة، لذا حُفظ النص المنسوخ كما هو.",
     "fileTranscriptionFailedTitle": "فشل التفريغ النصي للملف",
+    "meetingRecordingFailedTitle": "Meeting Recording Failed",
+    "meetingTranscriptionFailedTitle": "Meeting Transcription Failed",
     "transcriptionFailedTitle": "فشل التفريغ النصي"
   },
   "notices": {
