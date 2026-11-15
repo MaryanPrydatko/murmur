@@ -272,6 +272,8 @@ mod tests {
             }],
             asr_model: Some("parakeet-ultra-Q8_0".into()),
             diar_model: Some("diar_streaming_sortformer_4spk-v2.1".into()),
+            language: None,
+            attempts: 0,
         }
     }
 
