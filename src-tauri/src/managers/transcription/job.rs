@@ -3,16 +3,18 @@
 
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::ops::Range;
 use std::time::Instant;
-use transcribe_cpp::Transcript;
+use transcribe_cpp::{RunOptions, TimestampKind, Transcript};
 
 use super::{
     agreed_language, engine_error, post_process_transcription_text, real_time_factor, BatchContext,
-    Transcription, TranscriptionManager,
+    RunSetup, Transcription, TranscriptionManager,
 };
 use crate::audio_toolkit::chunking::Chunker;
 use crate::engine_supervisor::EngineError;
 use crate::managers::audio::create_detector;
+use crate::settings::AppSettings;
 
 /// Tries per chunk when a dictation's cancel interrupts it.
 const MAX_CHUNK_ATTEMPTS: usize = 3;
@@ -32,6 +34,23 @@ pub trait ChunkControl {
     fn progress(&self, done: usize, total: usize);
 }
 
+/// A word, in milliseconds from the start of the audio it was decoded from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimedWord {
+    pub t0_ms: i64,
+    pub t1_ms: i64,
+    pub text: String,
+}
+
+/// What the chunk loop decoded, with what it ran with.
+struct Decoded {
+    /// Each chunk's samples in the audio, in order.
+    spans: Vec<Range<usize>>,
+    transcripts: Vec<Transcript>,
+    settings: AppSettings,
+    setup: RunSetup,
+}
+
 impl TranscriptionManager {
     /// Transcribe `audio` chunk by chunk with the selected model, one
     /// paragraph per chunk. `None` if `control` stopped it.
@@ -48,63 +67,17 @@ impl TranscriptionManager {
                 language: None,
             }));
         }
-
-        self.touch_activity();
-        self.initiate_model_load(false);
-        // Read once: the model can't change until the job ends.
-        let BatchContext {
+        let pieces = audio.chunks(FEED_SAMPLES).map(<[f32]>::to_vec);
+        let Some(Decoded {
+            transcripts,
             settings,
-            active_model,
             setup,
             ..
-        } = self.batch_context(&audio)?;
+        }) = self.decode_chunks(&audio, pieces, total, TimestampKind::Auto, control)?
+        else {
+            return Ok(None);
+        };
 
-        let backend = settings.vad_backend;
-        let app_handle = self.app_handle.clone();
-        let mut chunker = Chunker::new(Box::new(move || create_detector(backend, &app_handle)));
-        let mut pieces = audio.chunks(FEED_SAMPLES);
-
-        let mut transcripts: Vec<Transcript> = Vec::new();
-        let mut done = 0;
-        control.progress(done, total);
-        loop {
-            // Scoring waits out dictation too, and stops on cancel.
-            if !control.proceed() {
-                return Ok(None);
-            }
-            let (chunks, last) = match pieces.next() {
-                Some(piece) => (chunker.push(piece), false),
-                None => (chunker.finish(), true),
-            };
-            for chunk in chunks {
-                let len = chunk.len();
-                let mut attempts = 0;
-                let transcript = loop {
-                    if !control.proceed() {
-                        return Ok(None);
-                    }
-                    attempts += 1;
-                    // A fresh mark per chunk: a dictation's cancel stops only
-                    // the chunk it caught, which is then tried again.
-                    let mark = self.engine.cancel_mark();
-                    match self.run_batch(mark, chunk.clone(), &setup.run_options, &active_model) {
-                        Ok(transcript) => break transcript,
-                        Err(EngineError::Cancelled) if attempts < MAX_CHUNK_ATTEMPTS => {
-                            warn!("A background chunk was cancelled; trying it again");
-                        }
-                        Err(e) => return Err(engine_error(e)),
-                    }
-                };
-                transcripts.push(transcript);
-                done += len;
-                control.progress(done, total);
-            }
-            if last {
-                break;
-            }
-        }
-
-        debug!("Transcribed {} chunks in the background", transcripts.len());
         let language = setup.spoken_language(agreed_language(&transcripts).as_deref());
         let paragraphs: Vec<String> = transcripts
             .into_iter()
@@ -134,5 +107,235 @@ impl TranscriptionManager {
             text: paragraphs.join("\n\n"),
             language: Some(language),
         }))
+    }
+
+    /// Transcribe `total` samples into words timed from the start of the
+    /// audio, reading `samples` a piece at a time so a long recording is
+    /// never all in memory before it is cut. `None` if `control` stopped it.
+    pub fn transcribe_words_in_chunks(
+        &self,
+        mut samples: impl Iterator<Item = f32>,
+        total: usize,
+        control: &dyn ChunkControl,
+    ) -> Result<Option<Vec<TimedWord>>> {
+        let mut pieces = std::iter::from_fn(move || {
+            let piece: Vec<f32> = samples.by_ref().take(FEED_SAMPLES).collect();
+            (!piece.is_empty()).then_some(piece)
+        });
+        let Some(head) = pieces.next() else {
+            return Ok(Some(Vec::new()));
+        };
+        let pieces = std::iter::once(head.clone()).chain(pieces);
+        let Some(decoded) =
+            self.decode_chunks(&head, pieces, total, TimestampKind::Word, control)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            decoded
+                .spans
+                .iter()
+                .zip(&decoded.transcripts)
+                .flat_map(|(span, t)| {
+                    chunk_words(t, samples_to_ms(span.start), samples_to_ms(span.end))
+                })
+                .collect(),
+        ))
+    }
+
+    /// Cuts the audio at pauses as `pieces` arrive and decodes each chunk,
+    /// yielding to dictation through `control`. `None` if it stopped.
+    fn decode_chunks(
+        &self,
+        head: &[f32],
+        mut pieces: impl Iterator<Item = Vec<f32>>,
+        total: usize,
+        timestamps: TimestampKind,
+        control: &dyn ChunkControl,
+    ) -> Result<Option<Decoded>> {
+        self.touch_activity();
+        self.initiate_model_load(false);
+        // Read once: the model can't change until the job ends.
+        let BatchContext {
+            settings,
+            active_model,
+            setup,
+            ..
+        } = self.batch_context(head)?;
+        let run_options = RunOptions {
+            timestamps,
+            ..setup.run_options.clone()
+        };
+
+        let backend = settings.vad_backend;
+        let app_handle = self.app_handle.clone();
+        let mut chunker = Chunker::new(Box::new(move || create_detector(backend, &app_handle)));
+
+        let mut spans = Vec::new();
+        let mut transcripts: Vec<Transcript> = Vec::new();
+        let mut done = 0;
+        control.progress(done, total);
+        loop {
+            // Scoring waits out dictation too, and stops on cancel.
+            if !control.proceed() {
+                return Ok(None);
+            }
+            let (chunks, last) = match pieces.next() {
+                Some(piece) => (chunker.push(piece), false),
+                None => (chunker.finish(), true),
+            };
+            for chunk in chunks {
+                let len = chunk.len();
+                let mut attempts = 0;
+                let transcript = loop {
+                    if !control.proceed() {
+                        return Ok(None);
+                    }
+                    attempts += 1;
+                    // A fresh mark per chunk: a dictation's cancel stops only
+                    // the chunk it caught, which is then tried again.
+                    let mark = self.engine.cancel_mark();
+                    match self.run_batch(mark, chunk.clone(), &run_options, &active_model) {
+                        Ok(transcript) => break transcript,
+                        Err(EngineError::Cancelled) if attempts < MAX_CHUNK_ATTEMPTS => {
+                            warn!("A background chunk was cancelled; trying it again");
+                        }
+                        Err(e) => return Err(engine_error(e)),
+                    }
+                };
+                transcripts.push(transcript);
+                spans.push(done..done + len);
+                done += len;
+                control.progress(done, total);
+            }
+            if last {
+                break;
+            }
+        }
+
+        debug!("Transcribed {} chunks in the background", transcripts.len());
+        Ok(Some(Decoded {
+            spans,
+            transcripts,
+            settings,
+            setup,
+        }))
+    }
+}
+
+fn samples_to_ms(samples: usize) -> i64 {
+    (samples as u64 * 1000 / 16_000) as i64
+}
+
+/// A chunk's words, moved from chunk time to audio time. A model without
+/// word times gives its segments, or else the chunk's whole text as one word
+/// spanning the chunk.
+fn chunk_words(transcript: &Transcript, start_ms: i64, end_ms: i64) -> Vec<TimedWord> {
+    // The vocabulary-echo filter clears only the text.
+    if transcript.text.trim().is_empty() {
+        return Vec::new();
+    }
+    let timed = |t0_ms: i64, t1_ms: i64, text: &str| TimedWord {
+        t0_ms: start_ms + t0_ms,
+        t1_ms: start_ms + t1_ms,
+        text: text.trim().to_string(),
+    };
+    let words: Vec<TimedWord> = if !transcript.words.is_empty() {
+        transcript
+            .words
+            .iter()
+            .map(|w| timed(w.t0_ms, w.t1_ms, &w.text))
+            .collect()
+    } else {
+        transcript
+            .segments
+            .iter()
+            .map(|s| timed(s.t0_ms, s.t1_ms, &s.text))
+            .collect()
+    };
+    let words: Vec<TimedWord> = words.into_iter().filter(|w| !w.text.is_empty()).collect();
+    if words.is_empty() {
+        return vec![TimedWord {
+            t0_ms: start_ms,
+            t1_ms: end_ms,
+            text: transcript.text.trim().to_string(),
+        }];
+    }
+    words
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use transcribe_cpp::{Segment, Word};
+
+    fn word(t0_ms: i64, t1_ms: i64, text: &str) -> Word {
+        Word {
+            t0_ms,
+            t1_ms,
+            text: text.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn timed(t0_ms: i64, t1_ms: i64, text: &str) -> TimedWord {
+        TimedWord {
+            t0_ms,
+            t1_ms,
+            text: text.to_string(),
+        }
+    }
+
+    #[test]
+    fn words_move_to_audio_time_by_the_chunk_start() {
+        let transcript = Transcript {
+            text: "hello there".into(),
+            words: vec![word(0, 400, " hello"), word(450, 900, " there")],
+            ..Default::default()
+        };
+        assert_eq!(
+            chunk_words(&transcript, 30_000, 60_000),
+            vec![
+                timed(30_000, 30_400, "hello"),
+                timed(30_450, 30_900, "there")
+            ]
+        );
+    }
+
+    #[test]
+    fn a_model_without_word_times_falls_back_to_segments_then_the_chunk() {
+        let segmented = Transcript {
+            text: "one two".into(),
+            segments: vec![Segment {
+                t0_ms: 100,
+                t1_ms: 900,
+                text: "one two".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            chunk_words(&segmented, 1_000, 5_000),
+            vec![timed(1_100, 1_900, "one two")]
+        );
+
+        let untimed = Transcript {
+            text: " one two ".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            chunk_words(&untimed, 1_000, 5_000),
+            vec![timed(1_000, 5_000, "one two")]
+        );
+    }
+
+    #[test]
+    fn a_chunk_whose_text_was_dropped_has_no_words() {
+        let echoed = Transcript {
+            text: String::new(),
+            words: vec![word(0, 400, "custom")],
+            ..Default::default()
+        };
+        assert!(chunk_words(&echoed, 0, 5_000).is_empty());
     }
 }
