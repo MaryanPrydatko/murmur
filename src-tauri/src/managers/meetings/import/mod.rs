@@ -4,16 +4,27 @@
 //! `meeting_sources`, so a second run, or a meeting deleted since, imports
 //! nothing.
 
+mod audio;
+mod db;
 mod spokenly;
 mod superwhisper;
 mod wispr;
 
+use anyhow::{anyhow, Context, Result};
+use log::{info, warn};
+use rusqlite::Connection;
 use serde::Serialize;
 use specta::Type;
 use std::collections::HashSet;
+use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tauri::{AppHandle, Manager};
 
-use super::store::{MeetingSegment, MeetingSpeaker};
+use super::store::{self, MeetingSegment, MeetingSpeaker};
+use super::{notes, Meeting, MeetingManager, MeetingStatus, MeetingTrack, Rerun, TrackKind};
+use crate::managers::history::HistoryManager;
 
 /// Shorter than this, a recording is a stub.
 const MIN_DURATION_MS: i64 = 30_000;
@@ -283,9 +294,295 @@ pub fn plan(found: Vec<SourceMeeting>, seen: &HashSet<(Source, String)>) -> Vec<
     meetings.chain(stubs).collect()
 }
 
+/// Where each app keeps its meetings, under the user's home. They're Mac
+/// apps: elsewhere these don't exist and an import finds nothing.
+pub struct Roots {
+    pub superwhisper: PathBuf,
+    pub wispr: PathBuf,
+    pub spokenly: PathBuf,
+}
+
+impl Roots {
+    pub fn under(home: &Path) -> Self {
+        let support = home.join("Library").join("Application Support");
+        Self {
+            superwhisper: home.join("superwhisper").join("recordings"),
+            wispr: support.join("Wispr Flow"),
+            spokenly: support.join("Spokenly").join("History"),
+        }
+    }
+
+    fn scan(&self) -> Vec<(Source, Scan)> {
+        vec![
+            (Source::Wispr, wispr::scan(&self.wispr)),
+            (Source::Superwhisper, superwhisper::scan(&self.superwhisper)),
+            (Source::Spokenly, spokenly::scan(&self.spokenly)),
+        ]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
+pub struct SourceCount {
+    pub source: Source,
+    pub found: u32,
+    pub unreadable: u32,
+    pub stubs: u32,
+}
+
+/// What an import did, or in a dry run would do. Ids and counts only.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Type)]
+pub struct ImportReport {
+    pub dry_run: bool,
+    pub sources: Vec<SourceCount>,
+    /// Records folded into another app's copy of the same meeting.
+    pub merged: u32,
+    pub already_imported: u32,
+    /// Files Spokenly transcribed that match no meeting.
+    pub not_meetings: u32,
+    /// Meetings only Spokenly had, whose audio is gone.
+    pub no_audio: u32,
+    /// Meetings imported with their transcript.
+    pub imported: u32,
+    /// Meetings only Spokenly had, to be transcribed here.
+    pub to_transcribe: u32,
+    pub failed: u32,
+    pub notes: u32,
+    /// What failed, by path or meeting id.
+    pub errors: Vec<String>,
+}
+
+impl fmt::Display for ImportReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.dry_run {
+            writeln!(f, "Dry run: nothing was written.")?;
+        }
+        for s in &self.sources {
+            writeln!(
+                f,
+                "{}: {} found, {} unreadable, {} stubs",
+                s.source.as_str(),
+                s.found,
+                s.unreadable,
+                s.stubs
+            )?;
+        }
+        writeln!(f, "merged into another app's copy: {}", self.merged)?;
+        writeln!(f, "already imported: {}", self.already_imported)?;
+        writeln!(
+            f,
+            "spokenly files that are no meeting: {}",
+            self.not_meetings
+        )?;
+        writeln!(f, "spokenly meetings without audio: {}", self.no_audio)?;
+        writeln!(f, "imported with transcript: {}", self.imported)?;
+        writeln!(f, "to transcribe: {}", self.to_transcribe)?;
+        writeln!(f, "notes written: {}", self.notes)?;
+        writeln!(f, "failed: {}", self.failed)?;
+        for error in &self.errors {
+            writeln!(f, "  {error}")?;
+        }
+        Ok(())
+    }
+}
+
+/// Imports every meeting under `roots` not imported before into
+/// `meetings_dir`, and its note into `notes_folder` when that's set.
+/// `write` saves `meeting.json`. A dry run writes nothing. Returns the ids
+/// of the meetings left to transcribe.
+pub fn run(
+    conn: &mut Connection,
+    roots: &Roots,
+    meetings_dir: &Path,
+    dry_run: bool,
+    notes_folder: Option<&Path>,
+    write: &mut dyn FnMut(&Meeting) -> Result<()>,
+) -> Result<(ImportReport, Vec<String>)> {
+    let mut report = ImportReport {
+        dry_run,
+        ..Default::default()
+    };
+    let mut found = Vec::new();
+    for (source, scan) in roots.scan() {
+        report.sources.push(SourceCount {
+            source,
+            found: (scan.meetings.len() + scan.unreadable.len()) as u32,
+            unreadable: scan.unreadable.len() as u32,
+            stubs: 0,
+        });
+        report.errors.extend(scan.unreadable);
+        found.extend(scan.meetings);
+    }
+    if !dry_run {
+        db::create_ledger(conn)?;
+    }
+    let mut planned = plan(found, &db::seen(conn)?);
+    planned.sort_by(|a, b| a.id.cmp(&b.id));
+
+    let mut queued = Vec::new();
+    for meeting in &planned {
+        match meeting.outcome {
+            Outcome::Stub => {
+                if let Some(count) = report
+                    .sources
+                    .iter_mut()
+                    .find(|s| s.source == meeting.primary.source)
+                {
+                    count.stubs += 1;
+                }
+                continue;
+            }
+            Outcome::AlreadyImported => report.already_imported += 1,
+            Outcome::NotAMeeting => report.not_meetings += 1,
+            Outcome::NoAudio => report.no_audio += 1,
+            Outcome::Import => {}
+        }
+        if meeting.outcome != Outcome::Import {
+            continue;
+        }
+        report.merged += meeting.merged.len() as u32;
+        if dry_run {
+            match meeting.needs_transcription() {
+                true => report.to_transcribe += 1,
+                false => report.imported += 1,
+            }
+            continue;
+        }
+        match apply(conn, meeting, meetings_dir, write) {
+            Ok(saved) if saved.status == MeetingStatus::Transcribing => {
+                report.to_transcribe += 1;
+                queued.push(saved.id);
+            }
+            Ok(saved) => {
+                report.imported += 1;
+                let Some(folder) = notes_folder else {
+                    continue;
+                };
+                let note = store::get(conn, &saved.id)?
+                    .ok_or_else(|| anyhow!("Meeting {} wasn't saved", saved.id))
+                    .and_then(|detail| notes::export(conn, &detail, folder));
+                match note {
+                    Ok(_) => report.notes += 1,
+                    Err(e) => report.errors.push(format!("{} note: {e:#}", saved.id)),
+                }
+            }
+            Err(e) => {
+                report.failed += 1;
+                report.errors.push(format!("{}: {e:#}", meeting.id));
+            }
+        }
+    }
+    Ok((report, queued))
+}
+
+/// Copies the meeting's audio and summary into its folder, then saves it.
+fn apply(
+    conn: &mut Connection,
+    planned: &Planned,
+    meetings_dir: &Path,
+    write: &mut dyn FnMut(&Meeting) -> Result<()>,
+) -> Result<Meeting> {
+    let primary = &planned.primary;
+    let dir = meetings_dir.join(&planned.id);
+    fs::create_dir_all(&dir).with_context(|| format!("Failed to create {}", dir.display()))?;
+    let mut duration_ms = primary.duration_ms;
+    let (status, tracks) = match (&planned.audio, planned.needs_transcription()) {
+        (Some(audio), true) => {
+            let file = dir.join(TrackKind::Mixed.file_name());
+            duration_ms = audio::decode_to_wav(audio, &file)?;
+            (MeetingStatus::Transcribing, vec![(file, duration_ms)])
+        }
+        (None, true) => return Err(anyhow!("No audio to transcribe")),
+        // Kept as it came: only a 16 kHz WAV can be transcribed again.
+        (Some(audio), false) => (
+            MeetingStatus::Done,
+            vec![(audio::copy_into(audio, &dir)?, duration_ms)],
+        ),
+        (None, false) => (MeetingStatus::Done, Vec::new()),
+    };
+    if let Some(summary) = primary.summary.as_deref().map(str::trim) {
+        if !summary.is_empty() {
+            fs::write(dir.join("summary.md"), format!("{summary}\n"))?;
+        }
+    }
+    let started_at = chrono::DateTime::from_timestamp_millis(primary.started_at_ms)
+        .ok_or_else(|| anyhow!("Start time out of range"))?
+        .with_timezone(&chrono::Local);
+    let meeting = Meeting {
+        id: planned.id.clone(),
+        started_at: started_at.to_rfc3339(),
+        duration_ms,
+        status,
+        dir,
+        tracks: tracks
+            .into_iter()
+            .map(|(file, duration_ms)| MeetingTrack {
+                kind: TrackKind::Mixed,
+                file,
+                start_offset_ms: 0,
+                duration_ms,
+            })
+            .collect(),
+        asr_model: None,
+        diar_model: None,
+        language: None,
+        attempts: 0,
+    };
+    db::insert(conn, planned, &meeting)?;
+    write(&meeting)?;
+    Ok(meeting)
+}
+
+/// Imports the user's old meetings into the app's meetings, with notes
+/// when `write_notes` and a vault is set. With `requeue`, those only
+/// Spokenly had are queued for transcription; otherwise they wait for the
+/// next start.
+pub fn import(
+    app: &AppHandle,
+    dry_run: bool,
+    write_notes: bool,
+    requeue: bool,
+) -> Result<ImportReport> {
+    let home = app.path().home_dir()?;
+    let meetings_dir = crate::portable::app_data_dir(app)?
+        .join("recordings")
+        .join("meetings");
+    let notes_folder = match write_notes {
+        true => Some(
+            notes::notes_folder(&crate::settings::get_settings(app))
+                .ok_or_else(|| anyhow!("Set an Obsidian vault to write notes"))?,
+        ),
+        false => None,
+    };
+    let mut conn = app.state::<Arc<HistoryManager>>().get_connection()?;
+    let (report, queued) = run(
+        &mut conn,
+        &Roots::under(&home),
+        &meetings_dir,
+        dry_run,
+        notes_folder.as_deref(),
+        &mut |meeting| super::write_meeting(app, meeting),
+    )?;
+    info!(
+        "Imported {} meetings, {} to transcribe",
+        report.imported, report.to_transcribe
+    );
+    if requeue {
+        if let Some(meetings) = app.try_state::<Arc<MeetingManager>>() {
+            for id in queued {
+                if let Err(e) = meetings.requeue(&id, Rerun::All) {
+                    warn!("Imported meeting {id} waits for the next start: {e:#}");
+                }
+            }
+        }
+    }
+    Ok(report)
+}
+
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
 mod plan_tests;
+#[cfg(test)]
+mod run_tests;
 #[cfg(test)]
 mod scan_tests;
