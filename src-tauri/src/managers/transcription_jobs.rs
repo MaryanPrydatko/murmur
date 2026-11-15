@@ -50,8 +50,18 @@ pub struct TranscriptionJob {
     pub status: TranscriptionJobStatus,
 }
 
+/// A meeting's transcription, run on the job thread so it holds the model and
+/// yields to dictation like any other job.
+pub type MeetingJob = Box<dyn FnOnce(&dyn ChunkControl) + Send>;
+
+enum Job {
+    Entry(i64),
+    Meeting(MeetingJob),
+}
+
 struct Running {
-    entry_id: i64,
+    /// `None` for a meeting, which has no History entry.
+    entry_id: Option<i64>,
     cancelled: Arc<AtomicBool>,
 }
 
@@ -62,6 +72,8 @@ struct Jobs {
     retries: VecDeque<i64>,
     /// Entry ids of files waiting to be transcribed.
     files: VecDeque<i64>,
+    /// Meetings waiting to be transcribed, after every History job.
+    meetings: VecDeque<MeetingJob>,
     running: Option<Running>,
 }
 
@@ -69,13 +81,16 @@ impl Jobs {
     fn has(&self, entry_id: i64) -> bool {
         self.running
             .as_ref()
-            .is_some_and(|r| r.entry_id == entry_id)
+            .is_some_and(|r| r.entry_id == Some(entry_id))
             || self.retries.contains(&entry_id)
             || self.files.contains(&entry_id)
     }
 
     fn is_idle(&self) -> bool {
-        self.running.is_none() && self.retries.is_empty() && self.files.is_empty()
+        self.running.is_none()
+            && self.retries.is_empty()
+            && self.files.is_empty()
+            && self.meetings.is_empty()
     }
 
     /// Drops the entry from the queues; whether it was in one.
@@ -192,7 +207,11 @@ impl TranscriptionJobManager {
         let (was_queued, idle) = {
             let mut jobs = self.lock();
             let was_queued = jobs.unqueue(entry_id);
-            if let Some(running) = jobs.running.as_ref().filter(|r| r.entry_id == entry_id) {
+            if let Some(running) = jobs
+                .running
+                .as_ref()
+                .filter(|r| r.entry_id == Some(entry_id))
+            {
                 running.cancelled.store(true, Ordering::Release);
             }
             self.sync_job_active(&jobs);
@@ -211,6 +230,17 @@ impl TranscriptionJobManager {
         }
     }
 
+    /// Queues a meeting's transcription behind every History job.
+    pub fn queue_meeting(&self, job: MeetingJob) {
+        {
+            let mut jobs = self.lock();
+            jobs.meetings.push_back(job);
+            self.sync_job_active(&jobs);
+        }
+        crate::tray::update_tray_menu(&self.app);
+        self.wake.notify_one();
+    }
+
     /// Keeps the model held for as long as any job is queued or running.
     fn sync_job_active(&self, jobs: &Jobs) {
         self.app
@@ -226,13 +256,16 @@ impl TranscriptionJobManager {
 
     fn run_jobs(&self) {
         loop {
-            let (entry_id, cancelled) = {
+            let (job, cancelled) = {
                 let mut jobs = self.lock();
-                let entry_id = loop {
+                let job = loop {
                     if let Some(entry_id) =
                         jobs.retries.pop_front().or_else(|| jobs.files.pop_front())
                     {
-                        break entry_id;
+                        break Job::Entry(entry_id);
+                    }
+                    if let Some(meeting) = jobs.meetings.pop_front() {
+                        break Job::Meeting(meeting);
                     }
                     jobs = self
                         .wake
@@ -241,10 +274,31 @@ impl TranscriptionJobManager {
                 };
                 let cancelled = Arc::new(AtomicBool::new(false));
                 jobs.running = Some(Running {
-                    entry_id,
+                    entry_id: match job {
+                        Job::Entry(entry_id) => Some(entry_id),
+                        Job::Meeting(_) => None,
+                    },
                     cancelled: Arc::clone(&cancelled),
                 });
-                (entry_id, cancelled)
+                (job, cancelled)
+            };
+            let entry_id = match job {
+                Job::Entry(entry_id) => entry_id,
+                Job::Meeting(run) => {
+                    let control = Control {
+                        manager: self,
+                        entry_id: None,
+                        cancelled: &cancelled,
+                        percent: Cell::new(0),
+                    };
+                    // The meeting reports its own failures; a panic is only
+                    // logged, so the queue keeps going.
+                    if let Err(payload) = catch_unwind(AssertUnwindSafe(|| run(&control))) {
+                        error!("{}", crashed(payload.as_ref()));
+                    }
+                    self.end_running();
+                    continue;
+                }
             };
             self.emit(entry_id, TranscriptionJobStatus::Running { percent: 0 });
 
@@ -252,21 +306,7 @@ impl TranscriptionJobManager {
             // run, or the model would stay held and the queue stuck.
             let result = catch_unwind(AssertUnwindSafe(|| self.run_job(entry_id, &cancelled)))
                 .unwrap_or_else(|payload| Err(crashed(payload.as_ref())));
-
-            let idle = {
-                let mut jobs = self.lock();
-                jobs.running = None;
-                self.sync_job_active(&jobs);
-                jobs.is_idle()
-            };
-            let tm = self.app.state::<Arc<TranscriptionManager>>();
-            if idle {
-                // A dictation under way unloads the model itself when it ends.
-                if !crate::tray::dictation_in_progress(&self.app) {
-                    tm.maybe_unload_immediately("background transcription");
-                }
-                crate::tray::update_tray_menu(&self.app);
-            }
+            self.end_running();
             let status = match result {
                 Err(e) if !cancelled.load(Ordering::Acquire) => {
                     warn!("Transcription of history entry {} failed: {}", entry_id, e);
@@ -298,6 +338,25 @@ impl TranscriptionJobManager {
         }
     }
 
+    /// The running job ended: release the model once the queue is empty.
+    fn end_running(&self) {
+        let idle = {
+            let mut jobs = self.lock();
+            jobs.running = None;
+            self.sync_job_active(&jobs);
+            jobs.is_idle()
+        };
+        if idle {
+            // A dictation under way unloads the model itself when it ends.
+            if !crate::tray::dictation_in_progress(&self.app) {
+                self.app
+                    .state::<Arc<TranscriptionManager>>()
+                    .maybe_unload_immediately("background transcription");
+            }
+            crate::tray::update_tray_menu(&self.app);
+        }
+    }
+
     fn run_job(&self, entry_id: i64, cancelled: &AtomicBool) -> Result<JobEnd> {
         let hm = Arc::clone(&self.app.state::<Arc<HistoryManager>>());
         let tm = Arc::clone(&self.app.state::<Arc<TranscriptionManager>>());
@@ -311,7 +370,7 @@ impl TranscriptionJobManager {
 
         let control = Control {
             manager: self,
-            entry_id: entry.id,
+            entry_id: Some(entry.id),
             cancelled,
             percent: Cell::new(0),
         };
@@ -370,7 +429,8 @@ fn crashed(payload: &(dyn std::any::Any + Send)) -> anyhow::Error {
 
 struct Control<'a> {
     manager: &'a TranscriptionJobManager,
-    entry_id: i64,
+    /// `None` for a meeting, which reports no progress.
+    entry_id: Option<i64>,
     cancelled: &'a AtomicBool,
     /// The last percent reported; the job starts at 0.
     percent: Cell<u8>,
@@ -393,6 +453,9 @@ impl ChunkControl for Control<'_> {
 
     fn progress(&self, done: usize, total: usize) {
         // The chunk a cancel caught still finishes; don't report it as running.
+        let Some(entry_id) = self.entry_id else {
+            return;
+        };
         if self.cancelled.load(Ordering::Acquire) {
             return;
         }
@@ -401,6 +464,6 @@ impl ChunkControl for Control<'_> {
             return;
         }
         self.manager
-            .emit(self.entry_id, TranscriptionJobStatus::Running { percent });
+            .emit(entry_id, TranscriptionJobStatus::Running { percent });
     }
 }
