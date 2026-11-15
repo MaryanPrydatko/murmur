@@ -791,7 +791,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::meeting_audio,
             commands::meetings::list_meeting_speakers,
             commands::meetings::search_meetings,
-            commands::meetings::toggle_meeting,
+            commands::meetings::set_meeting_recording,
             commands::meetings::is_meeting_recording,
             commands::models::is_language_detector_downloaded,
             commands::models::delete_model,

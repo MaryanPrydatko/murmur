@@ -827,10 +827,11 @@ async searchMeetings(query: string) : Promise<Result<MeetingHit[], string>> {
 }
 },
 /**
- * Starts a meeting, or stops the one recording.
+ * Starts a meeting, or stops the one recording; does nothing if it already is
+ * as asked.
  */
-async toggleMeeting() : Promise<void> {
-    await TAURI_INVOKE("toggle_meeting");
+async setMeetingRecording(recording: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_meeting_recording", { recording });
 },
 /**
  * Whether a meeting is recording right now.

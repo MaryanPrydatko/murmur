@@ -257,7 +257,20 @@ impl MeetingManager {
     /// Starts a meeting, or stops the one recording and queues its
     /// transcription. Opens devices, so call it off the main thread.
     pub fn toggle(&self) {
+        self.switch(None);
+    }
+
+    /// Like [`Self::toggle`], but only towards `recording`: a stop asked for
+    /// twice doesn't start a meeting.
+    pub fn set_recording(&self, recording: bool) {
+        self.switch(Some(recording));
+    }
+
+    fn switch(&self, want: Option<bool>) {
         let mut active = self.lock();
+        if want == Some(active.is_some()) {
+            return;
+        }
         let result = match active.take() {
             Some(meeting) => self.stop(meeting),
             None => self.start().map(|meeting| *active = Some(meeting)),

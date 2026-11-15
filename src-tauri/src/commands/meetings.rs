@@ -83,11 +83,12 @@ pub fn search_meetings(
     store::search(&conn, &query).map_err(|e| e.to_string())
 }
 
-/// Starts a meeting, or stops the one recording.
+/// Starts a meeting, or stops the one recording; does nothing if it already is
+/// as asked.
 #[tauri::command]
 #[specta::specta]
-pub fn toggle_meeting(app: AppHandle) {
-    crate::signal_handle::toggle_meeting(&app);
+pub fn set_meeting_recording(app: AppHandle, recording: bool) {
+    crate::signal_handle::set_meeting_recording(&app, recording);
 }
 
 /// Whether a meeting is recording right now.

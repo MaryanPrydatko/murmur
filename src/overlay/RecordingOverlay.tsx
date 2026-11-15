@@ -355,7 +355,7 @@ const RecordingOverlay: React.FC = () => {
     stoppingTimer.current = setTimeout(() => {
       stopping.current = false;
     }, STOP_TIMEOUT_MS);
-    commands.toggleMeeting();
+    commands.setMeetingRecording(false);
   };
   const dismissNotice = state.startsWith("notice")
     ? () => commands.dismissOverlayNotice()

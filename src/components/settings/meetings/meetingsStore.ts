@@ -71,12 +71,12 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
   toggle: async () => {
     if (get().pending) return;
     set({ pending: true });
-    // The backend toggles on its own thread and then sends
+    // The backend starts or stops on its own thread and then sends
     // `meetings-changed`; a second click before that would undo the first.
     clearTimeout(toggleTimer);
     toggleTimer = setTimeout(() => get().changed(), TOGGLE_TIMEOUT_MS);
     try {
-      await commands.toggleMeeting();
+      await commands.setMeetingRecording(get().recordingId === null);
     } catch (e) {
       clearTimeout(toggleTimer);
       set({ pending: false, error: String(e) });
