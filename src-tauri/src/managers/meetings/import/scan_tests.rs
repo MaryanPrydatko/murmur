@@ -17,7 +17,7 @@ fn speakers(meeting: &SourceMeeting) -> Vec<(&str, Option<&str>)> {
 fn reads_a_superwhisper_meeting_and_skips_its_dictations() {
     let tmp = tempfile::tempdir().unwrap();
     let folder = superwhisper(tmp.path(), T0_SECS, 40, true);
-    superwhisper_dictation(tmp.path(), T0_SECS + 9_000);
+    superwhisper_dictation(tmp.path(), T0_SECS + 9_000, serde_json::json!([]));
 
     let scan = superwhisper::scan(tmp.path());
     assert_eq!(scan.unreadable, Vec::<String>::new());
@@ -95,6 +95,30 @@ fn reads_wispr_meetings_from_a_database_wispr_still_has_open() {
 }
 
 #[test]
+fn skips_a_wispr_line_cut_off_at_the_end_but_not_in_the_middle() {
+    let tmp = tempfile::tempdir().unwrap();
+    let conn = wispr_db(tmp.path());
+    wispr(&conn, tmp.path(), "wf-1", T0_SECS * 1000, 30, true);
+    let live = tmp.path().join("meetings/wf-1/live.ndjson");
+    let lines = fs::read_to_string(&live).unwrap() + "{\"segment\": 3, \"text\": \"Cut";
+    fs::write(&live, &lines).unwrap();
+    let scan = wispr::scan(tmp.path());
+    assert_eq!(scan.unreadable, Vec::<String>::new());
+    assert_eq!(scan.meetings[0].segments.len(), 4);
+
+    fs::write(&live, lines + "\n{\"segment\": 4}\n").unwrap();
+    let scan = wispr::scan(tmp.path());
+    assert!(scan.meetings.is_empty());
+    assert_eq!(scan.unreadable.len(), 1);
+    assert!(
+        scan.unreadable[0].contains("Line 6"),
+        "{}",
+        scan.unreadable[0]
+    );
+    drop(conn);
+}
+
+#[test]
 fn reads_spokenly_file_transcriptions_and_leaves_dictations() {
     let tmp = tempfile::tempdir().unwrap();
     spokenly(tmp.path(), "sp-1", T0_SECS, 45, true, true);
@@ -108,7 +132,7 @@ fn reads_spokenly_file_transcriptions_and_leaves_dictations() {
         .path();
     fs::write(
         day.join("broken.json"),
-        "{\"creationDate\": \"secret words\"}",
+        "{\"creationDate\": \"secret words\", \"content\": {\"fileTranscription\": {}}}",
     )
     .unwrap();
 

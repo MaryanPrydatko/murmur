@@ -57,6 +57,14 @@ fn world() -> World {
         false,
     );
     wispr_deleted(&wispr_db, "wf-gone", (T0_SECS + 5 * DAY) * 1000);
+    // Odd but readable: a length in fractional ms, and a last line Wispr
+    // was still writing.
+    wispr_db
+        .execute("UPDATE Meetings SET recordedMs = 1800000.5", [])
+        .unwrap();
+    let live = roots.wispr.join("meetings/wf-roadmap/live.ndjson");
+    let lines = fs::read_to_string(&live).unwrap();
+    fs::write(&live, lines + "{\"segment\": 3, \"text\": \"Cut").unwrap();
     spokenly(
         &roots.spokenly,
         "sp-roadmap",
@@ -77,7 +85,16 @@ fn world() -> World {
     );
     superwhisper(&roots.superwhisper, T0_SECS + 2 * DAY, 20, true);
     superwhisper(&roots.superwhisper, T0_SECS + 6 * DAY, 0, false);
-    superwhisper_dictation(&roots.superwhisper, T0_SECS + 7 * DAY);
+    superwhisper_dictation(
+        &roots.superwhisper,
+        T0_SECS + 7 * DAY,
+        serde_json::Value::Null,
+    );
+    superwhisper_dictation(
+        &roots.superwhisper,
+        T0_SECS + 8 * DAY,
+        serde_json::json!([{"text": null, "start": 0.0}]),
+    );
 
     spokenly(
         &roots.spokenly,
@@ -385,7 +402,7 @@ fn an_unreadable_source_stops_the_import_until_it_reads() {
     // unreadable, and Spokenly's copy of the roadmap would take its place.
     world
         ._wispr
-        .execute("UPDATE Meetings SET recordedMs = 0.5", [])
+        .execute("UPDATE Meetings SET recordedMs = 'soon'", [])
         .unwrap();
 
     let (dry, _) = import(&world, &mut conn, true);

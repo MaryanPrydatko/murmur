@@ -12,7 +12,6 @@ use crate::managers::meetings::store::MeetingSegment;
 
 #[derive(Deserialize)]
 struct Meta {
-    kind: Option<String>,
     /// In ms.
     duration: Option<f64>,
     /// UTC; the folder's name is the same time in Unix seconds.
@@ -67,10 +66,12 @@ fn read(folder: &Path, meta_path: &Path) -> Result<Option<SourceMeeting>> {
         Err(e) if absent(&e) => return Ok(None),
         Err(e) => return Err(e.into()),
     };
-    let meta: Meta = serde_json::from_slice(&bytes).map_err(json_error)?;
-    if meta.kind.as_deref() != Some("meeting") {
+    // Most records are dictations: only a meeting has to read in full.
+    let record: Value = serde_json::from_slice(&bytes).map_err(json_error)?;
+    if record.get("kind").and_then(Value::as_str) != Some("meeting") {
         return Ok(None);
     }
+    let meta: Meta = serde_json::from_slice(&bytes).map_err(json_error)?;
     let folder_name = folder
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())

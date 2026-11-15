@@ -64,7 +64,7 @@ struct Row {
     title: Option<String>,
     created_at: Option<String>,
     ended_at: Option<String>,
-    recorded_ms: Option<i64>,
+    recorded_ms: Option<f64>,
     summary: Option<String>,
     speaker_map: Option<String>,
 }
@@ -181,11 +181,18 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
         Err(e) if absent(&e) => String::new(),
         Err(e) => return Err(e.into()),
     };
-    for (n, text) in live.lines().enumerate() {
-        if text.trim().is_empty() {
+    let live: Vec<(usize, &str)> = live
+        .lines()
+        .enumerate()
+        .filter(|(_, text)| !text.trim().is_empty())
+        .collect();
+    for (i, &(n, text)) in live.iter().enumerate() {
+        let line = serde_json::from_str::<Line>(text);
+        // Wispr appends as it hears: its last line can be cut off.
+        if line.is_err() && i + 1 == live.len() {
             continue;
         }
-        let line: Line = serde_json::from_str(text)
+        let line = line
             .map_err(json_error)
             .with_context(|| format!("Line {} is unreadable", n + 1))?;
         let key = line
@@ -224,6 +231,7 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
     let ended_ms = row.ended_at.as_deref().and_then(timestamp_ms);
     let duration_ms = row
         .recorded_ms
+        .map(|ms| ms.round() as i64)
         .or_else(|| segments.iter().map(|s| s.t1_ms).max())
         .or_else(|| ended_ms.map(|end| end - started_at_ms))
         .unwrap_or(0);

@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use serde::Deserialize;
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
@@ -89,7 +90,17 @@ pub fn scan(history: &Path) -> Scan {
 }
 
 fn read(path: &Path) -> Result<Option<SourceMeeting>> {
-    let envelope: Envelope = serde_json::from_slice(&fs::read(path)?).map_err(json_error)?;
+    let bytes = fs::read(path)?;
+    // Most records are dictations: only a file transcription has to read
+    // in full.
+    let record: Value = serde_json::from_slice(&bytes).map_err(json_error)?;
+    if record
+        .pointer("/content/fileTranscription")
+        .is_none_or(Value::is_null)
+    {
+        return Ok(None);
+    }
+    let envelope: Envelope = serde_json::from_slice(&bytes).map_err(json_error)?;
     let Some(Wrapped { value: file }) = envelope.content.file_transcription else {
         return Ok(None);
     };

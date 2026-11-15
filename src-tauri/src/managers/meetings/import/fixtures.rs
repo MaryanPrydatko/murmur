@@ -1,7 +1,7 @@
 //! Folders laid out like each app keeps them, with made-up meetings.
 
 use rusqlite::{params, Connection};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -38,11 +38,12 @@ pub fn superwhisper(recordings: &Path, unix_secs: i64, minutes: i64, audio: bool
     folder
 }
 
-/// A Superwhisper dictation, which isn't a meeting.
-pub fn superwhisper_dictation(recordings: &Path, unix_secs: i64) {
+/// A Superwhisper dictation, which isn't a meeting, with `segments` as
+/// odd as a meeting's would be unreadable.
+pub fn superwhisper_dictation(recordings: &Path, unix_secs: i64, segments: Value) {
     let folder = recordings.join(unix_secs.to_string());
     fs::create_dir_all(&folder).unwrap();
-    let meta = json!({"kind": "dictation", "duration": 4000, "segments": []});
+    let meta = json!({"kind": "dictation", "duration": 4000, "segments": segments});
     fs::write(folder.join("meta.json"), meta.to_string()).unwrap();
 }
 
@@ -203,7 +204,7 @@ pub fn spokenly(history: &Path, id: &str, unix_secs: i64, secs: u32, meeting: bo
     }
 }
 
-/// A Spokenly dictation, which is no meeting.
+/// A Spokenly dictation, which is no meeting, and one without a date.
 pub fn spokenly_dictation(history: &Path, id: &str, unix_secs: i64) {
     let folder = spokenly_day(history, unix_secs);
     let envelope = json!({
@@ -211,5 +212,11 @@ pub fn spokenly_dictation(history: &Path, id: &str, unix_secs: i64) {
         "creationDate": (unix_secs - APPLE_EPOCH_SECS) as f64,
         "content": {"dictation": {"_0": {"text": "note to self", "duration": 3.0}}},
     });
+    let undated = json!({"id": format!("{id}-undated"), "content": {"dictation": null}});
+    fs::write(
+        folder.join(format!("{id}-undated.json")),
+        undated.to_string(),
+    )
+    .unwrap();
     fs::write(folder.join(format!("{id}.json")), envelope.to_string()).unwrap();
 }
