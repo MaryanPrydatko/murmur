@@ -306,7 +306,8 @@ pub fn audio(conn: &Connection, id: &str) -> Result<Vec<MeetingAudio>> {
     Ok(tracks)
 }
 
-/// The speakers of every meeting, for the dots in the list.
+/// Who speaks in each meeting, for the dots in the list. A speaker left
+/// without a line, as `them` is once the output is told apart, isn't one.
 #[derive(Clone, Debug, PartialEq, Serialize, Type)]
 pub struct MeetingSpeakerKeys {
     pub meeting_id: String,
@@ -317,7 +318,11 @@ pub struct MeetingSpeakerKeys {
 pub fn speaker_keys(conn: &Connection) -> Result<Vec<MeetingSpeakerKeys>> {
     let mut stmt = conn.prepare(
         "SELECT meeting_id, group_concat(key, ' ') AS keys
-         FROM (SELECT meeting_id, key FROM meeting_speakers ORDER BY meeting_id, key)
+         FROM (SELECT meeting_id, key FROM meeting_speakers AS speaker
+               WHERE EXISTS (SELECT 1 FROM meeting_segments AS segment
+                             WHERE segment.meeting_id = speaker.meeting_id
+                               AND segment.speaker_key = speaker.key)
+               ORDER BY meeting_id, key)
          GROUP BY meeting_id",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -467,6 +472,34 @@ mod tests {
         save(&mut conn, &meeting(MeetingStatus::Done)).unwrap();
         assert!(rename_speaker(&conn, "2026-11-15_14-03-22", "s4", Some("Bo")).is_err());
         assert!(get(&conn, "elsewhere").unwrap().is_none());
+    }
+
+    /// Telling speakers apart replaces `them` with `s1`, `s2`, ...; the row
+    /// stays so its name does, but nobody is counted for it.
+    #[test]
+    fn lists_only_the_speakers_who_say_something() {
+        let mut conn = db();
+        let id = "2026-11-15_14-03-22";
+        save(&mut conn, &meeting(MeetingStatus::Done)).unwrap();
+        let unsplit = [
+            said(0, Speaker::Me, "Hi"),
+            said(900, Speaker::Them, "Hello"),
+        ];
+        save_transcript(&mut conn, id, &unsplit).unwrap();
+        assert_eq!(speaker_keys(&conn).unwrap()[0].keys, ["me", "them"]);
+
+        let split = [
+            said(0, Speaker::Me, "Hi"),
+            said(900, Speaker::Remote(1), "Hello"),
+        ];
+        save_transcript(&mut conn, id, &split).unwrap();
+        let keys = speaker_keys(&conn).unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].keys, ["me", "s1"]);
+        assert_eq!(get(&conn, id).unwrap().unwrap().speakers.len(), 3);
+
+        save_transcript(&mut conn, id, &[]).unwrap();
+        assert!(speaker_keys(&conn).unwrap().is_empty());
     }
 
     #[test]

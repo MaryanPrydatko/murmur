@@ -1604,7 +1604,8 @@ key: string;
  */
 label: string | null }
 /**
- * The speakers of every meeting, for the dots in the list.
+ * Who speaks in each meeting, for the dots in the list. A speaker left
+ * without a line, as `them` is once the output is told apart, isn't one.
  */
 export type MeetingSpeakerKeys = { meeting_id: string; 
 /**
