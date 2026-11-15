@@ -4,10 +4,14 @@
 //! `meeting_sources`, so a second run, or a meeting deleted since, imports
 //! nothing.
 
+mod spokenly;
+mod superwhisper;
+mod wispr;
+
 use serde::Serialize;
 use specta::Type;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::store::{MeetingSegment, MeetingSpeaker};
 
@@ -88,6 +92,91 @@ impl SourceMeeting {
     }
 }
 
+/// What one app's folder held.
+#[derive(Debug, Default)]
+pub struct Scan {
+    pub meetings: Vec<SourceMeeting>,
+    /// A record that failed to read, and why; never its text.
+    pub unreadable: Vec<String>,
+}
+
+impl Scan {
+    fn unreadable(&mut self, what: &Path, error: impl std::fmt::Display) {
+        let error: String = error.to_string().chars().take(160).collect();
+        self.unreadable.push(format!("{}: {error}", what.display()));
+    }
+}
+
+/// A JSON record that failed to parse: where, never the value it choked
+/// on, which can be what someone said.
+fn json_error(e: serde_json::Error) -> anyhow::Error {
+    anyhow::anyhow!(
+        "{:?} error at line {} column {}",
+        e.classify(),
+        e.line(),
+        e.column()
+    )
+}
+
+/// Numbers a record's speakers `s1`, `s2`, ... in the order they first
+/// speak, whatever the app called them.
+#[derive(Default)]
+struct SpeakerKeys {
+    raw: Vec<String>,
+    speakers: Vec<MeetingSpeaker>,
+}
+
+impl SpeakerKeys {
+    /// The key of the speaker the app calls `raw`, named `name`.
+    fn key(&mut self, raw: &str, name: Option<&str>) -> String {
+        let index = match self.raw.iter().position(|r| r == raw) {
+            Some(index) => index,
+            None => {
+                self.raw.push(raw.to_string());
+                self.speakers.push(MeetingSpeaker {
+                    key: format!("s{}", self.raw.len()),
+                    label: None,
+                });
+                self.raw.len() - 1
+            }
+        };
+        let speaker = &mut self.speakers[index];
+        if speaker.label.is_none() {
+            speaker.label = name.and_then(real_name);
+        }
+        speaker.key.clone()
+    }
+
+    /// The name of the speaker the app calls `raw`, or `Speaker n`.
+    fn name(&self, raw: &str) -> Option<String> {
+        let index = self.raw.iter().position(|r| r == raw)?;
+        let speaker = &self.speakers[index];
+        Some(
+            speaker
+                .label
+                .clone()
+                .unwrap_or_else(|| format!("Speaker {}", index + 1)),
+        )
+    }
+}
+
+/// A name someone gave, not an app's `Speaker 2`.
+fn real_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    let generic = name
+        .strip_prefix("Speaker ")
+        .is_some_and(|n| n.chars().all(|c| c.is_ascii_digit()));
+    (!name.is_empty() && !generic).then(|| name.to_string())
+}
+
+/// The audio file beside `stem` (`<stem>.m4a`, ...), if there is one.
+fn audio_beside(stem: &Path) -> Option<PathBuf> {
+    ["m4a", "wav", "ogg", "opus", "mp3", "aac", "flac"]
+        .into_iter()
+        .map(|ext| stem.with_extension(ext))
+        .find(|path| path.is_file())
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {
     /// Too short, or nobody said anything.
@@ -140,7 +229,7 @@ pub fn meeting_id(started_at_ms: i64, source: Source) -> String {
 /// record imported before. Pure: its output is the dry run.
 pub fn plan(found: Vec<SourceMeeting>, seen: &HashSet<(Source, String)>) -> Vec<Planned> {
     let (stubs, mut real): (Vec<_>, Vec<_>) = found.into_iter().partition(SourceMeeting::is_stub);
-    real.sort_by(|a, b| (a.source, a.started_at_ms).cmp(&(b.source, b.started_at_ms)));
+    real.sort_by_key(|r| (r.source, r.started_at_ms));
 
     // Each group's first record is its primary: sorting by source put the
     // highest precedence first.
@@ -195,4 +284,8 @@ pub fn plan(found: Vec<SourceMeeting>, seen: &HashSet<(Source, String)>) -> Vec<
 }
 
 #[cfg(test)]
+mod fixtures;
+#[cfg(test)]
 mod plan_tests;
+#[cfg(test)]
+mod scan_tests;
