@@ -14,7 +14,10 @@ use transcribe_cpp::{
 use super::transcript::{
     assign_speakers, merge_minor_speakers, merge_utterances, render_transcript, Turn,
 };
-use super::{store, write_meeting, Meeting, MeetingStatus, Speaker, TrackKind};
+use super::{
+    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingStatus, Rerun, Speaker,
+    TrackKind,
+};
 use crate::engine_supervisor::EngineError;
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -30,8 +33,47 @@ enum Unseparated {
     Failed(anyhow::Error),
 }
 
-/// Transcribes every track and writes the transcript. Runs on the job thread.
-pub(super) fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl) {
+/// Runs the meeting `id`'s queued transcription from its `meeting.json`,
+/// counted as an attempt before it starts so a crash during it counts too.
+pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn ChunkControl) {
+    let meeting = meetings_dir(app).and_then(|dir| read_meeting(&dir.join(id)));
+    let mut meeting = match meeting {
+        Ok(meeting) => meeting,
+        Err(e) => return fail_job(app, id, &format!("{e:#}")),
+    };
+    meeting.attempts = meeting.attempts.saturating_add(1);
+    meeting.status = MeetingStatus::Transcribing;
+    if let Err(e) = write_meeting(app, &meeting) {
+        error!("Failed to save meeting {id}: {e:#}");
+    }
+    info!("Meeting {id}: attempt {} ({rerun:?})", meeting.attempts);
+    transcribe(app, meeting, control);
+}
+
+/// Marks the meeting `id` failed and says why, as when its job panicked.
+pub(crate) fn fail_job(app: &AppHandle, id: &str, error: &str) {
+    error!("Meeting {id} transcription failed: {error}");
+    match meetings_dir(app).and_then(|dir| read_meeting(&dir.join(id))) {
+        Ok(mut meeting) => {
+            meeting.status = MeetingStatus::Failed;
+            if let Err(e) = write_meeting(app, &meeting) {
+                error!("Failed to save meeting {id}: {e:#}");
+            }
+        }
+        Err(e) => error!("Failed to mark meeting {id} failed: {e:#}"),
+    }
+    notices::raise(
+        app,
+        Notice::new(
+            NoticeCode::MeetingTranscriptionFailed,
+            NoticeSource::Meeting,
+        )
+        .with_detail(error.to_string()),
+    );
+}
+
+/// Transcribes every track and writes the transcript.
+fn transcribe(app: &AppHandle, mut meeting: Meeting, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
     let mut unseparated = None;
     let result = (|| -> Result<()> {
