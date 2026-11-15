@@ -87,6 +87,90 @@ fn level_filter_from_u8(value: u8) -> log::LevelFilter {
     }
 }
 
+/// The app's logger, without the line the PulseAudio client writes each time
+/// one is closed. Its reactor has no clean way to end, so every close logs
+/// "Reactor error: Client disconnected" as an error, and a meeting closes a
+/// client every two seconds to see where the output plays. A server that
+/// goes away logs the same line; the recorder reports the stream it takes
+/// with it.
+struct WithoutPulseClose(Box<dyn log::Log>);
+
+impl WithoutPulseClose {
+    fn is_pulse_close(record: &log::Record) -> bool {
+        record.target() == "pulseaudio::client::reactor"
+            && record.level() == log::Level::Error
+            && record.args().to_string() == "Reactor error: Client disconnected"
+    }
+}
+
+impl log::Log for WithoutPulseClose {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        self.0.enabled(metadata)
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !Self::is_pulse_close(record) {
+            self.0.log(record);
+        }
+    }
+
+    fn flush(&self) {
+        self.0.flush();
+    }
+}
+
+/// The log plugin for `builder`'s logger, wrapped in [`WithoutPulseClose`].
+/// What `split` gives beside the logger is the webview's `log` command,
+/// which no capability lets the frontend call, so it's left out.
+fn log_plugin(builder: LogBuilder) -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::new("murmur-log")
+        .setup(move |app, _api| {
+            let (_command, max_level, logger) = builder.split(app)?;
+            tauri_plugin_log::attach_logger(max_level, Box::new(WithoutPulseClose(logger)))?;
+            Ok(())
+        })
+        .build()
+}
+
+#[cfg(test)]
+mod pulse_close_tests {
+    use super::WithoutPulseClose;
+
+    fn dropped(target: &str, level: log::Level, message: &str) -> bool {
+        WithoutPulseClose::is_pulse_close(
+            &log::Record::builder()
+                .target(target)
+                .level(level)
+                .args(format_args!("{message}"))
+                .build(),
+        )
+    }
+
+    #[test]
+    fn only_the_closing_line_is_dropped() {
+        let reactor = "pulseaudio::client::reactor";
+        let closing = "Reactor error: Client disconnected";
+        assert!(dropped(reactor, log::Level::Error, closing));
+        // What else the reactor says, and a reactor that ends another way.
+        assert!(!dropped(
+            reactor,
+            log::Level::Error,
+            "Reactor error: Connection reset by peer (os error 104)"
+        ));
+        assert!(!dropped(reactor, log::Level::Error, "unknown stream: 3"));
+        assert!(!dropped(
+            reactor,
+            log::Level::Warn,
+            "no reply handler found for sequence 7"
+        ));
+        assert!(!dropped(
+            "handy_app_lib::managers",
+            log::Level::Error,
+            closing
+        ));
+    }
+}
+
 fn build_console_filter() -> env_filter::Filter {
     let mut builder = EnvFilterBuilder::new();
 
@@ -907,16 +991,14 @@ pub fn run(cli_args: CliArgs) {
     let mut builder = tauri::Builder::default()
         .device_event_filter(tauri::DeviceEventFilter::Always)
         .plugin(tauri_plugin_dialog::init())
-        .plugin(
+        .plugin(log_plugin(
             LogBuilder::new()
                 .level(log::LevelFilter::Trace) // Set to most verbose level globally
-                // The PulseAudio client's reactor has no clean way to end: it
-                // logs "Reactor error: Client disconnected" as an error every
-                // time a client is closed, which a meeting does every two
-                // seconds to see where the output plays. It's the module's
-                // only line, and a stream that really fails is reported by
-                // the recorder.
-                .level_for("pulseaudio::client::reactor", log::LevelFilter::Off)
+                // The PulseAudio client logs every command and reply at
+                // debug, about a hundred lines a second while it records.
+                // Its warnings and errors stay, but for the one line
+                // `WithoutPulseClose` drops.
+                .level_for("pulseaudio::client::reactor", log::LevelFilter::Warn)
                 .max_file_size(500_000)
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()
@@ -958,9 +1040,8 @@ pub fn run(cli_args: CliArgs) {
                             && metadata.level()
                                 <= level_filter_from_u8(FILE_LOG_LEVEL.load(Ordering::Relaxed))
                     }),
-                ])
-                .build(),
-        );
+                ]),
+        ));
 
     #[cfg(target_os = "macos")]
     {
