@@ -261,12 +261,11 @@
   background-color: var(--scrollbar-thumb-hover);
 }
 
-.logo-primary {
-  fill: var(--color-wordmark);
-}
-
-.logo-stroke {
-  fill: var(--color-wordmark-stroke);
-  stroke: var(--color-wordmark-stroke);
-  stroke-width: 1;
+.wordmark {
+  display: block;
+  font: 700 25px/30px var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--color-wordmark);
+  -webkit-text-stroke: 1px var(--color-wordmark-stroke);
+  paint-order: stroke fill;
 }
