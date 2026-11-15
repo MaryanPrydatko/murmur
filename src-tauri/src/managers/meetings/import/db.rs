@@ -22,17 +22,21 @@ pub fn create_ledger(conn: &Connection) -> Result<()> {
     Ok(conn.execute_batch(LEDGER)?)
 }
 
-/// Every record imported before; none before the first import.
-pub fn seen(conn: &Connection) -> Result<HashSet<(Source, String)>> {
-    let has_ledger = conn
+/// Whether an import has run: a dry run before the first creates no ledger.
+fn has_ledger(conn: &Connection) -> Result<bool> {
+    Ok(conn
         .query_row(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meeting_sources'",
             [],
             |_| Ok(()),
         )
         .optional()?
-        .is_some();
-    let query = if has_ledger {
+        .is_some())
+}
+
+/// Every record imported before; none before the first import.
+pub fn seen(conn: &Connection) -> Result<HashSet<(Source, String)>> {
+    let query = if has_ledger(conn)? {
         "SELECT source, source_id FROM meeting_sources
          UNION SELECT source, source_id FROM meetings WHERE source_id IS NOT NULL"
     } else {
@@ -66,7 +70,7 @@ pub fn insert(conn: &mut Connection, planned: &Planned, meeting: &Meeting) -> Re
             meeting.id,
             primary.source.as_str(),
             primary.source_id,
-            primary.title,
+            planned.title(),
             primary.started_at_ms.div_euclid(1000),
             meeting.duration_ms,
             status.as_str(),
@@ -119,6 +123,9 @@ pub fn insert(conn: &mut Connection, planned: &Planned, meeting: &Meeting) -> Re
 
 /// The meeting the planned meeting's records were imported into.
 pub fn meeting_of(conn: &Connection, planned: &Planned) -> Result<Option<String>> {
+    if !has_ledger(conn)? {
+        return Ok(None);
+    }
     let mut stmt = conn
         .prepare("SELECT meeting_id FROM meeting_sources WHERE source = ?1 AND source_id = ?2")?;
     for (source, source_id) in planned.records() {
@@ -130,4 +137,24 @@ pub fn meeting_of(conn: &Connection, planned: &Planned) -> Result<Option<String>
         }
     }
     Ok(None)
+}
+
+/// Gives meeting `id` the title when it has none, never over one it has.
+/// Whether it did, or in a dry run would have.
+pub fn add_title(conn: &Connection, id: &str, title: &str, dry_run: bool) -> Result<bool> {
+    if dry_run {
+        let untitled = conn
+            .query_row(
+                "SELECT 1 FROM meetings WHERE id = ?1 AND title IS NULL",
+                [id],
+                |_| Ok(()),
+            )
+            .optional()?;
+        return Ok(untitled.is_some());
+    }
+    let changed = conn.execute(
+        "UPDATE meetings SET title = ?2 WHERE id = ?1 AND title IS NULL",
+        params![id, title],
+    )?;
+    Ok(changed == 1)
 }

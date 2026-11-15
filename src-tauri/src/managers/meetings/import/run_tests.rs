@@ -359,6 +359,54 @@ fn a_second_run_writes_nothing_and_a_deleted_meeting_stays_deleted() {
     assert_eq!(count(&conn, "meetings"), 3);
 }
 
+/// An earlier import that lost a title: the meeting is in the ledger, its
+/// title isn't set, and the app's record still has one.
+#[test]
+fn a_later_run_adds_the_title_an_earlier_import_left_out() {
+    let world = world();
+    let mut conn = db();
+    import_notes(&world, &mut conn, false, false);
+    let roadmap = meeting_id(T0_SECS * 1000, Source::Wispr);
+    let title = |conn: &Connection| store::get(conn, &roadmap).unwrap().unwrap().meeting.title;
+    conn.execute("UPDATE meetings SET title = NULL WHERE id = ?1", [&roadmap])
+        .unwrap();
+
+    let (dry, _) = import_notes(&world, &mut conn, true, false);
+    assert_eq!((dry.already_imported, dry.titles_added), (4, 1));
+    assert_eq!(title(&conn), None);
+
+    let (report, queued) = import_notes(&world, &mut conn, false, false);
+    assert_eq!((report.already_imported, report.titles_added), (4, 1));
+    assert_eq!(report.imported + report.to_transcribe + report.failed, 0);
+    assert!(queued.is_empty());
+    assert_eq!(title(&conn).as_deref(), Some("Roadmap sync"));
+    assert!(report.to_string().contains("titles added: 1\n"));
+
+    let (again, _) = import_notes(&world, &mut conn, false, false);
+    assert_eq!(again.titles_added, 0);
+}
+
+#[test]
+fn a_later_run_keeps_a_title_the_meeting_has_and_a_deleted_meeting_deleted() {
+    let world = world();
+    let mut conn = db();
+    import_notes(&world, &mut conn, false, false);
+    let roadmap = meeting_id(T0_SECS * 1000, Source::Wispr);
+    store::rename(&conn, &roadmap, Some("Mine")).unwrap();
+
+    let (report, _) = import_notes(&world, &mut conn, false, false);
+    assert_eq!(report.titles_added, 0);
+    let detail = store::get(&conn, &roadmap).unwrap().unwrap();
+    assert_eq!(detail.meeting.title.as_deref(), Some("Mine"));
+
+    conn.execute("DELETE FROM meetings WHERE id = ?1", [&roadmap])
+        .unwrap();
+    let (dry, _) = import_notes(&world, &mut conn, true, false);
+    let (after_delete, _) = import_notes(&world, &mut conn, false, false);
+    assert_eq!((dry.titles_added, after_delete.titles_added), (0, 0));
+    assert_eq!(count(&conn, "meetings"), 3);
+}
+
 #[test]
 fn a_later_run_with_notes_writes_the_notes_still_missing() {
     let world = world();

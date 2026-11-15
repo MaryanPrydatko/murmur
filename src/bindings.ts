@@ -1454,6 +1454,10 @@ export type ImportReport = { dry_run: boolean; sources: SourceCount[];
  */
 merged: number; already_imported: number; 
 /**
+ * Of those, the ones that had no title and got their record's.
+ */
+titles_added: number; 
+/**
  * Files Spokenly transcribed that match no meeting.
  */
 not_meetings: number; 

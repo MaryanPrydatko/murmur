@@ -250,6 +250,12 @@ impl Planned {
         self.primary.source == Source::Spokenly
     }
 
+    /// The title it's imported with: its primary record's, when it has one.
+    pub fn title(&self) -> Option<&str> {
+        let title = self.primary.title.as_deref()?.trim();
+        (!title.is_empty()).then_some(title)
+    }
+
     pub fn records(&self) -> impl Iterator<Item = (Source, String)> + '_ {
         std::iter::once(&self.primary)
             .chain(&self.merged)
@@ -366,6 +372,8 @@ pub struct ImportReport {
     /// Records folded into another app's copy of the same meeting.
     pub merged: u32,
     pub already_imported: u32,
+    /// Of those, the ones that had no title and got their record's.
+    pub titles_added: u32,
     /// Files Spokenly transcribed that match no meeting.
     pub not_meetings: u32,
     /// Meetings only Spokenly had, whose audio is gone.
@@ -399,6 +407,7 @@ impl fmt::Display for ImportReport {
         }
         writeln!(f, "merged into another app's copy: {}", self.merged)?;
         writeln!(f, "already imported: {}", self.already_imported)?;
+        writeln!(f, "  of which titles added: {}", self.titles_added)?;
         writeln!(
             f,
             "spokenly files that are no meeting: {}",
@@ -418,8 +427,9 @@ impl fmt::Display for ImportReport {
 }
 
 /// Imports every meeting under `roots` not imported before into
-/// `meetings_dir`. With `notes_folder`, every transcribed one without a
-/// note gets it there, imported now or before.
+/// `meetings_dir`. One imported before that has no title gets its record's.
+/// With `notes_folder`, every transcribed one without a note gets it there,
+/// imported now or before.
 /// `write` saves `meeting.json`. A dry run writes nothing. Returns the ids
 /// of the meetings left to transcribe.
 pub fn run(
@@ -475,9 +485,15 @@ pub fn run(
             }
             Outcome::AlreadyImported => {
                 report.already_imported += 1;
-                // Imported before without a note, or transcribed since.
-                if let (Some(folder), false) = (notes_folder, dry_run) {
-                    if let Some(id) = db::meeting_of(conn, meeting)? {
+                if let Some(id) = db::meeting_of(conn, meeting)? {
+                    // Imported before its title was read.
+                    if let Some(title) = meeting.title() {
+                        if db::add_title(conn, &id, title, dry_run)? {
+                            report.titles_added += 1;
+                        }
+                    }
+                    // Imported before without a note, or transcribed since.
+                    if let (Some(folder), false) = (notes_folder, dry_run) {
                         write_note(conn, &id, folder, &mut report);
                     }
                 }
