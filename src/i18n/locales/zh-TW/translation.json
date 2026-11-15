@@ -990,7 +990,14 @@
   "overlay": {
     "transcribing": "正在轉錄...",
     "processing": "處理中...",
-    "loadingModel": "正在載入模型..."
+    "loadingModel": "正在載入模型...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} 可能正在阻擋 1 個快捷鍵",

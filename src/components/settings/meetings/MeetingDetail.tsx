@@ -270,12 +270,15 @@ const RecordingView: React.FC<{ row: MeetingRow }> = ({ row }) => {
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
-    // Not emitted yet; see the report. Each side's level, 0 to 1.
-    const off = listen<{ me: number; others: number }>("meeting-levels", (e) =>
-      setLevels((l) => ({
-        me: [...l.me.slice(1), e.payload.me],
-        others: [...l.others.slice(1), e.payload.others],
-      })),
+    // Not emitted yet; see the report. Each side as the 16 buckets the
+    // overlay's mic-level sends; a bar here is the loudest of them.
+    const off = listen<{ me: number[]; others: number[] }>(
+      "meeting-levels",
+      (e) =>
+        setLevels((l) => ({
+          me: [...l.me.slice(1), Math.max(0, ...e.payload.me)],
+          others: [...l.others.slice(1), Math.max(0, ...e.payload.others)],
+        })),
     );
     return () => {
       clearInterval(id);

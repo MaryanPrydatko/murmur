@@ -1166,6 +1166,13 @@ async dismissNotice(source: NoticeSource, code: NoticeCode) : Promise<void> {
  */
 async dismissOverlayNotice() : Promise<void> {
     await TAURI_INVOKE("dismiss_overlay_notice");
+},
+/**
+ * Grows the island's panel before its meeting controls open, and shrinks it
+ * after they close.
+ */
+async setOverlayDropped(dropped: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_overlay_dropped", { dropped });
 }
 }
 

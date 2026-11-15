@@ -1,459 +1,811 @@
-@import "../styles/theme.css";
+/* Murmur's overlay: one component, two forms. The notch island on a Mac
+   whose screen has a notch and the overlay at the top; the pill everywhere
+   else. Always dark. Copied from the approved mock
+   (murmur-design/overlay-*.html); keep the numbers in step with overlay.rs. */
 
-:root {
-  --s-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  /* Near-opaque app surface (theme.css --color-background at 98%). Auto-flips
-     light/dark with --color-background, so no dark-mode override is needed. */
-  --s-surface: color-mix(in srgb, var(--color-background) 98%, transparent);
-  /* Accent = logo pink; flips automatically via --color-logo-primary. */
-  --s-accent: var(--color-logo-primary);
-  /* The rest come from theme.css, which already follows the theme setting. */
-  --s-accent-soft: color-mix(
-    in srgb,
-    var(--color-logo-primary) 20%,
-    transparent
-  );
-  --s-muted: var(--color-ink-2);
-  --s-faint: var(--color-ink-3);
-  --s-border: var(--color-line);
-  --s-hair: var(--color-wash);
-
-  /* Card geometry — single source of truth for the visible overlay sizes. The
-     native overlay window (overlay.rs) is sized from these: it must be at least
-     the card's max footprint (--ov-work-w for compact, --ov-open-w for Live),
-     since the card is anchored flush to the screen edge in CSS. Keep overlay.rs
-     in sync when these change. */
-  --ov-rest-w: 172px; /* resting compact pill (minimal, recording) -- roomy enough
-                         for the English working label before the grow starts */
-  --ov-pill-w: 184px; /* base width / Live pill before it opens or collapses */
-  --ov-work-w: 216px; /* working pill (transcribing / polishing) -- wide enough to
-                         center longer labels; shared by Live (collapsed) + minimal */
-  --ov-open-w: 392px; /* Live panel, expanded */
-  --ov-base-h: 40px; /* control-row height (.sbase) */
-  --ov-cap-max-h: 64px; /* max height of the scrolling live-text region */
+html,
+body {
+  background: transparent;
 }
-/* ============================================================
-   Unified overlay stage — one fixed, transparent container shared by the compact
-   pill and the Live panel (both render the same `.scard` base). The card is
-   anchored flush to the screen-edge side (bottom by default, top when placed up
-   top) and centered horizontally, so the visible card sits exactly
-   OVERLAY_*_OFFSET from the screen edge regardless of window height — only the
-   offsets in overlay.rs move it. Pops scale from that edge, so the card is never
-   drawn past it (matters for the 4px top offset on Windows/Linux).
-   ============================================================ */
-.ov-stage {
+
+/* The window around the shape. The pill keeps room below it for its shadow
+   (PILL_SHADOW_PAD in overlay.rs); the island hangs from the screen's top. */
+.ov.stage {
   position: fixed;
   inset: 0;
-  display: flex;
-  justify-content: center; /* horizontal centering, kept for both forms */
-  align-items: flex-end; /* bottom placement: flush to the bottom edge */
-  font-family: var(--s-font);
-}
-.ov-stage.top {
-  align-items: flex-start; /* top placement: flush to the top edge */
-}
-
-/* Compact pill: fade the whole container in/out (the pill itself never pops or
-   morphs). */
-.ov-fade {
-  opacity: 0;
-  transition: opacity 200ms ease-out;
-}
-.ov-fade.show {
-  opacity: 1;
-}
-
-/* Top placement, Live panel: stack the control pill above the text region so the
-   card grows downward from its top edge (oldest line under the pill, newest at
-   the bottom) — mirroring the bottom overlay's upward flow. The compact pill has
-   no flowing text, so this only affects the Live panel. The text region keeps the
-   same fade + scroll-pin; older lines dissolve up under the pill. */
-.ov-stage.top .scard {
-  /* column-reverse stacks the control pill above the text region. */
-  flex-direction: column-reverse;
-  transform-origin: top center;
-}
-.ov-stage.top .stext-cap {
-  /* Mirror of the bottom overlay (top: 12 / bottom: 0): the first line sits flush
-     under the pill and the breathing room moves below the text. The top fade is
-     off at rest — at zero top padding it would dim the resting first line — and
-     switches on (below) only once text overflows. */
-  padding-top: 0;
-  padding-bottom: 12px;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-/* Once live text overflows, fade older lines up under the pill, matching the
-   bottom overlay's top fade. Gated on `.overflowing` so a short resting line
-   (sitting at the very top) is never dimmed. */
-.ov-stage.top .stext-cap.overflowing {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
-}
-.ov-stage.top .stext-cap p {
-  /* Top-anchor short text just under the pill; on overflow the cap still pins to
-     the bottom (newest visible) and older lines fade off the top, same as bottom. */
-  margin: 0;
-}
-
-/* Shared base card. Flat: theme surface + hairline border, no shadow or blur. */
-.scard {
-  width: var(--ov-pill-w);
-  /* Never wider than the window: an unaccounted content zoom degrades to a
-     narrower card instead of clipping. 2px = our border (no border-box reset). */
-  max-width: calc(100vw - 2px);
-  border-radius: 24px;
   overflow: hidden;
+}
+.ov.stage .pill {
+  bottom: 34px;
+}
+.ov.stage .pill[data-edge="top"] {
+  bottom: auto;
+}
+:root[data-platform="macos"] .ov .pill {
+  --ph: 38px;
+}
+/* Long live text keeps its newest line in view. */
+.pill .p-text,
+.island .d-live {
   display: flex;
   flex-direction: column;
-  flex: none; /* hold our own width; never let the stage flex shrink the card */
-  transform-origin: bottom center;
-  background: var(--s-surface);
-  border: 1px solid var(--s-border);
-  /* Flat: no drop shadow, no backdrop blur/saturate (was a glassy gradient look). */
-  /* pop-in plays on mount; morph (width/radius) is a transition */
-  animation: scard-pop 460ms cubic-bezier(0.22, 1, 0.36, 1);
-  transition:
-    width 460ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-radius 460ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, width, opacity;
-}
-@keyframes scard-pop {
-  from {
-    opacity: 0;
-    /* Scale from the anchored edge (transform-origin) — never translate past it. */
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.scard.leaving {
-  opacity: 0;
-  transform: scale(0.96);
-  transition:
-    opacity 240ms ease,
-    transform 300ms ease;
-}
-.scard.open {
-  width: var(--ov-open-w);
-  border-radius: 16px;
-}
-.scard.working {
-  width: var(--ov-work-w);
-  border-radius: 18px;
-}
-
-/* Compact form: two fixed widths so the recording→working change is an animatable
-   width transition (intrinsic max-content can't be transitioned, and every label
-   is short enough to fit the resting pill, so content-sizing produced no visible
-   grow). The resting pill hugs the waveform; the working pill is roomy enough to
-   center the longest label — the .swork-label ellipsis is only a safety net past it.
-   A notice hugs its title instead, so RecordingOverlay.tsx measures that width and
-   sets it inline, which keeps it animatable. */
-.scard.compact {
-  animation: none;
-  width: var(--ov-rest-w);
-}
-.scard.compact.cworking {
-  width: var(--ov-work-w);
-}
-
-/* Notice: badge and title, in the pill and the Live panel. */
-.scard.cnotice {
-  cursor: pointer;
-}
-.scard.cnotice:not(.open) {
-  border-radius: 24px;
-}
-.scard.level-error {
-  --notice: var(--color-error);
-}
-.scard.level-warning {
-  --notice: var(--color-warning);
-}
-.sbase.snotice {
-  grid-template-columns: auto minmax(0, max-content);
-  justify-content: center;
-  gap: 7px;
-  padding: 0 13px;
-}
-.nglyph {
-  display: block;
-  width: 16px;
-  height: 16px;
-  flex: none;
-  color: var(--notice);
-}
-.nlabel {
-  font-size: 12px;
-  color: var(--color-text);
-  white-space: nowrap;
-  min-width: 0;
+  justify-content: flex-end;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
-/* Measures the full title, since the visible one can be cut off. */
-.nlabel.nprobe {
+.ov .pc-probe {
   position: absolute;
   visibility: hidden;
-  overflow: visible;
-}
-.stext-cap .ndetail {
-  display: block;
-  color: var(--s-muted);
-  font-style: normal;
-  font-size: 13px;
-  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-/* text region — auto-height open via grid-rows trick; region fades as a whole */
-.stext {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transition:
-    grid-template-rows 440ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 260ms ease;
+.ov {
+  /* Notch size. Set at runtime from NSScreen (safeAreaInsets.top and the
+     gap between auxiliaryTopLeftArea / auxiliaryTopRightArea). */
+  --nw: 185px;
+  --nh: 32px;
+
+  /* Surfaces. The island is true black so it is one shape with the hardware
+     notch. The pill is a warm near-black that needs no blur behind it. */
+  --ov-black: #000;
+  --ov-surface: #141312;
+  --ov-text: #f4f1ee;
+  --ov-muted: #a8a29c;
+  --ov-track: rgba(244, 241, 238, 0.18);
+  --ov-pink: #f28cbb; /* = --dark-color-logo-primary: dictation */
+  --ov-rec: #ff5247; /* meeting is recording */
+  --ov-warn: #fbbf24; /* = --dark-color-warning */
+  --ov-err: #f87171; /* = --dark-color-error */
+  --ov-ok: #86c9a4; /* = --dark-color-moss */
+  --ov-ring-in: rgba(255, 255, 255, 0.13);
+  --ov-ring-out: rgba(0, 0, 0, 0.6);
+
+  /* Motion. Open: spring k=380 c=30 m=1 (ratio 0.77, 2% overshoot), 500ms.
+     Close: spring k=520 c=46 m=1 (critically damped), 320ms. */
+  --t-open: 500ms;
+  --t-close: 320ms;
+  --t-out: 110ms; /* content leaving */
+  --t-in: 180ms; /* content arriving */
+  --t-in-delay: 90ms;
+  --spring-open: cubic-bezier(0.22, 1.18, 0.36, 1);
+  --spring-close: cubic-bezier(0.3, 0.9, 0.3, 1);
+
+  font:
+    500 12px/1 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  color: var(--ov-text);
+  -webkit-font-smoothing: antialiased;
 }
-.scard.open .stext {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-.stext-clip {
-  overflow: hidden;
-  min-height: 0;
-}
-.stext-cap {
-  /* Vertical counterpart of the .scard clamp: show fewer lines rather than clip.
-     20px = cap padding (12) + card borders (2) + 6px slack for zoom rounding. */
-  max-height: min(var(--ov-cap-max-h), calc(100vh - var(--ov-base-h) - 20px));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  padding-top: 12px;
-  padding-bottom: 0px;
-  padding-left: 14px;
-  padding-right: 14px;
-  font-size: 15px;
-  font-style: italic;
-  line-height: 1.35;
-  letter-spacing: -0.003em;
-  color: var(--color-text);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* legacy Edge */
-}
-/* Hide the scrollbar (WebKit/Chromium) — scroll-back is signalled by the fade. */
-.stext-cap::-webkit-scrollbar {
-  display: none;
-}
-.stext-cap p {
-  /* Bottom-anchor the text when it's shorter than the viewport, avoiding the
-     justify-content:flex-end overflow bug that makes the top unscrollable. */
-  margin: auto 0 0;
-}
-.stext-cap .tentative {
-  color: inherit;
-}
-.stext-cap .sloading {
-  color: var(--s-muted);
-}
-.scaret {
-  display: inline-block;
-  width: 2px;
-  height: 1.02em;
-  translate: 0 3px;
-  margin-left: 1px;
-  background: var(--s-accent);
-  border-radius: 2px;
-  animation: scaret-blink 1.05s steps(1) infinite;
-}
-@keyframes scaret-blink {
-  50% {
-    opacity: 0;
+@supports (transition-timing-function: linear(0, 1)) {
+  .ov {
+    --spring-open: linear(
+      0,
+      0.062,
+      0.202,
+      0.369,
+      0.532,
+      0.674,
+      0.789,
+      0.876,
+      0.937,
+      0.978,
+      1.003,
+      1.017,
+      1.022,
+      1.022,
+      1.02,
+      1.017,
+      1.013,
+      1.009,
+      1.006,
+      1.004,
+      1.002,
+      1.001,
+      1
+    );
+    --spring-close: linear(
+      0,
+      0.097,
+      0.28,
+      0.463,
+      0.616,
+      0.734,
+      0.819,
+      0.879,
+      0.92,
+      0.948,
+      0.966,
+      0.978,
+      0.986,
+      0.991,
+      1
+    );
   }
 }
 
-/* base row — dot (left) | waveform (center) | timer + cancel (right).
-   Same structure for pill & panel; the dot stays anchored left in both. */
-.sbase {
-  height: var(--ov-base-h);
-  flex: none; /* the control row never squashes; only the text region gives */
-  padding: 0 10px;
-  display: grid;
-  /* Equal side columns (min 22px to hold the cancel button) keep the center item
-     — waveform or label — centered whether the pill is at min width or content-
-     sized. */
-  grid-template-columns: minmax(22px, 1fr) auto minmax(22px, 1fr);
-  align-items: center;
-}
-.sbase-l {
-  display: flex;
-  padding-left: 5px;
-  align-items: center;
-  justify-self: start;
-}
-.sbase-r {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-self: end;
-}
-.sdot {
-  width: 7px;
-  height: 7px;
+/* ---------- shared parts ---------- */
+.ov .dot {
+  display: block;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex: none;
-  box-sizing: border-box;
+  background: var(--ov-pink);
   transition:
     background-color 180ms ease,
     opacity 180ms ease;
 }
-.sdot.ready {
-  background: var(--s-accent);
-  opacity: 1;
-  animation: sdot-pulse 1.9s infinite;
-}
-/* A quiet neutral dot while the host has not delivered its first sample yet. */
-.sdot.arming {
-  background: var(--s-muted);
+.ov [data-dot="arming"] .dot {
+  background: var(--ov-muted);
   opacity: 0.45;
-  animation: none;
 }
-@keyframes sdot-pulse {
+.ov [data-dot="live"] .dot {
+  animation: ov-halo 1.9s infinite;
+}
+.ov [data-dot="held"] .dot {
+  opacity: 0.5;
+}
+.ov [data-dot="rec"] .dot {
+  background: var(--ov-rec);
+  animation: ov-breathe 2.4s ease-in-out infinite;
+}
+@keyframes ov-halo {
   0% {
-    box-shadow: 0 0 0 0 var(--s-accent-soft);
+    box-shadow: 0 0 0 0 rgba(242, 140, 187, 0.5);
   }
-  70% {
-    box-shadow: 0 0 0 7px transparent;
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px rgba(242, 140, 187, 0);
   }
 }
-.stimer {
-  font-size: 12px;
-  color: var(--s-faint);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 240ms ease 80ms;
-}
-.scard.open .stimer {
-  opacity: 1;
+@keyframes ov-breathe {
+  50% {
+    opacity: 0.45;
+  }
 }
 
-/* Waveform — reactive only after the first microphone callback. While arming,
-   a muted travelling pulse acknowledges the shortcut without pretending that
-   audio levels are already being received. */
-.swave {
+/* Waveform. Bars are fed from the 16 "mic-level" buckets, mirrored around
+   the centre (see barHeights() in the script). */
+.ov .wave {
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding-right: 8px;
-  height: 18px;
+  gap: 2px;
+  height: 20px;
   flex: none;
 }
-.swave i {
-  width: 4px;
-  min-height: 3px;
-  max-height: 18px;
-  border-radius: 2px;
-  background: var(--s-accent);
+.ov .wave i {
+  width: 3px;
+  height: 3px;
+  border-radius: 1.5px;
+  background: var(--ov-pink);
   transition:
-    height 80ms linear,
-    background-color 180ms ease,
-    opacity 180ms ease;
+    height 90ms linear,
+    background-color 180ms ease;
 }
-.swave.arming i {
-  height: 6px !important;
-  background: var(--s-muted);
-  opacity: 0.35;
-  animation: swave-arming 900ms ease-in-out infinite;
+.ov .wave.w5 {
+  gap: 2.5px;
 }
-.swave.arming i:nth-child(2),
-.swave.arming i:nth-child(8) {
-  animation-delay: 75ms;
+.ov .wave.neutral i {
+  background: var(--ov-text);
+  opacity: 0.82;
 }
-.swave.arming i:nth-child(3),
-.swave.arming i:nth-child(7) {
-  animation-delay: 150ms;
+.ov [data-wave="arming"] .wave i {
+  height: 4px !important;
+  background: var(--ov-muted);
+  animation: ov-arm 900ms ease-in-out infinite;
+  animation-delay: calc(var(--d) * 70ms);
 }
-.swave.arming i:nth-child(4),
-.swave.arming i:nth-child(6) {
-  animation-delay: 225ms;
-}
-.swave.arming i:nth-child(5) {
-  animation-delay: 300ms;
-}
-@keyframes swave-arming {
+@keyframes ov-arm {
   0%,
   100% {
-    transform: scaleY(0.55);
-    opacity: 0.25;
+    transform: scaleY(0.6);
+    opacity: 0.3;
   }
   50% {
-    transform: scaleY(1.5);
-    opacity: 0.7;
+    transform: scaleY(1.6);
+    opacity: 0.75;
   }
 }
-.sx {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+
+/* Spinner (unknown length) and progress ring (known percent). 14px, 2px
+   stroke, circumference 34.56. */
+.ov .ring {
+  width: 14px;
+  height: 14px;
   flex: none;
-  padding: 0;
-  border: 0;
-  -webkit-appearance: none;
-  appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--s-muted);
-  background: var(--s-hair);
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 100ms ease;
-}
-.sx svg {
-  width: 9px;
-  height: 9px;
   display: block;
 }
-.sx:hover {
-  background: var(--s-accent-soft);
-  color: var(--color-text);
-  transform: scale(1.05);
+.ov .ring circle {
+  fill: none;
+  stroke-width: 2;
 }
-.sx:active {
-  transform: scale(0.95);
+.ov .ring .trk {
+  stroke: var(--ov-track);
 }
-
-/* working state (transcribing / polishing) — spinner + label */
-.sspinner {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  border: 2px solid var(--s-hair);
-  border-top-color: var(--s-accent);
-  animation: sspin 0.7s linear infinite;
-  flex: none;
+.ov .ring .arc {
+  stroke: var(--ov-pink);
+  stroke-linecap: round;
 }
-@keyframes sspin {
+.ov .ring.spin .arc {
+  stroke-dasharray: 10 24.56;
+  transform-origin: 50% 50%;
+  animation: ov-spin 800ms linear infinite;
+}
+.ov .ring.prog {
+  transform: rotate(-90deg);
+}
+.ov .ring.prog .arc {
+  transition: stroke-dasharray 300ms linear;
+}
+@keyframes ov-spin {
   to {
     transform: rotate(1turn);
   }
 }
-.swork-label {
-  font-size: 12px;
-  color: var(--s-muted);
+
+.ov .timer,
+.ov .pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  padding: 0 8px; /* breathing room from the spinner / cancel when content-sized */
-  /* Safety net: ellipsize rather than clip if a label exceeds the max pill width. */
-  min-width: 0;
+}
+.ov .label {
+  font-size: 12.5px;
+  color: var(--ov-text);
+  white-space: nowrap;
+}
+.ov .muted {
+  color: var(--ov-muted);
+}
+
+.ov button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.ov .xbtn,
+.ov .stopbtn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--ov-muted);
+  background: rgba(255, 255, 255, 0.1);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.ov .xbtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--ov-text);
+}
+.ov .xbtn svg {
+  width: 9px;
+  height: 9px;
+}
+.ov .stopbtn {
+  color: var(--ov-rec);
+  background: rgba(255, 82, 71, 0.2);
+}
+.ov .stopbtn:hover {
+  background: rgba(255, 82, 71, 0.34);
+}
+.ov .stopbtn::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.ov .badge {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: block;
+}
+.ov [data-level="warn"] .badge {
+  color: var(--ov-warn);
+}
+.ov [data-level="error"] .badge {
+  color: var(--ov-err);
+}
+.ov [data-level="info"] .badge {
+  color: var(--ov-ok);
+}
+.ov .chipbtn {
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background-color 150ms ease;
+}
+.ov .chipbtn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+.ov button:focus-visible {
+  outline: 2px solid var(--ov-pink);
+  outline-offset: 2px;
+}
+
+/* Live text (the "Live" overlay style). */
+.ov .livetext {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: var(--ov-text);
+}
+.ov .livetext .tentative {
+  color: var(--ov-muted);
+}
+.ov .caret {
+  display: inline-block;
+  width: 2px;
+  height: 15px;
+  margin-left: 2px;
+  translate: 0 3px;
+  border-radius: 1px;
+  background: var(--ov-pink);
+  animation: ov-blink 1.05s steps(1) infinite;
+}
+@keyframes ov-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* A piece that is not part of the current state is faded and shrunk, and
+   comes back a beat after the shape starts moving. */
+.ov .pc {
+  opacity: 0;
+  scale: 0.6;
+  pointer-events: none;
+  transition:
+    opacity var(--t-out) ease-out,
+    scale var(--t-out) ease-out;
+}
+.ov .pc.on {
+  opacity: 1;
+  scale: 1;
+  pointer-events: auto;
+  transition:
+    opacity var(--t-in) ease-out var(--t-in-delay),
+    scale 320ms var(--spring-open) var(--t-in-delay);
+}
+.ov .pc.flat {
+  scale: 1;
+  translate: 0 -4px;
+  transition:
+    opacity var(--t-out) ease-out,
+    translate var(--t-out) ease-out;
+}
+.ov .pc.flat.on {
+  translate: 0 0;
+  transition:
+    opacity var(--t-in) ease-out var(--t-in-delay),
+    translate 260ms var(--spring-close) var(--t-in-delay);
+}
+
+/* ---------- macOS notch island ---------- */
+.island {
+  --w: var(--nw);
+  --h: var(--nh);
+  --r: 10px; /* bottom corners; 10 matches the hardware notch */
+  --sr: 6px; /* concave shoulders where the island meets the screen edge */
+  --ear-w: 44px;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: var(--w);
+  height: var(--h);
+  background: var(--ov-black);
+  border-radius: 0 0 var(--r) var(--r);
+  transition:
+    width var(--t-open) var(--spring-open),
+    height var(--t-open) var(--spring-open),
+    border-radius var(--t-open) var(--spring-open),
+    box-shadow 240ms ease;
+}
+.island::before,
+.island::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--sr);
+  height: var(--sr);
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent calc(var(--sr) - 0.6px),
+    var(--ov-black) var(--sr)
+  );
+}
+.island::before {
+  right: 100%;
+}
+.island::after {
+  left: 100%;
+  scale: -1 1;
+}
+.island[data-state="idle"] {
+  transition-duration: var(--t-close), var(--t-close), var(--t-close), 240ms;
+  transition-timing-function:
+    var(--spring-close), var(--spring-close), var(--spring-close), ease;
+}
+.island .body {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* Hairline that only exists below the menu bar, so a dropped island still
+   has an edge over a black window. */
+.island .edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  transition: opacity 240ms ease;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent var(--nh),
+    #000 calc(var(--nh) + 12px)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent var(--nh),
+    #000 calc(var(--nh) + 12px)
+  );
+}
+.island .ear {
+  position: absolute;
+  top: 0;
+  height: var(--nh);
+  width: var(--ear-w);
+  display: grid;
+  place-items: center;
+  transition: width var(--t-open) var(--spring-open);
+}
+.island .ear > * {
+  grid-area: 1 / 1;
+}
+.island .ear-l {
+  right: calc(50% + var(--nw) / 2);
+}
+.island .ear-r {
+  left: calc(50% + var(--nw) / 2);
+}
+.island .ear .xbtn {
+  width: 20px;
+  height: 20px;
+}
+.island .drop > * {
+  position: absolute;
+  top: var(--nh);
+  left: 50%;
+  margin-left: calc(var(--dw) / -2);
+  width: var(--dw);
+  box-sizing: border-box;
+}
+.island .d-notice {
+  --dw: calc(var(--nw) + 135px);
+  height: 42px;
+  padding: 0 16px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.island .d-live {
+  --dw: calc(var(--nw) + 207px);
+  padding: 6px 18px 14px;
+}
+.island .d-meeting {
+  --dw: calc(var(--nw) + 135px);
+  height: 54px;
+  padding: 0 14px 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ov .meter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--ov-muted);
+}
+.ov .meter .wave {
+  height: 14px;
+}
+.ov .stopwide {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #d93a30;
+  transition: background-color 150ms ease;
+}
+.ov .stopwide:hover {
+  background: #e8483e;
+}
+.ov .stopwide::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Island geometry per state. Widths are notch width plus a constant. */
+.island:is(
+  [data-state="arming"],
+  [data-state="listening"],
+  [data-state="transcribing"],
+  [data-state="processing"]
+) {
+  --w: calc(var(--nw) + 88px); /* 273 */
+  --r: 12px;
+}
+.island:is(
+  [data-state="meeting"],
+  [data-state="meeting-dictating"],
+  [data-state="meeting-transcribing"]
+) {
+  --w: calc(var(--nw) + 112px); /* 297 */
+  --r: 12px;
+  --ear-w: 56px;
+}
+.island[data-state="meeting-controls"] {
+  --w: calc(var(--nw) + 135px); /* 320 */
+  --h: calc(var(--nh) + 54px); /* 86 */
+  --r: 20px;
+  --sr: 8px;
+  --ear-w: 56px;
+}
+.island[data-state^="notice"] {
+  --w: calc(var(--nw) + 135px); /* 320 */
+  --h: calc(var(--nh) + 42px); /* 74 */
+  --r: 20px;
+  --sr: 8px;
+}
+.island[data-state^="live"] {
+  --w: calc(var(--nw) + 207px); /* 392 */
+  --h: calc(var(--nh) + var(--live-h, 60px)); /* 72 to 112 */
+  --r: 22px;
+  --sr: 8px;
+}
+.island:is(
+  [data-state="meeting-controls"],
+  [data-state^="notice"],
+  [data-state^="live"]
+) {
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.5);
+}
+.island:is(
+    [data-state="meeting-controls"],
+    [data-state^="notice"],
+    [data-state^="live"]
+  )
+  .edge {
+  opacity: 1;
+}
+/* Hover is a bonus, never the only way: Esc and the cancel shortcut work
+   without it. */
+.island:is([data-state="listening"], [data-state="live"]):hover .ear-l .dot {
+  opacity: 0;
+}
+.island .ear-l .xbtn {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.island:is([data-state="listening"], [data-state="live"]):hover .ear-l .xbtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ---------- pill (Linux, bottom position, screens without a notch) ---------- */
+.pill {
+  --ph: 44px; /* 38px on macOS */
+  --pw: 148px;
+  --pr: calc(var(--ph) / 2);
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  translate: -50% 0;
+  width: var(--pw);
+  border-radius: var(--pr);
+  background: var(--ov-surface);
+  /* The edge is the two rings. The shadow is a bonus and may be clipped. */
+  box-shadow:
+    inset 0 0 0 1px var(--ov-ring-in),
+    0 0 0 1px var(--ov-ring-out),
+    0 10px 28px -8px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: 50% 100%;
+  transition:
+    width var(--t-open) var(--spring-open),
+    border-radius var(--t-open) var(--spring-open),
+    opacity 200ms ease-out,
+    scale 360ms var(--spring-open),
+    translate 360ms var(--spring-open);
+}
+.pill[data-edge="top"] {
+  bottom: auto;
+  top: 0;
+  flex-direction: column-reverse;
+  transform-origin: 50% 0;
+}
+.pill[data-state="idle"] {
+  opacity: 0;
+  scale: 0.9;
+  translate: -50% 6px;
+  pointer-events: none;
+  transition:
+    width var(--t-close) var(--spring-close),
+    border-radius var(--t-close) var(--spring-close),
+    opacity 200ms ease-in,
+    scale 240ms ease-in,
+    translate 240ms ease-in;
+}
+.pill[data-edge="top"][data-state="idle"] {
+  translate: -50% -6px;
+}
+.pill .p-row {
+  position: relative;
+  height: var(--ph);
+  flex: none;
+}
+.pill .sc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.pill .p-text {
+  height: 0;
+  overflow: hidden;
+  transition: height var(--t-open) var(--spring-open);
+}
+.pill .p-text .livetext {
+  width: 392px;
+  box-sizing: border-box;
+  padding: 12px 18px 0;
+}
+.pill[data-edge="top"] .p-text .livetext {
+  padding: 0 18px 12px;
+}
+.pill .divider {
+  width: 1px;
+  height: 18px;
+  background: var(--ov-track);
+}
+/* Scene spacing. Each scene is laid out at its final width from the start,
+   so nothing reflows while the pill changes width. */
+.pill .sc-listen {
+  gap: 13px;
+  padding: 0 10px 0 16px;
+}
+.pill .sc-work {
+  gap: 10px;
+  padding: 0 10px 0 15px;
+}
+.pill .sc-meet {
+  gap: 12px;
+  padding: 0 10px 0 16px;
+}
+.pill .sc-meet .timer,
+.pill .sc-meetdict .timer {
+  margin-left: -3px;
+}
+.pill .sc-meetdict {
+  gap: 12px;
+  padding: 0 10px 0 16px;
+}
+.pill .sc-meetwork {
+  gap: 10px;
+  padding: 0 16px 0 15px;
+}
+.pill .sc-notice {
+  gap: 8px;
+  padding: 0 16px 0 14px;
+  font-size: 12.5px;
+}
+.pill .sc-notice .chipbtn {
+  margin-left: 4px;
+  margin-right: -6px;
+}
+
+.pill[data-state="arming"],
+.pill[data-state="listening"] {
+  --pw: 148px;
+}
+/* 168 and 164 in English; measured from the label so longer ones fit. */
+.pill[data-state="transcribing"] {
+  --pw: var(--work-w, 168px);
+}
+.pill[data-state="processing"] {
+  --pw: var(--work-w, 164px);
+}
+.pill[data-state="meeting"] {
+  --pw: 176px;
+}
+.pill[data-state="meeting-dictating"] {
+  --pw: 208px;
+}
+.pill[data-state="meeting-transcribing"] {
+  --pw: 226px;
+}
+.pill[data-state^="notice"] {
+  --pw: var(--notice-w, 196px); /* measured from the title, 150 to 420 */
+}
+.pill[data-state^="live"] {
+  --pw: 392px;
+  --pr: 18px;
+}
+.pill[data-state^="live"] .p-text {
+  height: var(--live-h, 60px);
+}
+
+/* Reduced motion: shapes jump, content cross-fades, nothing spins or
+   pulses. The level bars stay: they are the user's own voice. */
+@media (prefers-reduced-motion: reduce) {
+  .ov *,
+  .ov *::before,
+  .ov *::after {
+    animation: none !important;
+  }
+  .island,
+  .island .ear,
+  .pill,
+  .pill .p-text {
+    transition:
+      opacity 120ms linear,
+      box-shadow 120ms linear !important;
+  }
+  .ov .pc,
+  .ov .pc.on {
+    scale: 1;
+    translate: 0 0;
+    transition: opacity 120ms linear !important;
+  }
+  .pill[data-state="idle"] {
+    scale: 1;
+    translate: -50% 0;
+  }
+  .ov .wave i {
+    transition: none;
+  }
+  .ov [data-wave="arming"] .wave i {
+    opacity: 0.5;
+  }
+  .ov .ring.spin .arc {
+    stroke-dasharray: 26 8.56; /* a still, nearly closed ring */
+  }
 }

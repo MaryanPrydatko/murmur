@@ -33,7 +33,11 @@ pub fn toggle_meeting(app: &AppHandle) {
         return;
     };
     let meetings = Arc::clone(&meetings);
-    std::thread::spawn(move || meetings.toggle());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        meetings.toggle();
+        crate::overlay::set_meeting_recording(&app, meetings.is_recording());
+    });
 }
 
 /// Listen for Unix signals that remotely toggle transcription.

@@ -351,11 +351,46 @@ fn requested_gdk_backend(value: Option<&str>) -> Option<&str> {
 /// reaches Handy. The hook cannot overwrite a variable it does not know about,
 /// so `HANDY_GDK_BACKEND=wayland ./Handy.AppImage` is the opt-in to native
 /// Wayland (cjpais/Handy#1729, #2034). Must run before GTK initializes.
+///
+/// With neither set, GNOME on Wayland runs under XWayland: GNOME has no
+/// layer-shell, and a native Wayland window can't place itself, so the
+/// overlay would open wherever the compositor puts it instead of
+/// bottom-centre and above everything. `HANDY_GDK_BACKEND=wayland` keeps
+/// native Wayland.
 #[cfg(target_os = "linux")]
 pub fn apply_handy_gdk_backend() {
     let requested = std::env::var("HANDY_GDK_BACKEND").ok();
-    if let Some(backend) = requested_gdk_backend(requested.as_deref()) {
+    let current = std::env::var("GDK_BACKEND").ok();
+    if let Some(backend) =
+        gdk_backend_to_apply(requested.as_deref(), current.as_deref(), is_gnome_wayland())
+    {
         std::env::set_var("GDK_BACKEND", backend);
+    }
+}
+
+/// What `GDK_BACKEND` should become, if anything: the requested backend,
+/// else X11 on GNOME Wayland when the user chose none.
+#[cfg(target_os = "linux")]
+fn gdk_backend_to_apply<'a>(
+    requested: Option<&'a str>,
+    current: Option<&str>,
+    gnome_wayland: bool,
+) -> Option<&'a str> {
+    let unset = |v: Option<&str>| v.map(str::trim).is_none_or(str::is_empty);
+    requested_gdk_backend(requested).or_else(|| (gnome_wayland && unset(current)).then_some("x11"))
+}
+
+/// Whether GTK draws through X11 (an X session, or XWayland), where windows
+/// place themselves. Reads `GDK_BACKEND`, which [`apply_handy_gdk_backend`]
+/// settles before GTK starts.
+#[cfg(target_os = "linux")]
+pub fn gtk_uses_x11() -> bool {
+    match std::env::var("GDK_BACKEND") {
+        Ok(backend) if !backend.trim().is_empty() => backend
+            .split(',')
+            .next()
+            .is_some_and(|first| first.trim() == "x11"),
+        _ => !is_wayland(),
     }
 }
 
@@ -406,6 +441,19 @@ mod tests {
             requested_gdk_backend(Some("wayland,x11")),
             Some("wayland,x11")
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn gnome_wayland_falls_back_to_x11_unless_a_backend_was_chosen() {
+        assert_eq!(gdk_backend_to_apply(None, None, true), Some("x11"));
+        assert_eq!(gdk_backend_to_apply(None, Some(" "), true), Some("x11"));
+        assert_eq!(gdk_backend_to_apply(None, Some("wayland"), true), None);
+        assert_eq!(
+            gdk_backend_to_apply(Some("wayland"), None, true),
+            Some("wayland")
+        );
+        assert_eq!(gdk_backend_to_apply(None, None, false), None);
     }
 
     #[test]
