@@ -56,7 +56,7 @@ Murmur asks for microphone and accessibility access on first run. Recording the 
 
 The default shortcut is `Ctrl+Alt+Space` on Linux and `Option+Space` on macOS. Hold it while you talk and let go to finish, or tap it once to start and once to stop. You can change it in Settings. `Esc` cancels.
 
-On Wayland the desktop may not pass global shortcuts to apps. In that case bind a system shortcut to `handy --toggle-transcription`. See [Linux notes](docs/troubleshooting.md#linux-notes).
+On Wayland the desktop may not pass global shortcuts to apps. In that case bind a system shortcut to `handy --toggle-transcription` (see [Command line](#command-line) and [Linux notes](docs/troubleshooting.md#linux-notes)).
 
 ### Meetings
 
@@ -70,7 +70,7 @@ When you stop, the recording is transcribed and shows up on the Meetings page, w
 
 ### Command line
 
-The installed command is still called `handy`, as in upstream. These flags are sent to the running app:
+The `.deb` installs the command as `handy`, the name it has upstream. With the AppImage there is no installed command: run the AppImage file with the same flags. These flags are sent to the running app:
 
 ```bash
 handy --toggle-transcription    # start or stop dictation
