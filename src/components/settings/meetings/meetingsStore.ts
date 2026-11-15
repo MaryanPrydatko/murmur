@@ -1,8 +1,13 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { listen } from "@tauri-apps/api/event";
-import { commands, type MeetingRow } from "@/bindings";
-import { meetingStatus, type MeetingProgress } from "./meetingModel";
+import {
+  commands,
+  events,
+  type MeetingProgress,
+  type MeetingRow,
+} from "@/bindings";
+import { meetingStatus } from "./meetingModel";
 
 /** How often the list is read again while a meeting records or transcribes. */
 const BUSY_POLL_MS = 2000;
@@ -26,7 +31,7 @@ interface MeetingsStore {
   refresh: () => Promise<void>;
   /** Starts or stops a meeting; ignored while one is pending. */
   toggle: () => Promise<void>;
-  /** The backend says meetings changed (`meetings-changed`). */
+  /** The backend finished a start or stop (`meeting-switched`). */
   changed: () => Promise<void>;
 }
 
@@ -39,24 +44,19 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
   pending: false,
   refresh: async () => {
     try {
-      const [rows, speakers, recording] = await Promise.all([
+      const [rows, speakers, recordingId] = await Promise.all([
         commands.listMeetings(),
         commands.listMeetingSpeakers(),
-        commands.isMeetingRecording(),
+        commands.activeMeeting(),
       ]);
       if (rows.status === "error") {
         set({ error: rows.error });
         return;
       }
-      // A `recording` row left by a crash isn't recording; only the newest
-      // one is, and only while the backend says so.
-      const live = recording
-        ? rows.data.find((r) => meetingStatus(r) === "recording")
-        : undefined;
       set({
         rows: rows.data,
         error: null,
-        recordingId: live?.id ?? null,
+        recordingId,
         speakers:
           speakers.status === "ok"
             ? Object.fromEntries(
@@ -72,7 +72,7 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
     if (get().pending) return;
     set({ pending: true });
     // The backend starts or stops on its own thread and then sends
-    // `meetings-changed`; a second click before that would undo the first.
+    // `meeting-switched`; a second click before that would undo the first.
     clearTimeout(toggleTimer);
     toggleTimer = setTimeout(() => get().changed(), TOGGLE_TIMEOUT_MS);
     try {
@@ -95,8 +95,9 @@ const isBusy = (rows: MeetingRow[] | null, recordingId: string | null) =>
 
 /**
  * Keeps the meetings store current: reads it once, again on
- * `meetings-changed` and `meeting-progress`, and every couple of seconds
- * while something is recording or transcribing. Mount once, in App.
+ * `meeting-switched` and `meeting-changed`, keeps `meeting-progress`, and
+ * reads it every couple of seconds while something is recording or
+ * transcribing. Mount once, in App.
  */
 export const useMeetingsSync = () => {
   const refresh = useMeetingsStore((s) => s.refresh);
@@ -105,14 +106,16 @@ export const useMeetingsSync = () => {
 
   useEffect(() => {
     refresh();
-    const offChanged = listen("meetings-changed", () => changed());
-    const progress = listen<MeetingProgress>("meeting-progress", (event) => {
+    const offSwitched = listen("meeting-switched", () => changed());
+    const offChanged = events.meetingChanged.listen(() => refresh());
+    const progress = events.meetingProgress.listen((event) => {
       const p = event.payload;
       useMeetingsStore.setState((s) => ({
-        progress: { ...s.progress, [p.meeting_id]: p },
+        progress: { ...s.progress, [p.id]: p },
       }));
     });
     return () => {
+      offSwitched.then((off) => off());
       offChanged.then((off) => off());
       progress.then((off) => off());
     };

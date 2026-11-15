@@ -14,7 +14,6 @@ let failToggle = false;
       if (failToggle) throw "ipc down";
     }
     if (cmd === "list_meetings" || cmd === "list_meeting_speakers") return [];
-    if (cmd === "is_meeting_recording") return false;
     return null;
   },
 };
@@ -29,7 +28,7 @@ assert.equal(store().pending, true);
 assert.deepEqual(asked, [true], "with nothing recording, it asks to start");
 
 await store().changed();
-assert.equal(store().pending, false, "meetings-changed ends the wait");
+assert.equal(store().pending, false, "meeting-switched ends the wait");
 
 await store().toggle();
 assert.equal(toggles(), 2, "the next click goes through");

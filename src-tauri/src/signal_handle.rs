@@ -48,8 +48,8 @@ fn change_meeting(app: &AppHandle, change: impl FnOnce(&MeetingManager) + Send +
         change(&meetings);
         // Also when nothing changed: the callers wait for this.
         crate::overlay::set_meeting_recording(&app, meetings.is_recording());
-        // The Meetings page reads the list again.
-        let _ = app.emit("meetings-changed", ());
+        // Ends the Meetings page's and the overlay's wait for the switch.
+        let _ = app.emit("meeting-switched", ());
     });
 }
 

@@ -29,7 +29,7 @@ const NOTICE_CHROME = 54;
 const WORK_CHROME = 83;
 const RING_LENGTH = 34.56;
 const MEETING_WORK_MS = 3000;
-// Stops are quick; stop ignoring clicks if `meetings-changed` never comes.
+// Stops are quick; stop ignoring clicks if `meeting-switched` never comes.
 const STOP_TIMEOUT_MS = 15000;
 const EMPTY_LEVELS = Array<number>(16).fill(0);
 
@@ -230,7 +230,7 @@ const RecordingOverlay: React.FC = () => {
         );
         setLevels(smoothed.current);
       }),
-      listen("meetings-changed", () => {
+      listen("meeting-switched", () => {
         clearTimeout(stoppingTimer.current);
         stopping.current = false;
       }),
@@ -238,14 +238,18 @@ const RecordingOverlay: React.FC = () => {
         setMeetingStart(e.payload.started_at_ms);
         if (e.payload.started_at_ms === null) setControls(false);
       }),
-      // Not emitted yet; see the report. The same 16 buckets as mic-level.
-      listen<{ me: number[]; others: number[] }>("meeting-levels", (e) =>
-        setMeetingLevels(e.payload),
+      // Each side's loudest sample, 30 times a second; the bars scroll.
+      events.meetingLevels.listen((e) =>
+        setMeetingLevels((l) => ({
+          me: [...l.me.slice(1), e.payload.mic],
+          others: [...l.others.slice(1), e.payload.system],
+        })),
       ),
-      // Not emitted yet; see the report. The backend shows the overlay with
-      // `meeting_transcribing` first; this holds the pill as long as it does.
-      listen<{ percent: number | null }>("meeting-progress", (e) => {
-        setMeetingWork(e.payload.percent ?? 0);
+      // The backend shows the overlay with `meeting_transcribing` first;
+      // this holds the pill as long as it does. Telling speakers apart
+      // sends no percent, so the last one stays.
+      events.meetingProgress.listen((e) => {
+        setMeetingWork((w) => e.payload.percent ?? w ?? 0);
         clearTimeout(meetingWorkTimer.current);
         meetingWorkTimer.current = setTimeout(
           () => setMeetingWork(null),

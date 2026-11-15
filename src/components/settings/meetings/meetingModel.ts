@@ -1,5 +1,10 @@
 import type { TFunction } from "i18next";
-import type { MeetingRow, MeetingSegment, MeetingSpeaker } from "@/bindings";
+import type {
+  MeetingRow,
+  MeetingSegment,
+  MeetingSpeaker,
+  MeetingStep,
+} from "@/bindings";
 
 /** What `meetings.status` holds; anything else reads as done. */
 export type MeetingStatus = "recording" | "transcribing" | "done" | "failed";
@@ -11,19 +16,8 @@ export const meetingStatus = (row: MeetingRow): MeetingStatus =>
     ? row.status
     : "done";
 
-/**
- * A transcription step, in the order `meetings.rs` runs them. Sent by the
- * backend as `meeting-progress` (not emitted yet; see the report).
- */
-export type MeetingStep = "mic" | "system" | "speakers";
+/** The transcription steps, in the order `pipeline.rs` runs them. */
 export const MEETING_STEPS: MeetingStep[] = ["mic", "system", "speakers"];
-
-export interface MeetingProgress {
-  meeting_id: string;
-  /** 0 to 100, or null while the step can't tell. */
-  percent: number | null;
-  step: MeetingStep;
-}
 
 /**
  * Where playing from `at` starts, in meeting seconds: never before the first

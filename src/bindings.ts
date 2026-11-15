@@ -903,12 +903,6 @@ async setMeetingRecording(recording: boolean) : Promise<void> {
     await TAURI_INVOKE("set_meeting_recording", { recording });
 },
 /**
- * Whether a meeting is recording right now.
- */
-async isMeetingRecording() : Promise<boolean> {
-    return await TAURI_INVOKE("is_meeting_recording");
-},
-/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {

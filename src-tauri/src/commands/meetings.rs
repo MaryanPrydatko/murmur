@@ -124,10 +124,3 @@ pub fn search_meetings(
 pub fn set_meeting_recording(app: AppHandle, recording: bool) {
     crate::signal_handle::set_meeting_recording(&app, recording);
 }
-
-/// Whether a meeting is recording right now.
-#[tauri::command]
-#[specta::specta]
-pub fn is_meeting_recording(meetings: State<'_, Arc<MeetingManager>>) -> bool {
-    meetings.is_recording()
-}
