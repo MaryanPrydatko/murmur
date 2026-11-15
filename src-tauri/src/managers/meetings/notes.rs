@@ -22,18 +22,16 @@ const MAX_NAME_TRIES: u32 = 50;
 /// Called once meeting `id` is transcribed: writes its note when a vault is
 /// set and the meeting was recorded here and has none yet.
 pub fn on_done(app: &AppHandle, id: &str) {
-    let Some(folder) = notes_folder(&get_settings(app)) else {
-        return;
-    };
-    let history = app.state::<Arc<HistoryManager>>();
-    let written = history
-        .get_connection()
-        .and_then(|conn| match store::get(&conn, id)? {
-            Some(detail) if wants_note(&detail.meeting) => {
-                export(&conn, &detail, &folder).map(Some)
-            }
-            _ => Ok(None),
-        });
+    let written = (|| -> Result<Option<PathBuf>> {
+        let conn = app.state::<Arc<HistoryManager>>().get_connection()?;
+        let Some(detail) = store::get(&conn, id)?.filter(|d| wants_note(&d.meeting)) else {
+            return Ok(None);
+        };
+        let Some(folder) = notes_folder(&get_settings(app), &app.path().home_dir()?)? else {
+            return Ok(None);
+        };
+        export(&conn, &detail, &folder).map(Some)
+    })();
     match written {
         Ok(Some(path)) => info!("Meeting {id}'s note is {}", path.display()),
         Ok(None) => {}
@@ -55,13 +53,28 @@ fn wants_note(meeting: &MeetingRow) -> bool {
         && meeting.source == "murmur"
 }
 
-/// `<vault>/<notes folder>`, once a vault is set.
-pub fn notes_folder(settings: &AppSettings) -> Option<PathBuf> {
-    let vault = settings.obsidian_vault_path.as_deref().map(str::trim)?;
-    if vault.is_empty() {
-        return None;
+/// `<vault>/<notes folder>`, once a vault is set, with `~/` under `home`.
+/// A vault that isn't a folder that exists is an error: the notes would
+/// land in a new folder somewhere else.
+pub fn notes_folder(settings: &AppSettings, home: &Path) -> Result<Option<PathBuf>> {
+    let Some(typed) = settings
+        .obsidian_vault_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    else {
+        return Ok(None);
+    };
+    let vault = match typed.strip_prefix("~/") {
+        Some(rest) => home.join(rest),
+        None => PathBuf::from(typed),
+    };
+    if !vault.is_absolute() || !vault.is_dir() {
+        bail!("The Obsidian vault {typed} isn't a folder that exists");
     }
-    Some(Path::new(vault).join(settings.obsidian_notes_folder.trim().trim_matches('/')))
+    Ok(Some(vault.join(
+        settings.obsidian_notes_folder.trim().trim_matches('/'),
+    )))
 }
 
 /// Writes the meeting's note into `folder` and stores its path, unless the
@@ -387,15 +400,34 @@ mod tests {
 
     #[test]
     fn notes_go_nowhere_until_a_vault_is_set() {
+        let home = tempfile::tempdir().unwrap();
+        let home = home.path();
+        fs::create_dir(home.join("vault")).unwrap();
         let mut settings = crate::settings::get_default_settings();
-        assert_eq!(notes_folder(&settings), None);
-        settings.obsidian_vault_path = Some("  ".into());
-        assert_eq!(notes_folder(&settings), None);
-        settings.obsidian_vault_path = Some("/home/me/vault".into());
+        let mut folder = |vault: &str| {
+            settings.obsidian_vault_path = Some(vault.into());
+            notes_folder(&settings, home).map_err(|e| e.to_string())
+        };
+        assert_eq!(folder("  "), Ok(None));
+        let vault = home.join("vault");
+        assert_eq!(
+            folder(vault.to_str().unwrap()),
+            Ok(Some(vault.join("Meetings")))
+        );
+        assert_eq!(folder("~/vault"), Ok(Some(vault.join("Meetings"))));
+        // Typed as a path the vault isn't at: never a new folder elsewhere.
+        for wrong in ["vault", "~/vaul", "/nowhere/vault"] {
+            assert!(folder(wrong).is_err(), "{wrong}");
+        }
+        assert!(!home.join("vaul").exists());
+
+        settings.obsidian_vault_path = Some(format!(" {} ", vault.display()));
         settings.obsidian_notes_folder = "/Work/Meetings/".into();
         assert_eq!(
-            notes_folder(&settings),
-            Some(PathBuf::from("/home/me/vault/Work/Meetings"))
+            notes_folder(&settings, home).unwrap(),
+            Some(vault.join("Work/Meetings"))
         );
+        settings.obsidian_vault_path = None;
+        assert_eq!(notes_folder(&settings, home).unwrap(), None);
     }
 }

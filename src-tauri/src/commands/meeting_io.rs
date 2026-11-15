@@ -6,7 +6,7 @@ use crate::managers::meetings::import::{self, ImportReport};
 use crate::managers::meetings::{notes, store};
 use crate::settings::{get_settings, write_settings};
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 /// Imports the meetings Superwhisper, Wispr Flow and Spokenly kept that
 /// weren't imported before; with `dry_run`, only says what it would do.
@@ -33,7 +33,9 @@ pub fn export_meeting_note(
     history: State<'_, Arc<HistoryManager>>,
     id: String,
 ) -> Result<String, String> {
-    let folder = notes::notes_folder(&get_settings(&app))
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    let folder = notes::notes_folder(&get_settings(&app), &home)
+        .map_err(|e| format!("{e:#}"))?
         .ok_or_else(|| "Set an Obsidian vault first".to_string())?;
     let conn = history.get_connection().map_err(|e| e.to_string())?;
     let detail = store::get(&conn, &id)

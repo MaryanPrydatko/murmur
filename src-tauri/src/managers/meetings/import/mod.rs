@@ -563,7 +563,7 @@ pub fn import(
         .join("meetings");
     let notes_folder = match write_notes {
         true => Some(
-            notes::notes_folder(&crate::settings::get_settings(app))
+            notes::notes_folder(&crate::settings::get_settings(app), &home)?
                 .ok_or_else(|| anyhow!("Set an Obsidian vault to write notes"))?,
         ),
         false => None,
