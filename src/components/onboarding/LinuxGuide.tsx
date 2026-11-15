@@ -4,7 +4,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink } from "lucide-react";
 import { TextLink } from "../ui/TextLink";
 
-const LINUX_SETUP_URL = "https://github.com/MaryanPrydatko/murmur#linux-notes";
+const LINUX_SETUP_URL =
+  "https://github.com/MaryanPrydatko/murmur/blob/main/docs/troubleshooting.md#linux-notes";
 
 /** Linux footer hint linking the setup guide; shortcuts and pasting vary by desktop. */
 export const LinuxGuide: React.FC<{
