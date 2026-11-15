@@ -54,7 +54,7 @@ Murmur needs a tool to send the paste key (or to type, with Direct). Install the
 
 - **X11**: Install `xdotool` for both direct typing and clipboard paste shortcuts
 - **Ubuntu 26.04**: Has Wayland display server by default. `wtype` does not work, you need to install `ydotool` and configure systemd as described [here](https://github.com/cjpais/Handy/pull/557#issuecomment-3781249267).
-- **Wayland**: Install `wtype` (preferred) or `dotool` for text input to work correctly
+- **Wayland, except GNOME and KDE**: Install `wtype` (preferred) or `dotool` for text input to work correctly
 - **GNOME and KDE on Wayland**: Murmur does not use `wtype` there, because these desktops lack the virtual keyboard protocol it needs. Install `dotool` or `ydotool`. On KDE, `kwtype` is used for Direct typing when it is installed.
 - **dotool setup**: Requires adding your user to the `input` group: `sudo usermod -aG input $USER` (then log out and back in)
 

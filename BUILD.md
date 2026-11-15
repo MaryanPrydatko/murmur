@@ -111,7 +111,7 @@ This compiles a release binary and generates platform-specific bundles (deb, rpm
 
 - The AppImage copies every GStreamer plugin installed on the build machine. With `gstreamer1.0-plugins-ugly` or `gstreamer1.0-libav` installed, that puts GPL codecs (x264, x265 and others) into the file, which an MIT release must not carry.
 
-So a package built on a current desktop is for that machine. Packages for other people have to be built on an older, clean base. The release workflow is set up that way: the `.deb` on Ubuntu 22.04, the AppImage on Ubuntu 24.04.
+So a package built on a current desktop is for that machine. Packages for other people have to be built on an older, clean base. The release workflow builds the `.deb` on Ubuntu 22.04 and the AppImage on Ubuntu 24.04, and installs no extra GStreamer plugins.
 
 ## Linux Install (from source)
 

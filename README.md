@@ -35,7 +35,7 @@ chmod +x Murmur_*_amd64.AppImage
 
 The `.deb` adds Murmur to the app grid. The AppImage is a single file you start yourself. Either way Murmur sits in the system tray while it runs.
 
-The `.deb` installs the same files as Handy's `.deb` (the `handy` command among them), so the two cannot be installed side by side: APT removes Handy's package when it installs Murmur's, and asks first.
+The `.deb` installs the same files as Handy's `.deb` (the `handy` command among them), so the two cannot be installed side by side: installing Murmur's package removes Handy's.
 
 Pasting needs a helper tool that the packages do not install. Which one depends on your desktop, see [Linux notes](docs/troubleshooting.md#linux-notes).
 
