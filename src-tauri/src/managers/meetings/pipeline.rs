@@ -41,8 +41,7 @@ pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn Chu
         Ok(meeting) => meeting,
         Err(e) => return fail_job(app, id, &format!("{e:#}")),
     };
-    meeting.attempts = meeting.attempts.saturating_add(1);
-    meeting.status = MeetingStatus::Transcribing;
+    meeting.begin_attempt();
     if let Err(e) = write_meeting(app, &meeting) {
         error!("Failed to save meeting {id}: {e:#}");
     }

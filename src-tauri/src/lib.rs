@@ -109,6 +109,14 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
+/// Saves a meeting that's recording before the app goes, for the next start
+/// to transcribe.
+pub(crate) fn finish_meeting_for_exit(app: &AppHandle) {
+    if let Some(meetings) = app.try_state::<Arc<managers::meetings::MeetingManager>>() {
+        meetings.finish_for_exit();
+    }
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
         if let Err(e) = main_window.unminimize() {
@@ -230,6 +238,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(Arc::new(managers::meetings::MeetingManager::new(
         app_handle,
     )));
+    let reconciling = app_handle.clone();
+    std::thread::spawn(move || managers::meetings::reconcile(&reconciling));
 
     // Note: Shortcuts are NOT initialized here.
     // The frontend is responsible for calling the `initialize_shortcuts` command
@@ -340,6 +350,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 cancel_current_operation(app);
             }
             "quit" => {
+                finish_meeting_for_exit(app);
                 app.exit(0);
             }
             id if id.starts_with("model_select:") => {
@@ -1222,6 +1233,9 @@ pub fn run(cli_args: CliArgs) {
                 tray::recreate_tray_icon(app);
             }
             show_main_window(app);
+        }
+        tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+            finish_meeting_for_exit(app);
         }
         // No transcription teardown on exit: transcribe.cpp runs only in the
         // worker process, which exits by itself as soon as this process's end

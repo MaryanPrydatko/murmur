@@ -10,10 +10,12 @@ mod capture;
 pub mod import;
 pub mod notes;
 mod pipeline;
+mod recovery;
 pub mod store;
 mod transcript;
 
 pub(crate) use pipeline::{fail_job, run_job};
+pub use recovery::reconcile;
 pub use transcript::{Speaker, Utterance};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -91,6 +93,14 @@ pub struct Meeting {
     pub attempts: u8,
 }
 
+impl Meeting {
+    /// Counts a transcription starting.
+    fn begin_attempt(&mut self) {
+        self.attempts = self.attempts.saturating_add(1);
+        self.status = MeetingStatus::Transcribing;
+    }
+}
+
 /// What [`MeetingManager::requeue`] runs again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rerun {
@@ -132,6 +142,26 @@ impl MeetingManager {
 
     fn lock(&self) -> MutexGuard<'_, Option<ActiveMeeting>> {
         self.active.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The id of the meeting recording now.
+    pub fn active_id(&self) -> Option<String> {
+        self.lock().as_ref().map(|a| a.meeting.id.clone())
+    }
+
+    /// Stops a meeting that's recording as the app quits and leaves it for
+    /// the next start to transcribe: the transcription engine may already
+    /// be going away. Safe to call more than once.
+    pub fn finish_for_exit(&self) {
+        let Some(active) = self.lock().take() else {
+            return;
+        };
+        self.recording.store(false, Ordering::Release);
+        let id = active.meeting.id.clone();
+        match self.finalize(active) {
+            Ok(_) => info!("Meeting {id} stopped on exit; it's transcribed on the next start"),
+            Err(e) => error!("Failed to stop meeting {id} on exit: {e:#}"),
+        }
     }
 
     /// Starts a meeting, or stops the one recording and queues its
@@ -277,6 +307,20 @@ impl MeetingManager {
     }
 
     fn stop(&self, active: ActiveMeeting) -> Result<()> {
+        let meeting = self.finalize(active)?;
+        info!(
+            "Meeting {} stopped after {:.1}s; queued for transcription",
+            meeting.id,
+            meeting.duration_ms as f64 / 1000.0
+        );
+        self.app
+            .state::<Arc<TranscriptionJobManager>>()
+            .queue_meeting(&meeting.id, Rerun::All, || Ok(()))
+    }
+
+    /// Stops the recorders, finalizes the tracks and saves the meeting as
+    /// waiting to be transcribed.
+    fn finalize(&self, active: ActiveMeeting) -> Result<Meeting> {
         let ActiveMeeting {
             mut meeting,
             started,
@@ -308,14 +352,7 @@ impl MeetingManager {
         }
         meeting.status = MeetingStatus::Transcribing;
         write_meeting(&self.app, &meeting)?;
-        info!(
-            "Meeting {} stopped after {:.1}s; queued for transcription",
-            meeting.id,
-            meeting.duration_ms as f64 / 1000.0
-        );
-        self.app
-            .state::<Arc<TranscriptionJobManager>>()
-            .queue_meeting(&meeting.id, Rerun::All, || Ok(()))
+        Ok(meeting)
     }
 }
 /// Where each meeting's folder is.
