@@ -26,15 +26,11 @@ export interface MeetingProgress {
 }
 
 /**
- * Where playing from `at` starts, in meeting seconds: from the top once it's
- * at the end, and never before the first track has sound, so the clock
- * doesn't sit still through the silence before it.
+ * Where playing from `at` starts, in meeting seconds: never before the first
+ * track has sound, so the clock doesn't sit still through the silence.
  */
-export const playbackStart = (
-  at: number,
-  durationS: number,
-  offsets: number[],
-) => Math.max(at >= durationS ? 0 : at, Math.min(...offsets));
+export const playbackStart = (at: number, offsets: number[]) =>
+  Math.max(at, Math.min(...offsets));
 
 /** The speaker's colour slot: `me`, `s1`..`s4`; `them` shares `s1`'s. */
 export const speakerSlot = (key: string): string => {

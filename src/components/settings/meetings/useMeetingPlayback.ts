@@ -147,11 +147,8 @@ export const useMeetingPlayback = (
 
   const startAll = useCallback(
     (list: LoadedTrack[], at: number) => {
-      // Tracks can end a little short of the meeting's duration.
-      const ended = list.every((x) => x.audio.ended);
       const from = playbackStart(
-        ended ? durationS : at,
-        durationS,
+        at,
         list.map((x) => x.offset),
       );
       tRef.current = from;
@@ -168,7 +165,7 @@ export const useMeetingPlayback = (
         }
       }
     },
-    [durationS, place],
+    [place],
   );
 
   const pause = useCallback(() => {
@@ -186,7 +183,12 @@ export const useMeetingPlayback = (
         setLoading(!tracks.current);
         const list = await load();
         if (!list) return;
-        startAll(list, at);
+        // At the end, Play starts over; tracks can end a little short of
+        // the meeting's duration.
+        const atEnd =
+          at >= durationS ||
+          (from === undefined && list.every((x) => x.audio.ended));
+        startAll(list, atEnd ? 0 : at);
         setPlaying(true);
         setFailed(false);
       } catch (e) {
