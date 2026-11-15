@@ -528,6 +528,9 @@ fn local_caps(probe: &CapabilityProbe) -> LocalCaps {
 /// progress, completion and cancellation, like a model's.
 pub const LANGUAGE_DETECTOR_ID: &str = "language-detector";
 
+/// Download id of the speaker diarizer, like [`LANGUAGE_DETECTOR_ID`].
+pub const DIARIZER_ID: &str = "diarizer";
+
 /// Where one file's download progress is reported: under `model_id`, its bytes
 /// counted from `offset`, out of `total` (default: `offset` + the file's own
 /// size). Lets two files (the language detector, then a model) fill one bar.
@@ -875,6 +878,8 @@ pub struct ModelManager {
     /// One language detector transfer at a time, however many downloads
     /// want it.
     detector_download: tokio::sync::Mutex<()>,
+    /// One diarizer transfer at a time.
+    diarizer_download: tokio::sync::Mutex<()>,
 }
 
 impl ModelManager {
@@ -1079,6 +1084,7 @@ impl ModelManager {
             cancel_flags: Arc::new(Mutex::new(HashMap::new())),
             is_rescanning: Arc::new(AtomicBool::new(false)),
             detector_download: tokio::sync::Mutex::new(()),
+            diarizer_download: tokio::sync::Mutex::new(()),
         };
 
         // Migrate any bundled models to user directory
@@ -1563,12 +1569,16 @@ impl ModelManager {
                 continue;
             };
 
-            // Skip predefined model files, and the language detector (a mirror
-            // download lands here), which isn't a transcription model.
+            // Skip predefined model files, and the language detector and
+            // diarizer (a mirror download lands here), which aren't
+            // transcription models.
             if predefined_filenames.contains(&filename)
                 || crate::catalog::LANGUAGE_DETECTOR
                     .as_ref()
                     .is_some_and(|detector| detector.filename == filename)
+                || crate::catalog::DIARIZER
+                    .as_ref()
+                    .is_some_and(|diarizer| diarizer.filename == filename)
             {
                 continue;
             }
@@ -1984,6 +1994,43 @@ impl ModelManager {
             progress,
         };
         self.fetch_hf_file(&transfer, cancel_token).await
+    }
+
+    /// Download the speaker diarizer, tracked and cancelled under
+    /// [`DIARIZER_ID`] like a model. Does nothing if it's on disk.
+    pub async fn download_diarizer(&self) -> Result<()> {
+        let diarizer = crate::catalog::DIARIZER
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("The catalog names no diarizer"))?;
+        let cancel_token = CancellationToken::new();
+        self.cancel_flags
+            .lock()
+            .unwrap()
+            .insert(DIARIZER_ID.to_string(), cancel_token.clone());
+        let fetched = async {
+            let _single = tokio::select! {
+                guard = self.diarizer_download.lock() => guard,
+                _ = cancel_token.cancelled() => return Ok(false),
+            };
+            if self.diarizer_path().is_some() {
+                return Ok(true);
+            }
+            let transfer = FileTransfer {
+                label: "the speaker diarizer",
+                repo_id: &diarizer.repo_id,
+                revision: &diarizer.revision,
+                filename: &diarizer.filename,
+                mirrors: crate::catalog::diarizer_mirrors(),
+                progress: ProgressTarget::own(DIARIZER_ID),
+            };
+            self.fetch_hf_file(&transfer, &cancel_token).await
+        }
+        .await;
+        self.cancel_flags.lock().unwrap().remove(DIARIZER_ID);
+        if fetched? {
+            let _ = self.app_handle.emit("model-download-complete", DIARIZER_ID);
+        }
+        Ok(())
     }
 
     /// Fetch one file from Hugging Face into the shared cache, retrying, then
@@ -2577,6 +2624,16 @@ impl ModelManager {
         })
     }
 
+    /// The speaker diarizer's file, when it is fully on disk, found like the
+    /// language detector's.
+    pub fn diarizer_path(&self) -> Option<PathBuf> {
+        let diarizer = crate::catalog::DIARIZER.as_ref()?;
+        hf_cached_path(&diarizer.repo_id, &diarizer.revision, &diarizer.filename).or_else(|| {
+            let local = self.models_dir.join(&diarizer.filename);
+            local.is_file().then_some(local)
+        })
+    }
+
     pub fn cancel_download(&self, model_id: &str) -> Result<()> {
         debug!("ModelManager: cancel_download called for: {}", model_id);
 
@@ -3138,10 +3195,12 @@ mod tests {
     }
 
     #[test]
-    fn a_mirrored_language_detector_is_not_a_custom_model() {
+    fn a_mirrored_language_detector_or_diarizer_is_not_a_custom_model() {
         let temp_dir = TempDir::new().unwrap();
         let detector = crate::catalog::LANGUAGE_DETECTOR.as_ref().unwrap();
         fs::write(temp_dir.path().join(&detector.filename), b"gguf").unwrap();
+        let diarizer = crate::catalog::DIARIZER.as_ref().unwrap();
+        fs::write(temp_dir.path().join(&diarizer.filename), b"gguf").unwrap();
 
         let mut models = HashMap::new();
         ModelManager::discover_custom_transcribe_models(temp_dir.path(), &mut models).unwrap();

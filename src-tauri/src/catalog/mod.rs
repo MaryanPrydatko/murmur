@@ -371,6 +371,46 @@ pub static LANGUAGE_DETECTOR: Lazy<Option<LanguageDetectorFile>> = Lazy::new(|| 
     })
 });
 
+/// Catalog id of the speaker diarizer meetings label the system track with.
+pub const DIARIZER_CATALOG_ID: &str = "diar_streaming_sortformer_4spk-v2.1";
+
+/// The speaker diarizer's file, at the package's default quant.
+pub struct DiarizerFile {
+    pub repo_id: String,
+    pub revision: String,
+    pub filename: String,
+    sha256: String,
+    size_bytes: u64,
+}
+
+pub static DIARIZER: Lazy<Option<DiarizerFile>> = Lazy::new(|| {
+    let model = ROOT
+        .models
+        .iter()
+        .find(|m| m.id == DIARIZER_CATALOG_ID && m.role == "diarize")?;
+    let file = model.default_file()?;
+    Some(DiarizerFile {
+        repo_id: model.repository.clone(),
+        revision: model.revision.clone(),
+        filename: file.filename.clone(),
+        sha256: file.sha256.clone(),
+        size_bytes: file.size,
+    })
+});
+
+/// Ordered mirror URLs for the diarizer's file.
+pub fn diarizer_mirrors() -> Vec<MirrorFile> {
+    DIARIZER.as_ref().map_or_else(Vec::new, |d| {
+        mirror_files(
+            &d.repo_id,
+            &d.revision,
+            &d.filename,
+            &d.sha256,
+            d.size_bytes,
+        )
+    })
+}
+
 /// A mirror copy of a catalog model's file, with the expected content hash for
 /// end-to-end verification. Mirrors are untrusted bit-pipes: the sha256 here
 /// (from the catalog compiled into the binary) is the trust anchor.
@@ -509,6 +549,18 @@ mod tests {
         assert!(detector.filename.ends_with(".gguf"));
         assert!(detector.labels.iter().any(|l| l == "en"));
         assert!(detector.labels.iter().any(|l| l == "iw"));
+    }
+
+    #[test]
+    fn names_the_diarizer_at_its_measured_quant() {
+        let diarizer = DIARIZER.as_ref().expect("catalog names the diarizer");
+        assert_eq!(
+            diarizer.filename,
+            "diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf"
+        );
+        let mirrors = diarizer_mirrors();
+        assert!(!mirrors.is_empty());
+        assert!(mirrors.iter().all(|m| m.sha256.len() == 64));
     }
 
     #[test]

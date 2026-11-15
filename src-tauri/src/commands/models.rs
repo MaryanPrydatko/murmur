@@ -1,4 +1,6 @@
-use crate::managers::model::{ModelInfo, ModelManager, RetiredModel, LANGUAGE_DETECTOR_ID};
+use crate::managers::model::{
+    ModelInfo, ModelManager, RetiredModel, DIARIZER_ID, LANGUAGE_DETECTOR_ID,
+};
 use crate::managers::transcription::{ModelStateEvent, TranscriptionManager};
 use crate::notices::{self, NoticeSource};
 use crate::settings::{get_settings, write_settings, ModelUnloadTimeout};
@@ -87,6 +89,28 @@ pub async fn download_language_detector(
         let _ = app_handle.emit(
             "model-download-failed",
             serde_json::json!({ "model_id": LANGUAGE_DETECTOR_ID, "error": error }),
+        );
+    }
+    result
+}
+
+/// Download the speaker diarizer meetings use. Reports like
+/// [`download_language_detector`], under `DIARIZER_ID`.
+#[tauri::command]
+#[specta::specta]
+pub async fn download_diarizer(
+    app_handle: AppHandle,
+    model_manager: State<'_, Arc<ModelManager>>,
+) -> Result<(), String> {
+    let result = model_manager
+        .download_diarizer()
+        .await
+        .map_err(|e| e.to_string());
+    if let Err(ref error) = result {
+        error!("Diarizer download failed: {}", error);
+        let _ = app_handle.emit(
+            "model-download-failed",
+            serde_json::json!({ "model_id": DIARIZER_ID, "error": error }),
         );
     }
     result
