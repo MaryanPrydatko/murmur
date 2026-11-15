@@ -630,6 +630,23 @@ mod tests {
     }
 
     #[test]
+    fn a_pause_over_40_s_fed_a_few_frames_at_a_time_is_cut_as_planned() {
+        let pcm = clip(&probs_with_pauses(130.0, &[(30.0, 80.0)]));
+        let (mut once, _) = chunker();
+        let mut offline = once.push(&pcm[..]);
+        offline.extend(once.finish());
+
+        let (mut chunker, _) = chunker();
+        let mut live = Vec::new();
+        for piece in pcm.chunks(FRAME * 3 + 7) {
+            live.extend(chunker.push(piece));
+        }
+        live.extend(chunker.finish());
+        assert_eq!(lengths(&live), lengths(&offline));
+        assert_eq!(live.concat(), pcm, "every sample once, in order");
+    }
+
+    #[test]
     fn audio_that_is_one_chunk_never_loads_a_vad() {
         let probs = probs_with_pauses(40.0, &[(20.0, 21.0)]);
         let pcm = clip(&probs);
