@@ -199,6 +199,8 @@ impl Backend for CpalBackend {
         let host = self.host()?;
         let host = &*host;
         let (mut info, device) = match id {
+            #[cfg(target_os = "macos")]
+            Some(crate::SYSTEM_OUTPUT_DEVICE) => system_output(host)?,
             Some(id) => enumerate(host, false)?
                 .into_iter()
                 .find(|(info, _)| info.id == id)
@@ -305,6 +307,11 @@ struct CpalStream {
     /// Silent output holding the headset (`take_headset`).
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     headset: Option<cpal::Stream>,
+    /// Output keeping a tapped output device running: a tap gets no callbacks
+    /// until the device plays, so the track would start late. It plays
+    /// [`WAKE_LEVEL`], not silence.
+    #[cfg(target_os = "macos")]
+    _wake: Option<cpal::Stream>,
     #[cfg(target_os = "linux")]
     watch: Option<pulse::SourceWatch>,
 }
@@ -336,7 +343,7 @@ impl InputStream for CpalStream {
             return;
         };
         let started = Instant::now();
-        match silent_output(&cpal::DeviceId::new(id.host(), &output_uid)) {
+        match silent_output(&cpal::DeviceId::new(id.host(), &output_uid), 0.0) {
             Ok(stream) => {
                 log::info!(
                     "holding the headset: silent output on {output_uid} (started in {:?})",
@@ -349,9 +356,41 @@ impl InputStream for CpalStream {
     }
 }
 
-/// Starts a stream playing silence on the output device `id`.
+/// What the output held on a tapped device plays: a constant a third of a
+/// 16-bit step, so nobody hears it and a 16-bit recording is unchanged. The
+/// tap hears this process too, so a tap allowed to record always delivers
+/// something other than zero; only zeros means macOS withheld the audio
+/// (denied system audio recording gives silence, not an error).
 #[cfg(target_os = "macos")]
-fn silent_output(id: &cpal::DeviceId) -> Result<cpal::Stream, String> {
+const WAKE_LEVEL: f32 = 1.0e-5;
+
+/// The default output device, opened so input streams tap what it plays.
+#[cfg(target_os = "macos")]
+fn system_output(host: &cpal::Host) -> Result<(InputDevice, cpal::Device), BackendError> {
+    let mut device = host.default_output_device().ok_or_else(|| {
+        BackendError::new(BackendErrorKind::DeviceNotAvailable, "No output device found")
+    })?;
+    #[allow(irrefutable_let_patterns)]
+    if let cpal::platform::DeviceInner::CoreAudio(d) = device.as_inner_mut() {
+        *d = d.clone().with_loopback();
+    }
+    let info = InputDevice {
+        id: crate::SYSTEM_OUTPUT_DEVICE.to_owned(),
+        name: device_name(&device),
+        occurrence: 0,
+        backend: host.id().name().to_owned(),
+        is_default: false,
+        id_is_stable: true,
+        channels: None,
+        is_monitor: true,
+    };
+    Ok((info, device))
+}
+
+/// Starts a stream playing silence on the output device `id`; with a `level`
+/// other than 0, that constant instead, where the device takes `f32`.
+#[cfg(target_os = "macos")]
+fn silent_output(id: &cpal::DeviceId, level: f32) -> Result<cpal::Stream, String> {
     let host = cpal::host_from_id(id.host()).map_err(|e| e.to_string())?;
     let device = host
         .device_by_id(id)
@@ -373,7 +412,12 @@ fn silent_output(id: &cpal::DeviceId) -> Result<cpal::Stream, String> {
         .build_output_stream_raw(
             config.config(),
             format,
-            |data: &mut cpal::Data, _: &cpal::OutputCallbackInfo| data.bytes_mut().fill(0),
+            move |data: &mut cpal::Data, _: &cpal::OutputCallbackInfo| {
+                match data.as_slice_mut::<f32>() {
+                    Some(samples) if level != 0.0 => samples.fill(level),
+                    _ => data.bytes_mut().fill(0),
+                }
+            },
             // Best effort; the input stream reports anything that matters.
             |_| {},
             None,
@@ -422,6 +466,15 @@ impl OpenDevice for CpalOpenDevice {
             log::debug!("requesting {frames}-frame (500 ms) capture buffer from WASAPI");
             config.buffer_size = cpal::BufferSize::Fixed(frames);
         }
+        #[cfg(target_os = "macos")]
+        let wake = match &self.device_id {
+            Some(id) if self.info.id == crate::SYSTEM_OUTPUT_DEVICE => Some(
+                silent_output(id, WAKE_LEVEL).map_err(|e| {
+                    BackendError::new(BackendErrorKind::DeviceNotAvailable, e)
+                })?,
+            ),
+            _ => None,
+        };
         let build_started = Instant::now();
         let device = &self.device;
         let stream = match self.format.sample_format {
@@ -454,6 +507,8 @@ impl OpenDevice for CpalOpenDevice {
             _stream: stream,
             device_id: self.device_id,
             headset: None,
+            #[cfg(target_os = "macos")]
+            _wake: wake,
             #[cfg(target_os = "linux")]
             watch,
         }))

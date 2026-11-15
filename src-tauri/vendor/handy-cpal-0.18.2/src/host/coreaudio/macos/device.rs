@@ -361,6 +361,9 @@ impl DeviceTrait for Device {
 pub struct Device {
     pub(crate) audio_device_id: AudioDeviceID,
     pub(crate) is_default_output: bool,
+    /// Open input streams as a process tap on this device's output, even when
+    /// the device also has an input side (a headset with a mic).
+    pub(crate) loopback: bool,
 }
 
 impl Device {
@@ -370,7 +373,14 @@ impl Device {
         Self {
             audio_device_id,
             is_default_output: false,
+            loopback: false,
         }
+    }
+
+    /// Input streams on this device record what it plays (process tap, macOS 14.6+).
+    pub fn with_loopback(mut self) -> Self {
+        self.loopback = true;
+        self
     }
 
     /// Checks if this device is an aggregate device.
@@ -674,6 +684,9 @@ impl Device {
     }
 
     fn default_input_config(&self) -> Result<SupportedStreamConfig, Error> {
+        if self.loopback {
+            return self.default_config(kAudioObjectPropertyScopeOutput);
+        }
         self.default_config(kAudioObjectPropertyScopeInput)
     }
 
@@ -713,19 +726,21 @@ impl Device {
         // Set the physical stream format (bit depth + sample rate) on the hardware device.
         // This avoids unnecessary format conversions, which is especially important on aggregate
         // devices. Falls back to sample-rate-only if no matching physical format is available.
-        if set_physical_format(
-            self.audio_device_id,
-            config.sample_rate,
-            config.channels,
-            sample_format,
-        )
-        .is_err()
+        // A tap reads the device's own format; never reconfigure the user's speakers.
+        if !self.loopback
+            && set_physical_format(
+                self.audio_device_id,
+                config.sample_rate,
+                config.channels,
+                sample_format,
+            )
+            .is_err()
         {
             set_sample_rate(self.audio_device_id, config.sample_rate, timeout)?;
         }
 
         let mut loopback_aggregate: Option<LoopbackDevice> = None;
-        let mut audio_unit = if self.supports_input() {
+        let mut audio_unit = if !self.loopback && self.supports_input() {
             audio_unit_from_device(self, AudioUnitMode::Input)?
         } else {
             loopback_aggregate.replace(LoopbackDevice::from_device(self)?);

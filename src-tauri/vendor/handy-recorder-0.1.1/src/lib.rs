@@ -56,6 +56,15 @@ pub use error::{Error, ErrorKind};
 pub use sink::{AudioChunk, CollectingSink, Sink};
 pub use types::{Channels, EndReason, Format, RecorderConfig, RecorderInfo};
 
+/// `RecorderConfig::device` value that records what the default output
+/// device plays (Core Audio process tap, macOS 14.6+, needs
+/// `NSAudioCaptureUsageDescription`). macOS only.
+///
+/// Samples that are all exactly zero mean macOS didn't allow the recording:
+/// an allowed tap also hears the inaudible constant this crate plays on the
+/// device while it records.
+pub const SYSTEM_OUTPUT_DEVICE: &str = "system-output";
+
 use std::fmt;
 
 use backend::cpal::CpalBackend;
