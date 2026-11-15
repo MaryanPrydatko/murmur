@@ -2,6 +2,7 @@ use crate::input;
 use crate::notices::Notice;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
@@ -36,24 +37,46 @@ tauri_panel! {
 
 // Native overlay window sizes (logical points). One window is reused for every
 // state and resized in `show_overlay_state`; each size need only be at least as
-// large as the card it hosts (the `--ov-*` vars in RecordingOverlay.css). The
-// card is CSS-anchored flush to the screen edge, so window height doesn't move
-// where the card sits — only OVERLAY_TOP_OFFSET / OVERLAY_BOTTOM_OFFSET do. Keep
-// these in sync with the CSS card geometry.
+// large as the shape it hosts (RecordingOverlay.css). Keep these in sync with
+// the CSS.
 //
 // On Windows these sizes are additionally multiplied by the accessibility text
 // scale (see windows_text_scale_factor), which WebView2 applies as a zoom.
 //
-// Compact overlay (Minimal / transcribing / processing): the 40h pill animates
-// width from 172 (--ov-rest-w) to 216 (--ov-work-w) and expands from center, so
-// the window must fit the widest state plus a little slack. The longest notice
-// titles need nearly all of it.
-const OVERLAY_WIDTH: f64 = 266.0;
-const OVERLAY_HEIGHT: f64 = 50.0;
+// The pill (44 tall, up to 420 wide for a long notice title) sits
+// PILL_SHADOW_PAD above the window's bottom edge, so its shadow has room, and
+// keeps 20px on each side.
+const PILL_SHADOW_PAD: f64 = 34.0;
+const OVERLAY_WIDTH: f64 = 460.0;
+const OVERLAY_HEIGHT: f64 = 44.0 + PILL_SHADOW_PAD;
 
-// Actual is 394x118, just a little extra
-const OVERLAY_STREAM_WIDTH: f64 = 400.0;
-const OVERLAY_STREAM_HEIGHT: f64 = 120.0;
+// A recording meeting: the 176 wide pill, which stays up for the whole call,
+// so the window keeps only the shadow room around it and leaves the clicks
+// around it to the apps below.
+const OVERLAY_MEETING_WIDTH: f64 = 176.0 + 2.0 * 20.0;
+
+// A meeting transcribing after it stopped: the 226 wide progress pill.
+const OVERLAY_MEETING_WORK_WIDTH: f64 = 226.0 + 2.0 * 20.0;
+
+// Live: the pill opens into a panel up to 116 tall.
+const OVERLAY_STREAM_WIDTH: f64 = 460.0;
+const OVERLAY_STREAM_HEIGHT: f64 = 116.0 + PILL_SHADOW_PAD;
+
+// The Mac notch island: the ears beside the notch, or dropped below it (live
+// text, a notice, the meeting controls). The panel grows before the island
+// opens and shrinks after it closes.
+const ISLAND_EARS: (f64, f64) = (340.0, 40.0);
+const ISLAND_DROPPED: (f64, f64) = (440.0, 160.0);
+
+/// No session, but a meeting is recording: the overlay shows the meeting.
+const MEETING_STATE: &str = "meeting";
+
+/// No session and no meeting recording: a stopped meeting is transcribing.
+const MEETING_WORK_STATE: &str = "meeting_transcribing";
+
+/// How long the overlay shows a meeting's progress before the Meetings page
+/// carries it alone.
+const MEETING_WORK_HOLD: Duration = Duration::from_secs(3);
 
 const NOTICE_STATE: &str = "notice";
 const LIVE_NOTICE_STATE: &str = "live_notice";
@@ -75,28 +98,143 @@ fn notice_state(session_is_live: bool) -> &'static str {
     }
 }
 
-/// Overlay window size (logical) for a given UI state.
+/// Overlay window size (logical) for a given UI state, in the pill form.
 fn overlay_dimensions(state: &str) -> (f64, f64) {
     if is_live_state(state) {
         (OVERLAY_STREAM_WIDTH, OVERLAY_STREAM_HEIGHT)
+    } else if state == MEETING_STATE {
+        (OVERLAY_MEETING_WIDTH, OVERLAY_HEIGHT)
+    } else if state == MEETING_WORK_STATE {
+        (OVERLAY_MEETING_WORK_WIDTH, OVERLAY_HEIGHT)
     } else {
         (OVERLAY_WIDTH, OVERLAY_HEIGHT)
     }
 }
 
+/// Overlay window size (logical) for a given UI state and form.
+fn form_dimensions(form: OverlayForm, state: &str, dropped: bool) -> (f64, f64) {
+    match form {
+        OverlayForm::Pill => overlay_dimensions(state),
+        OverlayForm::Island if dropped || is_live_state(state) || state == NOTICE_STATE => {
+            ISLAND_DROPPED
+        }
+        OverlayForm::Island => ISLAND_EARS,
+    }
+}
+
+/// The hardware notch of a screen, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Notch {
+    width: f64,
+    height: f64,
+}
+
+/// The notch from a screen's width, its top safe-area inset, and the widths
+/// of the menu bar areas left and right of the notch. None without a notch.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn notch_from_insets(screen_width: f64, safe_top: f64, left: f64, right: f64) -> Option<Notch> {
+    let width = screen_width - left - right;
+    (safe_top > 0.0 && left > 0.0 && right > 0.0 && width > 0.0).then_some(Notch {
+        width,
+        height: safe_top,
+    })
+}
+
+/// The notch of the screen `monitor` is, read from `NSScreen`. Call on the
+/// main thread.
+#[cfg(target_os = "macos")]
+fn screen_notch(monitor: &tauri::Monitor) -> Option<Notch> {
+    use objc2::runtime::NSObjectProtocol;
+    use objc2::{sel, MainThreadMarker};
+    use objc2_app_kit::NSScreen;
+
+    let mtm = MainThreadMarker::new()?;
+    let scale = monitor.scale_factor();
+    let x = monitor.position().x as f64 / scale;
+    let width = monitor.size().width as f64 / scale;
+    let screens = NSScreen::screens(mtm);
+    for i in 0..screens.count() {
+        let screen = screens.objectAtIndex(i);
+        let frame = screen.frame();
+        // Both are global points and share the primary screen's left edge.
+        if (frame.origin.x - x).abs() > 1.0 || (frame.size.width - width).abs() > 1.0 {
+            continue;
+        }
+        // safeAreaInsets and the auxiliary areas arrived in macOS 12.
+        if !screen.respondsToSelector(sel!(safeAreaInsets)) {
+            return None;
+        }
+        return notch_from_insets(
+            frame.size.width,
+            screen.safeAreaInsets().top,
+            screen.auxiliaryTopLeftArea().size.width,
+            screen.auxiliaryTopRightArea().size.width,
+        );
+    }
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_notch(_monitor: &tauri::Monitor) -> Option<Notch> {
+    None
+}
+
+/// The island on a screen with a notch while the overlay is at the top; the
+/// pill otherwise.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum OverlayForm {
+    Pill,
+    Island,
+}
+
+/// Sent to the overlay as `overlay-form` before it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+struct OverlayGeometry {
+    form: OverlayForm,
+    notch_width: Option<f64>,
+    notch_height: Option<f64>,
+}
+
+fn overlay_geometry(position: OverlayPosition, notch: Option<Notch>) -> OverlayGeometry {
+    match (position, notch) {
+        (OverlayPosition::Top, Some(notch)) => OverlayGeometry {
+            form: OverlayForm::Island,
+            notch_width: Some(notch.width),
+            notch_height: Some(notch.height),
+        },
+        _ => OverlayGeometry {
+            form: OverlayForm::Pill,
+            notch_width: None,
+            notch_height: None,
+        },
+    }
+}
+
+/// The form for the screen under the cursor. Call on the main thread.
+fn current_geometry(app_handle: &AppHandle) -> OverlayGeometry {
+    let position = settings::get_settings(app_handle).overlay_position;
+    let notch = get_monitor_with_cursor(app_handle).and_then(|m| screen_notch(&m));
+    overlay_geometry(position, notch)
+}
+
 static LAST_MIC_LEVEL_EMIT: AtomicU64 = AtomicU64::new(0);
 const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 
-#[cfg(target_os = "macos")]
-const OVERLAY_TOP_OFFSET: f64 = 46.0;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 const OVERLAY_TOP_OFFSET: f64 = 4.0;
 
+// From the screen's bottom edge to the window's; the pill sits PILL_SHADOW_PAD
+// higher, 40 above the edge (34 above the Dock on macOS).
 #[cfg(target_os = "macos")]
-const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 0.0;
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
-const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
+const OVERLAY_BOTTOM_OFFSET: f64 = 40.0 - PILL_SHADOW_PAD;
+
+/// Below the menu bar, on a Mac screen without a notch.
+#[cfg(target_os = "macos")]
+const MENU_BAR_GAP: f64 = 6.0;
 
 /// Configures the edge and offset of a GTK layer surface. gtk-layer-shell
 /// commits anchor and margin changes itself, including while the surface is
@@ -277,9 +415,15 @@ fn calculate_overlay_position(
     let monitor_width = monitor.size().width as f64 / scale;
 
     let settings = settings::get_settings(app_handle);
+    let geometry = overlay_geometry(settings.overlay_position, screen_notch(&monitor));
 
     let x = monitor_x + (monitor_width - width) / 2.0;
     let y = match settings.overlay_position {
+        // The island hangs from the top of the screen, over the menu bar.
+        OverlayPosition::Top if geometry.form == OverlayForm::Island => monitor_y,
+        #[cfg(target_os = "macos")]
+        OverlayPosition::Top => monitor.work_area().position.y as f64 / scale + MENU_BAR_GAP,
+        #[cfg(not(target_os = "macos"))]
         OverlayPosition::Top => monitor_y + OVERLAY_TOP_OFFSET,
         OverlayPosition::Bottom => {
             // work_area.position shares monitor.position's global coordinate
@@ -428,7 +572,8 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     // to the window's bottom edge, was drawn below the screen (#1950). The
     // window has no decorations, so this offers the user nothing new.
     #[cfg(target_os = "linux")]
-    let resizable = !utils::is_wayland();
+    // Under XWayland too (see utils::apply_handy_gdk_backend).
+    let resizable = utils::gtk_uses_x11();
     #[cfg(not(target_os = "linux"))]
     let resizable = false;
 
@@ -531,8 +676,10 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     if settings.overlay_style == OverlayStyle::None {
         return;
     }
-    OVERLAY_SESSION_SHOWING.store(true, Ordering::SeqCst);
-    OVERLAY_SESSION_LIVE.store(is_live_state(state), Ordering::SeqCst);
+    if state != MEETING_STATE {
+        OVERLAY_SESSION_SHOWING.store(true, Ordering::SeqCst);
+        OVERLAY_SESSION_LIVE.store(is_live_state(state), Ordering::SeqCst);
+    }
 
     // The rest queries monitors and the cursor and mutates window geometry. On
     // Linux the monitor/cursor lookups hit GDK/Xlib on the process's shared X11
@@ -548,8 +695,16 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 }
 
 fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
-    // Size the overlay for this state (compact vs. streaming), then position it.
-    let (width, height) = overlay_dimensions(state);
+    // Size the overlay for this state and form, then position it.
+    let geometry = current_geometry(app_handle);
+    let (width, height) = form_dimensions(
+        geometry.form,
+        state,
+        ISLAND_DROPPED_OPEN.load(Ordering::SeqCst),
+    );
+    if let Ok(mut last) = LAST_STATE.lock() {
+        *last = state.to_string();
+    }
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         // Invalidate any delayed hide still in flight from a previous session
         // (see `hide_recording_overlay`).
@@ -629,8 +784,106 @@ fn show_overlay_state_on_main(app_handle: &AppHandle, state: &str) {
             );
         }
 
+        let _ = overlay_window.emit("overlay-form", geometry);
         let _ = overlay_window.emit("show-overlay", state);
     }
+}
+
+/// The state the overlay last showed, to resize it for the island's controls.
+static LAST_STATE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+/// Whether the island's meeting controls are open, so its panel is dropped.
+static ISLAND_DROPPED_OPEN: AtomicBool = AtomicBool::new(false);
+
+/// When the meeting that's recording started, in Unix ms; 0 when none is.
+static MEETING_STARTED_MS: AtomicU64 = AtomicU64::new(0);
+
+fn meeting_showing() -> bool {
+    MEETING_STARTED_MS.load(Ordering::SeqCst) != 0
+}
+
+/// Shows a recording meeting on the overlay (the red dot and its time), or
+/// takes it off once the meeting stops. A dictation session keeps the
+/// overlay while it runs and hands it back to the meeting when it ends.
+pub fn set_meeting_recording(app_handle: &AppHandle, recording: bool) {
+    let started_at_ms = recording.then(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    });
+    let previous = MEETING_STARTED_MS.swap(started_at_ms.unwrap_or(0), Ordering::SeqCst);
+    if (previous != 0) == recording {
+        // Already showing this; keep the original start time.
+        MEETING_STARTED_MS.store(previous, Ordering::SeqCst);
+        return;
+    }
+    if !recording {
+        ISLAND_DROPPED_OPEN.store(false, Ordering::SeqCst);
+    }
+    let _ = app_handle.emit_to(
+        "recording_overlay",
+        "overlay-meeting",
+        serde_json::json!({ "started_at_ms": started_at_ms }),
+    );
+    if is_session_showing() {
+        return;
+    }
+    if recording {
+        show_overlay_state(app_handle, MEETING_STATE);
+    } else {
+        hide_recording_overlay(app_handle);
+    }
+}
+
+/// Shows a stopped meeting's transcription progress for [`MEETING_WORK_HOLD`],
+/// unless a dictation session or a recording meeting has the overlay. Call it
+/// once as the transcription starts, before the first `meeting-progress`,
+/// which fills it in.
+#[allow(dead_code)] // Called once the meeting transcription reports progress.
+pub fn show_meeting_transcribing_overlay(app_handle: &AppHandle) {
+    if !OVERLAY_ENABLED.load(Ordering::Relaxed) || is_session_showing() || meeting_showing() {
+        return;
+    }
+    let handle = app_handle.clone();
+    // On the main thread for the same reason as show_overlay_state.
+    let _ = app_handle.run_on_main_thread(move || {
+        show_overlay_state_on_main(&handle, MEETING_WORK_STATE);
+        let generation = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
+        std::thread::spawn(move || {
+            std::thread::sleep(MEETING_WORK_HOLD);
+            if OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst) == generation {
+                hide_recording_overlay(&handle);
+            }
+        });
+    });
+}
+
+/// Grows the island's panel before its meeting controls open, and shrinks it
+/// after they close.
+#[tauri::command]
+#[specta::specta]
+pub fn set_overlay_dropped(app: AppHandle, dropped: bool) {
+    ISLAND_DROPPED_OPEN.store(dropped, Ordering::SeqCst);
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        let state = LAST_STATE
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_else(|_| MEETING_STATE.to_string());
+        let geometry = current_geometry(&handle);
+        if geometry.form != OverlayForm::Island {
+            return;
+        }
+        let Some(window) = handle.get_webview_window("recording_overlay") else {
+            return;
+        };
+        let (width, height) = form_dimensions(geometry.form, &state, dropped);
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+        if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
+            let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+        }
+    });
 }
 
 /// Notify the visible recording overlay that the input stream has delivered its
@@ -789,6 +1042,19 @@ pub fn hide_recording_overlay(app_handle: &AppHandle) {
         let scheduled_at = OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst);
         // Emit event to trigger fade-out animation
         let _ = overlay_window.emit("hide-overlay", ());
+        // A recording meeting keeps the overlay; it only goes back to its size.
+        if meeting_showing() {
+            let handle = app_handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                if OVERLAY_SHOW_GENERATION.load(Ordering::SeqCst) == scheduled_at
+                    && meeting_showing()
+                {
+                    show_overlay_state(&handle, MEETING_STATE);
+                }
+            });
+            return;
+        }
         // Hide the window after a short delay to allow animation to complete,
         // unless a newer session has shown the overlay again by then.
         let window_clone = overlay_window.clone();
@@ -873,6 +1139,77 @@ mod tests {
             );
             assert_eq!(is_live_state(session), live);
         }
+    }
+
+    #[test]
+    fn a_meeting_pill_window_is_only_the_pill_and_its_shadow() {
+        assert_eq!(overlay_dimensions(MEETING_STATE), (216.0, 78.0));
+        assert_eq!(
+            form_dimensions(OverlayForm::Pill, MEETING_STATE, false),
+            (216.0, 78.0)
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, MEETING_STATE, false),
+            ISLAND_EARS
+        );
+        assert_eq!(
+            overlay_dimensions(NOTICE_STATE),
+            (OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        );
+    }
+
+    #[test]
+    fn a_meeting_progress_window_fits_its_wider_pill() {
+        assert!(overlay_dimensions(MEETING_WORK_STATE).0 >= 226.0 + 2.0 * 20.0);
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, MEETING_WORK_STATE, false),
+            ISLAND_EARS
+        );
+    }
+
+    #[test]
+    fn the_island_needs_a_notch_and_the_top() {
+        // 1512pt wide, a 32pt top inset, 664pt of menu bar either side.
+        let notch = notch_from_insets(1512.0, 32.0, 664.0, 664.0);
+        assert_eq!(
+            notch,
+            Some(Notch {
+                width: 184.0,
+                height: 32.0
+            })
+        );
+        assert_eq!(notch_from_insets(1920.0, 0.0, 0.0, 0.0), None);
+        let island = overlay_geometry(OverlayPosition::Top, notch);
+        assert_eq!(island.form, OverlayForm::Island);
+        assert_eq!(island.notch_width, Some(184.0));
+        assert_eq!(
+            overlay_geometry(OverlayPosition::Bottom, notch).form,
+            OverlayForm::Pill
+        );
+        assert_eq!(
+            overlay_geometry(OverlayPosition::Top, None).form,
+            OverlayForm::Pill
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, "recording", false),
+            ISLAND_EARS
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, "recording", true),
+            ISLAND_DROPPED
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, "streaming", false),
+            ISLAND_DROPPED
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Island, NOTICE_STATE, false),
+            ISLAND_DROPPED
+        );
+        assert_eq!(
+            form_dimensions(OverlayForm::Pill, "recording", true),
+            overlay_dimensions("recording")
+        );
     }
 
     #[test]

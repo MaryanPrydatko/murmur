@@ -15,19 +15,21 @@
     "otherLanguages": "Andere talen"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "Algemeen",
     "models": "Modellen",
     "advanced": "Geavanceerd",
     "postProcessing": "Naverwerking",
     "history": "Geschiedenis",
     "debug": "Probleemoplossing",
-    "about": "Over Handy"
+    "about": "Over Murmur"
   },
   "onboarding": {
     "customModelDescription": "Niet officieel ondersteund",
     "migration": {
       "title": "Je modellen moeten worden bijgewerkt",
-      "description": "Handy gebruikt nu een nieuwer soort model. Download de nieuwe versie om te blijven transcriberen. Oude versies worden verwijderd.",
+      "description": "Murmur gebruikt nu een nieuwer soort model. Download de nieuwe versie om te blijven transcriberen. Oude versies worden verwijderd.",
       "replaces": "Vervangt {{name}}",
       "oldFormat": "Oud formaat",
       "failed": "Downloaden mislukt",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "Microfoon",
-        "why": "Zodat Handy je kan horen. Audio wordt op deze computer omgezet in tekst en nooit geüpload."
+        "why": "Zodat Murmur je kan horen. Audio wordt op deze computer omgezet in tekst en nooit geüpload."
       },
       "accessibility": {
         "name": "Toegankelijkheid",
-        "why": "Zodat je sneltoets in elke app werkt en Handy de tekst kan typen waar je cursor staat."
+        "why": "Zodat je sneltoets in elke app werkt en Murmur de tekst kan typen waar je cursor staat."
       },
       "errors": {
         "checkFailed": "Machtigingen controleren mislukt. Probeer het opnieuw.",
@@ -82,12 +84,12 @@
       "openSettings": "Instellingen openen",
       "allowed": "Toegestaan",
       "waiting": "Wachten",
-      "turnOnMac": "Zet Handy aan in Systeeminstellingen en kom dan hier terug.",
+      "turnOnMac": "Zet Murmur aan in Systeeminstellingen en kom dan hier terug.",
       "turnOnWindows": "Zet toegang tot de microfoon aan in Windows-instellingen en kom dan hier terug.",
       "hintBoth": "Sta beide toe om door te gaan",
       "hintMicrophone": "Sta de microfoon toe om door te gaan",
       "welcomeBack": "Welkom terug. We gaan verder waar je was gebleven.",
-      "relaunch": "Reageert de sneltoets hierna niet? <relaunch>Start Handy opnieuw</relaunch> en je komt direct weer hier uit."
+      "relaunch": "Reageert de sneltoets hierna niet? <relaunch>Start Murmur opnieuw</relaunch> en je komt direct weer hier uit."
     },
     "shell": {
       "back": "Terug",
@@ -98,11 +100,11 @@
       "title": "Praat in plaats van typen, in elke app",
       "subtitle": "Kies de talen waarin je gaat dicteren",
       "languagesLabel": "Talen",
-      "noMatch": "Geen taal gevonden voor „{{query}}”. De modellen van Handy dekken ongeveer 100 talen; meer vind je in de instellingen.",
+      "noMatch": "Geen taal gevonden voor „{{query}}”. De modellen van Murmur dekken ongeveer 100 talen; meer vind je in de instellingen.",
       "appLanguage": "App-taal",
       "menusIn": "Menu’s in het <b>{{language}}</b>",
       "chinese": {
-        "question": "Je spreekt {{languages}}. Welke tekens moet Handy schrijven?",
+        "question": "Je spreekt {{languages}}. Welke tekens moet Murmur schrijven?",
         "label": "Chinese tekens",
         "zh-Hans": "Vereenvoudigd",
         "zh-Hant": "Taiwan",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "Probeer het maar!",
-      "subtitle": "Handy staat in de hoek om je er doorheen te helpen",
+      "subtitle": "Murmur staat in de hoek om je er doorheen te helpen",
       "noteLabel": "Notitie",
       "placeholder": "Nieuwe notitie",
       "hold": "Houd <keys/> ingedrukt en praat.",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "Alles is klaar",
-      "subMac": "Handy staat nu in je menubalk. Houd <keys/> ingedrukt of tik erop in elke app om te praten.",
-      "subTray": "Handy staat nu in je systeemvak. Houd <keys/> ingedrukt of tik erop in elke app om te praten.",
+      "subMac": "Murmur staat nu in je menubalk. Houd <keys/> ingedrukt of tik erop in elke app om te praten.",
+      "subTray": "Murmur staat nu in je systeemvak. Houd <keys/> ingedrukt of tik erop in elke app om te praten.",
       "hint": "Je kunt dit later wijzigen in de instellingen",
       "highFiveLabel": "High five",
-      "atLogin": "Handy starten als ik inlog",
+      "atLogin": "Murmur starten als ik inlog",
       "finish": "Klaar",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "Klaar",
         "languages": "Talen",
         "model": "Spraakmodel",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "Voorkeurstalen",
-        "description": "De talen die je spreekt. Handy gebruikt ze om modellen aan te bevelen.",
+        "description": "De talen die je spreekt. Murmur gebruikt ze om modellen aan te bevelen.",
         "noMatch": "Geen taal gevonden voor „{{query}}”",
         "weak": "Geen enkel model herkent {{languages}} al goed."
       },
@@ -401,17 +403,17 @@
         "fits": "Voor jouw talen",
         "untested": "Niet getest"
       },
-      "untestedNote": "Niet getest met Handy. Ze kunnen langzamer zijn of meer fouten maken.",
+      "untestedNote": "Niet getest met Murmur. Ze kunnen langzamer zijn of meer fouten maken.",
       "untestedHidden_one": "{{count}} ander model is niet afgestemd op dicteren. Zoek om het te vinden.",
       "untestedHidden_other": "{{count}} andere modellen zijn niet afgestemd op dicteren. Zoek om er een te vinden.",
-      "emptyYours": "Nog geen modellen. Kies hieronder een model: het wordt gedownload en daarna gebruikt Handy het.",
+      "emptyYours": "Nog geen modellen. Kies hieronder een model: het wordt gedownload en daarna gebruikt Murmur het.",
       "showMore": "{{count}} meer tonen",
       "showFewer": "Minder tonen",
       "download": "Downloaden en gebruiken",
       "downloadingThenUse": "{{percent}}% van {{total}}, daarna wordt overgeschakeld",
       "loading": "Laden…",
       "deleteAsk": "{{name}} verwijderen? Dit maakt {{size}} vrij.",
-      "deleteAskActive": "{{name}} verwijderen? Handy kan niet transcriberen totdat je een ander model kiest.",
+      "deleteAskActive": "{{name}} verwijderen? Murmur kan niet transcriberen totdat je een ander model kiest.",
       "cancel": "Annuleren",
       "deleteModel": "{{name}} verwijderen",
       "cancelDownload": "Downloaden van {{name}} stoppen",
@@ -425,14 +427,14 @@
         "marks": "? is nog niet gemeten. — verstaat die taal niet."
       },
       "retiredNotice": {
-        "title": "Oude modellen werken niet meer met Handy",
+        "title": "Oude modellen werken niet meer met Murmur",
         "description": "Ze nemen {{size}} in beslag op je computer.",
         "delete": "Modellen verwijderen",
         "deleteFailed": "Sommige oude modellen konden niet worden verwijderd. Bekijk het logboek voor details."
       },
       "rescan": {
         "label": "Opnieuw scannen",
-        "tooltip": "Scannen naar modellen die buiten Handy om zijn toegevoegd aan de modellenmap of Hugging Face-cache"
+        "tooltip": "Scannen naar modellen die buiten Murmur om zijn toegevoegd aan de modellenmap of Hugging Face-cache"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "Starten bij opstarten",
-        "description": "Handy automatisch starten zodra je inlogt op je computer."
+        "description": "Murmur automatisch starten zodra je inlogt op je computer."
       },
       "showTrayIcon": {
         "label": "Pictogram in systeemvak tonen",
-        "description": "Toon het Handy-pictogram in het systeemvak."
+        "description": "Toon het Murmur-pictogram in het systeemvak."
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "Controleren op updates",
-        "description": "Automatisch controleren op nieuwe versies van Handy",
+        "description": "Automatisch controleren op nieuwe versies van Murmur",
         "lockedDescription": "Uitgeschakeld door systeemconfiguratie (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Toetsenborddiagnose",
-        "description": "Controleert of toetsenbordgebeurtenissen Handy bereiken. Alleen het aantal gebeurtenissen wordt vastgelegd — nooit welke toetsen je indrukt.",
+        "description": "Controleert of toetsenbordgebeurtenissen Murmur bereiken. Alleen het aantal gebeurtenissen wordt vastgelegd — nooit welke toetsen je indrukt.",
         "run": "Diagnose van 10 s uitvoeren",
         "running": "Luisteren… druk je sneltoets een paar keer in (bijv. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,41 +879,41 @@
         "mouse": "Muis",
         "verdictBlocked": "Secure Input blokkeert toetsgebeurtenissen — sneltoetsen met een gewone toets kunnen pas weer werken als dit is opgelost.",
         "verdictSuspicious": "Er kwamen wel modificatiegebeurtenissen binnen, maar geen toetsgebeurtenissen — iets onderdrukt toetsen terwijl Secure Input als uitgeschakeld wordt gemeld. Meld dit op GitHub.",
-        "verdictOk": "Toetsgebeurtenissen bereiken Handy normaal.",
+        "verdictOk": "Toetsgebeurtenissen bereiken Murmur normaal.",
         "verdictNoEvents": "Geen gebeurtenissen vastgelegd — heb je tijdens de test toetsen ingedrukt?",
         "failed": "Diagnose mislukt: {{error}}"
       }
     },
     "about": {
-      "title": "Over Handy",
+      "title": "Over Murmur",
       "version": {
         "title": "Versie",
-        "description": "Huidige versie van Handy"
+        "description": "Huidige versie van Murmur"
       },
       "whatsNewUpdates": {
         "label": "Toon 'Wat is er nieuw'",
-        "description": "Release-notes tonen nadat Handy is bijgewerkt"
+        "description": "Release-notes tonen nadat Murmur is bijgewerkt"
       },
       "appDataDirectory": {
         "title": "App-datamap",
-        "description": "Locatie waar Handy de gegevens opslaat"
+        "description": "Locatie waar Murmur de gegevens opslaat"
       },
       "sourceCode": {
         "title": "Broncode",
         "description": "Bekijk de broncode en draag bij",
         "button": "Bekijk op GitHub"
       },
-      "supportDevelopment": {
-        "title": "Ontwikkeling ondersteunen",
-        "description": "Help ons om te blijven bouwen aan Handy",
-        "button": "Doneren"
-      },
       "acknowledgments": {
         "title": "Dankbetuigingen",
         "ggml": {
           "title": "ggml",
           "description": "Krachtige tensorbibliotheek voor lokale AI-verwerking",
-          "details": "Handy's lokale spraak-naar-tekst is gebouwd op transcribe.cpp en ggml. Met dank aan het geweldige werk van Georgi Gerganov en alle bijdragers."
+          "details": "Murmur's lokale spraak-naar-tekst is gebouwd op transcribe.cpp en ggml. Met dank aan het geweldige werk van Georgi Gerganov en alle bijdragers."
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "GitHub Releases openen"
   },
   "whatsNew": {
-    "title": "Nieuw in Handy v{{version}}"
+    "title": "Nieuw in Murmur v{{version}}"
   },
   "common": {
     "playbackPosition": "Afspeelpositie",
@@ -959,7 +961,7 @@
     "microphoneSilentTitle": "Microfoon is stil",
     "microphoneSilent": "Je microfoon stuurde alleen stilte. Controleer of hij niet gedempt is, of kies een andere microfoon via Instellingen.",
     "recordingFailedTitle": "Opname starten mislukt",
-    "modelLoadFailed": "Handy kon dit model niet laden. Probeer het opnieuw of kies een ander model.",
+    "modelLoadFailed": "Murmur kon dit model niet laden. Probeer het opnieuw of kies een ander model.",
     "modelLoadFailedTitle": "Model laden mislukt",
     "noModelSelected": "Download of kies een model via Instellingen > Modellen.",
     "noModelSelectedTitle": "Geen model geselecteerd",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "Tekst plakken mislukt",
     "pasteFailed": "Tekst kon niet worden geplakt in de actieve applicatie.",
     "pasteBlockedElevatedTitle": "Kan niet plakken in admin-apps",
-    "pasteBlockedElevated": "De actieve applicatie draait als administrator, dus Handy kan er niet in plakken. Je kunt de transcriptie kopiëren vanuit Geschiedenis.",
+    "pasteBlockedElevated": "De actieve applicatie draait als administrator, dus Murmur kan er niet in plakken. Je kunt de transcriptie kopiëren vanuit Geschiedenis.",
     "postProcessFailedTitle": "Geplakt zonder naverwerking",
     "postProcessFailed": "De naverwerking is niet voltooid, dus de transcriptie is ongewijzigd geplakt.",
     "filePostProcessFailedTitle": "Getranscribeerd zonder naverwerking",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "Interfacetaal",
-    "description": "Wijzig de taal van de Handy-interface"
+    "description": "Wijzig de taal van de Murmur-interface"
   },
   "theme": {
     "title": "App-thema",
-    "description": "Kies of Handy het systeemthema volgt of licht of donker blijft",
+    "description": "Kies of Murmur het systeemthema volgt of licht of donker blijft",
     "options": {
       "system": "Systeem",
       "light": "Licht",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "Transcriberen...",
     "processing": "Verwerken...",
-    "loadingModel": "Model laden..."
+    "loadingModel": "Model laden...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} blokkeert mogelijk 1 sneltoets",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS blokkeert tijdelijk {{count}} sneltoetsen",
     "recorderBlockedWithCulprit": "{{name}} blokkeert mogelijk wijzigingen aan sneltoetsen",
     "recorderBlockedNoCulprit": "macOS blokkeert tijdelijk wijzigingen aan sneltoetsen",
-    "learnMore": "Hoe je dit oplost",
     "recorderBlocked": "Sneltoetsen kunnen nu niet worden opgenomen — Secure Input van macOS blokkeert toetsgebeurtenissen. Los eerst de Secure Input-waarschuwing op.",
     "dismiss": "Sluiten"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

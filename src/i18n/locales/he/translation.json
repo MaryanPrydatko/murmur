@@ -15,6 +15,8 @@
     "otherLanguages": "שפות אחרות"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "כללי",
     "models": "מודלים",
     "advanced": "מתקדם",
@@ -27,7 +29,7 @@
     "customModelDescription": "לא נתמך באופן רשמי",
     "migration": {
       "title": "המודלים שלך צריכים עדכון",
-      "description": "Handy משתמש כעת בסוג חדש יותר של מודלים. יש להוריד את הגרסה החדשה כדי להמשיך לתמלל. גרסאות ישנות יוסרו.",
+      "description": "Murmur משתמש כעת בסוג חדש יותר של מודלים. יש להוריד את הגרסה החדשה כדי להמשיך לתמלל. גרסאות ישנות יוסרו.",
       "replaces": "מחליף את {{name}}",
       "oldFormat": "פורמט ישן",
       "failed": "ההורדה נכשלה",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "מיקרופון",
-        "why": "כדי ש-Handy ישמע אותך. השמע הופך לטקסט במחשב הזה ולא מועלה לשום מקום."
+        "why": "כדי ש-Murmur ישמע אותך. השמע הופך לטקסט במחשב הזה ולא מועלה לשום מקום."
       },
       "accessibility": {
         "name": "נגישות",
-        "why": "כדי שקיצור המקשים שלך יעבוד בכל אפליקציה, ו-Handy יוכל להקליד את הטקסט איפה שהסמן נמצא."
+        "why": "כדי שקיצור המקשים שלך יעבוד בכל אפליקציה, ו-Murmur יוכל להקליד את הטקסט איפה שהסמן נמצא."
       },
       "errors": {
         "checkFailed": "בדיקת ההרשאות נכשלה. נסה שוב.",
@@ -82,12 +84,12 @@
       "openSettings": "פתח הגדרות",
       "allowed": "מאושר",
       "waiting": "ממתין",
-      "turnOnMac": "הפעל את Handy בהגדרות המערכת ואז חזור לכאן.",
+      "turnOnMac": "הפעל את Murmur בהגדרות המערכת ואז חזור לכאן.",
       "turnOnWindows": "הפעל גישה למיקרופון ב-הגדרות Windows ואז חזור לכאן.",
       "hintBoth": "אשר את שתיהן כדי להמשיך",
       "hintMicrophone": "אשר את המיקרופון כדי להמשיך",
       "welcomeBack": "ברוך שובך. ממשיכים מהמקום שבו עצרת.",
-      "relaunch": "קיצור המקשים לא מגיב אחרי זה? <relaunch>הפעל מחדש את Handy</relaunch> ותחזור בדיוק לכאן."
+      "relaunch": "קיצור המקשים לא מגיב אחרי זה? <relaunch>הפעל מחדש את Murmur</relaunch> ותחזור בדיוק לכאן."
     },
     "shell": {
       "back": "חזרה",
@@ -98,11 +100,11 @@
       "title": "דבר במקום להקליד, בכל אפליקציה",
       "subtitle": "בחר את השפות שבהן תכתיב",
       "languagesLabel": "שפות",
-      "noMatch": "אין שפה שתואמת ל„{{query}}”. המודלים של Handy מכסים כ-100 שפות; עוד שפות זמינות בהגדרות.",
+      "noMatch": "אין שפה שתואמת ל„{{query}}”. המודלים של Murmur מכסים כ-100 שפות; עוד שפות זמינות בהגדרות.",
       "appLanguage": "שפת האפליקציה",
       "menusIn": "תפריטים ב<b>{{language}}</b>",
       "chinese": {
-        "question": "אתה מדבר {{languages}}. באילו תווים Handy צריך לכתוב?",
+        "question": "אתה מדבר {{languages}}. באילו תווים Murmur צריך לכתוב?",
         "label": "תווים סיניים",
         "zh-Hans": "מפושטת",
         "zh-Hant": "טייוואן",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "בוא ננסה!",
-      "subtitle": "Handy בפינה, ילווה אותך בדרך",
+      "subtitle": "Murmur בפינה, ילווה אותך בדרך",
       "noteLabel": "פתק",
       "placeholder": "פתק חדש",
       "hold": "החזק את <keys/> ודבר.",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "הכול מוכן",
-      "subMac": "Handy נמצא עכשיו בשורת התפריטים. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
-      "subTray": "Handy נמצא עכשיו במגש המערכת. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
+      "subMac": "Murmur נמצא עכשיו בשורת התפריטים. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
+      "subTray": "Murmur נמצא עכשיו במגש המערכת. החזק או הקש על <keys/> בכל אפליקציה כדי לדבר.",
       "hint": "אפשר לשנות את אלה אחר כך בהגדרות",
       "highFiveLabel": "כיף",
-      "atLogin": "הפעל את Handy כשאני נכנס למערכת",
+      "atLogin": "הפעל את Murmur כשאני נכנס למערכת",
       "finish": "סיום",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "מוכן",
         "languages": "שפות",
         "model": "מודל דיבור",
@@ -332,7 +334,7 @@
     "general": {
       "title": "כללי",
       "shortcut": {
-        "title": "קיצורי מקשים של Handy",
+        "title": "קיצורי מקשים של Murmur",
         "description": "הגדר קיצורי מקשים כדי להפעיל הקלטה ותמלול דיבור",
         "loading": "טוען קיצורי מקשים...",
         "none": "לא הוגדרו קיצורי מקשים",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "שפות מועדפות",
-        "description": "השפות שאתה מדבר. Handy משתמש בהן כדי להמליץ על מודלים.",
+        "description": "השפות שאתה מדבר. Murmur משתמש בהן כדי להמליץ על מודלים.",
         "noMatch": "אין שפה שתואמת ל„{{query}}”",
         "weak": "עדיין אין מודל שמזהה היטב את {{languages}}."
       },
@@ -401,17 +403,17 @@
         "fits": "עבור השפות שלך",
         "untested": "לא נבדקו"
       },
-      "untestedNote": "לא נבדקו עם Handy. ייתכן שהם איטיים יותר או שיעשו יותר טעויות.",
+      "untestedNote": "לא נבדקו עם Murmur. ייתכן שהם איטיים יותר או שיעשו יותר טעויות.",
       "untestedHidden_one": "עוד מודל {{count}} לא מותאם להכתבה. חפש כדי למצוא אותו.",
       "untestedHidden_other": "עוד {{count}} מודלים לא מותאמים להכתבה. חפש כדי למצוא אותם.",
-      "emptyYours": "עדיין אין מודלים. בחר אחד למטה: הוא יורד, ואז Handy משתמש בו.",
+      "emptyYours": "עדיין אין מודלים. בחר אחד למטה: הוא יורד, ואז Murmur משתמש בו.",
       "showMore": "הצג עוד {{count}}",
       "showFewer": "הצג פחות",
       "download": "הורד והשתמש",
       "downloadingThenUse": "{{percent}}% מתוך {{total}}, ואז עובר אליו",
       "loading": "טוען…",
       "deleteAsk": "למחוק את {{name}}? זה ישחרר {{size}}.",
-      "deleteAskActive": "למחוק את {{name}}? Handy לא יוכל לתמלל עד שתבחר מודל אחר.",
+      "deleteAskActive": "למחוק את {{name}}? Murmur לא יוכל לתמלל עד שתבחר מודל אחר.",
       "cancel": "ביטול",
       "deleteModel": "מחק את {{name}}",
       "cancelDownload": "הפסק להוריד את {{name}}",
@@ -425,14 +427,14 @@
         "marks": "? עדיין לא נמדד. — לא שומע את השפה הזו."
       },
       "retiredNotice": {
-        "title": "מודלים ישנים כבר לא עובדים עם Handy",
+        "title": "מודלים ישנים כבר לא עובדים עם Murmur",
         "description": "הם תופסים {{size}} במחשב שלך.",
         "delete": "מחיקת מודלים",
         "deleteFailed": "לא ניתן היה למחוק חלק מהמודלים הישנים. פרטים נוספים ביומן."
       },
       "rescan": {
         "label": "סריקה מחדש",
-        "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-Handy"
+        "tooltip": "סריקה מחדש לאיתור מודלים שנוספו לתיקיית המודלים או למטמון של Hugging Face מחוץ ל-Murmur"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "הפעל עם עליית המערכת",
-        "description": "הפעל את Handy אוטומטית כשאתה מתחבר למחשב."
+        "description": "הפעל את Murmur אוטומטית כשאתה מתחבר למחשב."
       },
       "showTrayIcon": {
         "label": "הצג אייקון במגש",
-        "description": "הצג את האייקון של Handy במגש המערכת."
+        "description": "הצג את האייקון של Murmur במגש המערכת."
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "בדוק עדכונים",
-        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של Handy",
+        "description": "בדוק אוטומטית אם קיימות גרסאות חדשות של Murmur",
         "lockedDescription": "מושבת על ידי תצורת המערכת (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "אבחון מקלדת",
-        "description": "בודק אם אירועי מקלדת מגיעים ל-Handy. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
+        "description": "בודק אם אירועי מקלדת מגיעים ל-Murmur. נרשם רק מספר האירועים — לעולם לא אילו מקשים הקשת.",
         "run": "הרצת אבחון של 10 שניות",
         "running": "מאזין… הקש על קיצור המקשים שלך כמה פעמים (למשל Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,7 +879,7 @@
         "mouse": "עכבר",
         "verdictBlocked": "Secure Input חוסם אירועי מקשים — קיצורים הכוללים מקש רגיל לא יוכלו לפעול עד שהבעיה תיפתר.",
         "verdictSuspicious": "הגיעו אירועים של מקשי החלפה אך לא אירועי מקשים — משהו מדכא מקשים למרות ש-Secure Input מדווח כמושבת. אנא דווח על כך ב-GitHub.",
-        "verdictOk": "אירועי מקשים מגיעים ל-Handy כרגיל.",
+        "verdictOk": "אירועי מקשים מגיעים ל-Murmur כרגיל.",
         "verdictNoEvents": "לא נקלטו אירועים — האם הקשת על מקשים במהלך הבדיקה?",
         "failed": "האבחון נכשל: {{error}}"
       }
@@ -886,32 +888,32 @@
       "title": "אודות",
       "version": {
         "title": "גרסה",
-        "description": "הגרסה הנוכחית של Handy"
+        "description": "הגרסה הנוכחית של Murmur"
       },
       "whatsNewUpdates": {
         "label": "הצג מה חדש",
-        "description": "הצג הערות גרסה לאחר עדכוני Handy"
+        "description": "הצג הערות גרסה לאחר עדכוני Murmur"
       },
       "appDataDirectory": {
         "title": "תיקיית נתוני אפליקציה",
-        "description": "המיקום שבו Handy שומר את הנתונים שלו"
+        "description": "המיקום שבו Murmur שומר את הנתונים שלו"
       },
       "sourceCode": {
         "title": "קוד מקור",
         "description": "צפה בקוד המקור ותרום",
         "button": "צפה ב-GitHub"
       },
-      "supportDevelopment": {
-        "title": "תמיכה בפיתוח",
-        "description": "עזור לנו להמשיך לבנות את Handy",
-        "button": "תרומה"
-      },
       "acknowledgments": {
         "title": "תודות",
         "ggml": {
           "title": "ggml",
           "description": "הסקה מהירה לביצועים גבוהים עבור מודל זיהוי הדיבור Whisper של OpenAI",
-          "details": "Handy משתמש ב-ggml לתמלול מהיר ומקומי. תודה לעבודה המדהימה של Georgi Gerganov וכל התורמים."
+          "details": "Murmur משתמש ב-ggml לתמלול מהיר ומקומי. תודה לעבודה המדהימה של Georgi Gerganov וכל התורמים."
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "פתח את GitHub Releases"
   },
   "whatsNew": {
-    "title": "חדש ב-Handy v{{version}}"
+    "title": "חדש ב-Murmur v{{version}}"
   },
   "common": {
     "playbackPosition": "מיקום ההשמעה",
@@ -959,7 +961,7 @@
     "microphoneSilentTitle": "המיקרופון שקט",
     "microphoneSilent": "המיקרופון שלח רק שקט. ודאו שהוא לא מושתק, או בחרו מיקרופון אחר בהגדרות.",
     "recordingFailedTitle": "הפעלת ההקלטה נכשלה",
-    "modelLoadFailed": "Handy לא הצליח לטעון את המודל הזה. נסו שוב או בחרו מודל אחר.",
+    "modelLoadFailed": "Murmur לא הצליח לטעון את המודל הזה. נסו שוב או בחרו מודל אחר.",
     "modelLoadFailedTitle": "טעינת המודל נכשלה",
     "noModelSelected": "הורידו או בחרו מודל בהגדרות > מודלים.",
     "noModelSelectedTitle": "לא נבחר מודל",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "ההדבקה נכשלה",
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
     "pasteBlockedElevatedTitle": "לא ניתן להדביק ביישומי מנהל",
-    "pasteBlockedElevated": "היישום הפעיל רץ כמנהל מערכת, ולכן Handy לא יכול להדביק בו. אפשר להעתיק את התמלול מההיסטוריה.",
+    "pasteBlockedElevated": "היישום הפעיל רץ כמנהל מערכת, ולכן Murmur לא יכול להדביק בו. אפשר להעתיק את התמלול מההיסטוריה.",
     "postProcessFailedTitle": "הודבק ללא עיבוד משלים",
     "postProcessFailed": "העיבוד המשלים לא הסתיים, ולכן התמלול הודבק כפי שהוא.",
     "filePostProcessFailedTitle": "תומלל ללא עיבוד משלים",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "שפת האפליקציה",
-    "description": "שנה את שפת הממשק של Handy"
+    "description": "שנה את שפת הממשק של Murmur"
   },
   "theme": {
     "title": "ערכת נושא של האפליקציה",
-    "description": "בחר אם Handy יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
+    "description": "בחר אם Murmur יעקוב אחר ערכת הנושא של המערכת או יישאר בהיר או כהה",
     "options": {
       "system": "מערכת",
       "light": "בהיר",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "מתמלל...",
     "processing": "מעבד...",
-    "loadingModel": "טוען מודל..."
+    "loadingModel": "טוען מודל...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "ייתכן ש-{{name}} חוסם קיצור דרך אחד",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS חוסם זמנית {{count}} קיצורי דרך",
     "recorderBlockedWithCulprit": "ייתכן ש-{{name}} חוסם שינויים בקיצורי דרך",
     "recorderBlockedNoCulprit": "macOS חוסם זמנית שינויים בקיצורי דרך",
-    "learnMore": "איך לתקן את זה",
     "recorderBlocked": "לא ניתן להקליט קיצורים כרגע — Secure Input של macOS חוסם אירועי מקשים. פתור תחילה את אזהרת Secure Input.",
     "dismiss": "התעלם"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

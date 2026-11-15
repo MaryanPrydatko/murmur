@@ -863,6 +863,52 @@ async changeObsidianNotesFolderSetting(folder: string) : Promise<Result<null, st
 }
 },
 /**
+ * A meeting's recorded tracks, for playback.
+ */
+async meetingAudio(id: string) : Promise<Result<MeetingAudio[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_audio", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Every meeting's speaker keys.
+ */
+async listMeetingSpeakers() : Promise<Result<MeetingSpeakerKeys[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_meeting_speakers") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Meetings whose transcript contains `query`, with the first match in each.
+ */
+async searchMeetings(query: string) : Promise<Result<MeetingHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_meetings", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts a meeting, or stops the one recording; does nothing if it already is
+ * as asked.
+ */
+async setMeetingRecording(recording: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_meeting_recording", { recording });
+},
+/**
+ * Whether a meeting is recording right now.
+ */
+async isMeetingRecording() : Promise<boolean> {
+    return await TAURI_INVOKE("is_meeting_recording");
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1192,6 +1238,13 @@ async dismissNotice(source: NoticeSource, code: NoticeCode) : Promise<void> {
  */
 async dismissOverlayNotice() : Promise<void> {
     await TAURI_INVOKE("dismiss_overlay_notice");
+},
+/**
+ * Grows the island's panel before its meeting controls open, and shrinks it
+ * after they close.
+ */
+async setOverlayDropped(dropped: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_overlay_dropped", { dropped });
 }
 }
 
@@ -1495,6 +1548,18 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  */
 export type MacPermission = "accessibility" | "microphone"
 /**
+ * One of a meeting's recorded tracks and where its file is.
+ */
+export type MeetingAudio = { 
+/**
+ * `mic`, `system` or `mixed`.
+ */
+kind: string; path: string; 
+/**
+ * When the track's first sample was heard, from the meeting's start.
+ */
+start_offset_ms: number; duration_ms: number }
+/**
  * A meeting's folder or row changed: its status, tracks, title or
  * transcript.
  */
@@ -1504,6 +1569,10 @@ export type MeetingDetail = { meeting: MeetingRow; speakers: MeetingSpeaker[];
  * In order.
  */
 segments: MeetingSegment[] }
+/**
+ * The first line of a meeting's transcript that matches a search.
+ */
+export type MeetingHit = { meeting_id: string; t0_ms: number; text: string }
 /**
  * The loudest sample of each track since the last, 0 to 1, sent 30 times
  * a second while a meeting records.
@@ -1525,6 +1594,14 @@ key: string;
  * The name the user gave them.
  */
 label: string | null }
+/**
+ * The speakers of every meeting, for the dots in the list.
+ */
+export type MeetingSpeakerKeys = { meeting_id: string; 
+/**
+ * `me`, `them`, `s1`, ... in key order.
+ */
+keys: string[] }
 /**
  * What a meeting's transcription is doing.
  */

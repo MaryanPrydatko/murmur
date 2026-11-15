@@ -15,6 +15,8 @@
     "otherLanguages": "Altre lingue"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "Generale",
     "models": "Modelli",
     "advanced": "Avanzate",
@@ -27,7 +29,7 @@
     "customModelDescription": "Non ufficialmente supportato",
     "migration": {
       "title": "I tuoi modelli devono essere aggiornati",
-      "description": "Handy ora usa un nuovo tipo di modello. Scarica la nuova versione per continuare a trascrivere. Le versioni precedenti verranno rimosse.",
+      "description": "Murmur ora usa un nuovo tipo di modello. Scarica la nuova versione per continuare a trascrivere. Le versioni precedenti verranno rimosse.",
       "replaces": "Sostituisce {{name}}",
       "oldFormat": "Formato precedente",
       "failed": "Download non riuscito",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "Microfono",
-        "why": "Così Handy può sentirti. L'audio viene trasformato in testo su questo computer e non viene mai caricato online."
+        "why": "Così Murmur può sentirti. L'audio viene trasformato in testo su questo computer e non viene mai caricato online."
       },
       "accessibility": {
         "name": "Accessibilità",
-        "why": "Così la tua scorciatoia funziona in ogni app e Handy può scrivere il testo dove si trova il cursore."
+        "why": "Così la tua scorciatoia funziona in ogni app e Murmur può scrivere il testo dove si trova il cursore."
       },
       "errors": {
         "checkFailed": "Impossibile verificare i permessi. Riprova.",
@@ -82,12 +84,12 @@
       "openSettings": "Apri le impostazioni",
       "allowed": "Consentito",
       "waiting": "In attesa",
-      "turnOnMac": "Attiva Handy in Impostazioni di Sistema, poi torna qui.",
+      "turnOnMac": "Attiva Murmur in Impostazioni di Sistema, poi torna qui.",
       "turnOnWindows": "Attiva l'accesso al microfono in Impostazioni di Windows, poi torna qui.",
       "hintBoth": "Consenti entrambi per continuare",
       "hintMicrophone": "Consenti il microfono per continuare",
       "welcomeBack": "Bentornato. Riprendiamo da dove eri rimasto.",
-      "relaunch": "La scorciatoia non risponde dopo questo passaggio? <relaunch>Riavvia Handy</relaunch> e tornerai subito qui."
+      "relaunch": "La scorciatoia non risponde dopo questo passaggio? <relaunch>Riavvia Murmur</relaunch> e tornerai subito qui."
     },
     "shell": {
       "back": "Indietro",
@@ -98,11 +100,11 @@
       "title": "Parla invece di scrivere, in qualsiasi app",
       "subtitle": "Scegli le lingue in cui detterai",
       "languagesLabel": "Lingue",
-      "noMatch": "Nessuna lingua corrisponde a «{{query}}». I modelli di Handy coprono circa 100 lingue; altre sono nelle impostazioni.",
+      "noMatch": "Nessuna lingua corrisponde a «{{query}}». I modelli di Murmur coprono circa 100 lingue; altre sono nelle impostazioni.",
       "appLanguage": "Lingua dell'app",
       "menusIn": "Menu in <b>{{language}}</b>",
       "chinese": {
-        "question": "Parli {{languages}}. Quali caratteri deve scrivere Handy?",
+        "question": "Parli {{languages}}. Quali caratteri deve scrivere Murmur?",
         "label": "Caratteri cinesi",
         "zh-Hans": "Semplificato",
         "zh-Hant": "Taiwan",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "Provaci!",
-      "subtitle": "Handy è nell'angolo per guidarti passo passo",
+      "subtitle": "Murmur è nell'angolo per guidarti passo passo",
       "noteLabel": "Nota",
       "placeholder": "Nuova nota",
       "hold": "Tieni premuto <keys/> e parla.",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "È tutto pronto",
-      "subMac": "Handy ora è nella barra dei menu. Tieni premuto o tocca <keys/> in qualsiasi app per parlare.",
-      "subTray": "Handy ora è nell'area di notifica. Tieni premuto o tocca <keys/> in qualsiasi app per parlare.",
+      "subMac": "Murmur ora è nella barra dei menu. Tieni premuto o tocca <keys/> in qualsiasi app per parlare.",
+      "subTray": "Murmur ora è nell'area di notifica. Tieni premuto o tocca <keys/> in qualsiasi app per parlare.",
       "hint": "Puoi cambiare queste scelte più tardi nelle Impostazioni",
       "highFiveLabel": "Batti il cinque",
-      "atLogin": "Avvia Handy quando accedo",
+      "atLogin": "Avvia Murmur quando accedo",
       "finish": "Fatto",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "Pronto",
         "languages": "Lingue",
         "model": "Modello vocale",
@@ -332,7 +334,7 @@
     "general": {
       "title": "Generale",
       "shortcut": {
-        "title": "Scorciatoie di Handy",
+        "title": "Scorciatoie di Murmur",
         "description": "Configura le scorciatoie per attivare la trascrizione vocale",
         "loading": "Caricamento delle scorciatoie...",
         "none": "Nessuna scorciatoia configurata",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "Lingue preferite",
-        "description": "Le lingue che parli. Handy le usa per consigliare i modelli.",
+        "description": "Le lingue che parli. Murmur le usa per consigliare i modelli.",
         "noMatch": "Nessuna lingua corrisponde a «{{query}}»",
         "weak": "Nessun modello riconosce ancora bene {{languages}}."
       },
@@ -401,17 +403,17 @@
         "fits": "Per le tue lingue",
         "untested": "Non testati"
       },
-      "untestedNote": "Non testati con Handy. Potrebbero essere più lenti o commettere più errori.",
+      "untestedNote": "Non testati con Murmur. Potrebbero essere più lenti o commettere più errori.",
       "untestedHidden_one": "Un altro modello ({{count}}) non è ottimizzato per la dettatura. Cercalo per trovarlo.",
       "untestedHidden_other": "Altri {{count}} modelli non sono ottimizzati per la dettatura. Cerca per trovarne uno.",
-      "emptyYours": "Ancora nessun modello. Scegline uno qui sotto: si scarica e poi Handy lo usa.",
+      "emptyYours": "Ancora nessun modello. Scegline uno qui sotto: si scarica e poi Murmur lo usa.",
       "showMore": "Mostra altri {{count}}",
       "showFewer": "Mostra meno",
       "download": "Scarica e usa",
       "downloadingThenUse": "{{percent}}% di {{total}}, poi passa al modello",
       "loading": "Caricamento…",
       "deleteAsk": "Eliminare {{name}}? Libera {{size}}.",
-      "deleteAskActive": "Eliminare {{name}}? Handy non potrà trascrivere finché non ne scegli un altro.",
+      "deleteAskActive": "Eliminare {{name}}? Murmur non potrà trascrivere finché non ne scegli un altro.",
       "cancel": "Annulla",
       "deleteModel": "Elimina {{name}}",
       "cancelDownload": "Interrompi il download di {{name}}",
@@ -425,14 +427,14 @@
         "marks": "? non è ancora stato misurato. — non riconosce quella lingua."
       },
       "retiredNotice": {
-        "title": "I modelli precedenti non funzionano più con Handy",
+        "title": "I modelli precedenti non funzionano più con Murmur",
         "description": "Occupano {{size}} sul tuo computer.",
         "delete": "Elimina modelli",
         "deleteFailed": "Non è stato possibile eliminare alcuni modelli precedenti. Controlla il log per i dettagli."
       },
       "rescan": {
         "label": "Riscansiona",
-        "tooltip": "Riscansiona per trovare modelli aggiunti alla cartella dei modelli o alla cache di Hugging Face al di fuori di Handy"
+        "tooltip": "Riscansiona per trovare modelli aggiunti alla cartella dei modelli o alla cache di Hugging Face al di fuori di Murmur"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "Avvia all'Accensione",
-        "description": "Avvia Handy automaticamente quando accedi al computer."
+        "description": "Avvia Murmur automaticamente quando accedi al computer."
       },
       "showTrayIcon": {
         "label": "Mostra icona nella barra di sistema",
-        "description": "Mostra l'icona di Handy nella barra di sistema."
+        "description": "Mostra l'icona di Murmur nella barra di sistema."
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "Controlla aggiornamenti",
-        "description": "Controlla automaticamente la disponibilità di nuove versioni di Handy",
+        "description": "Controlla automaticamente la disponibilità di nuove versioni di Murmur",
         "lockedDescription": "Disabilitato dalla configurazione di sistema (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Diagnostica tastiera",
-        "description": "Verifica se gli eventi della tastiera arrivano a Handy. Viene registrato solo il numero di eventi, mai quali tasti premi.",
+        "description": "Verifica se gli eventi della tastiera arrivano a Murmur. Viene registrato solo il numero di eventi, mai quali tasti premi.",
         "run": "Esegui diagnostica di 10 s",
         "running": "In ascolto… premi la tua scorciatoia alcune volte (ad es. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,7 +879,7 @@
         "mouse": "Mouse",
         "verdictBlocked": "Secure Input sta bloccando gli eventi dei tasti: le scorciatoie che includono un tasto normale non possono funzionare finché non viene risolto.",
         "verdictSuspicious": "Sono arrivati eventi dei modificatori ma nessun evento dei tasti: qualcosa sta sopprimendo i tasti anche se Secure Input risulta disabilitato. Segnalalo su GitHub.",
-        "verdictOk": "Gli eventi dei tasti arrivano a Handy normalmente.",
+        "verdictOk": "Gli eventi dei tasti arrivano a Murmur normalmente.",
         "verdictNoEvents": "Nessun evento rilevato: hai premuto qualche tasto durante il test?",
         "failed": "Diagnostica non riuscita: {{error}}"
       }
@@ -886,32 +888,32 @@
       "title": "Informazioni",
       "version": {
         "title": "Versione",
-        "description": "Versione attuale di Handy"
+        "description": "Versione attuale di Murmur"
       },
       "whatsNewUpdates": {
         "label": "Mostra novità",
-        "description": "Mostra le note di rilascio dopo gli aggiornamenti di Handy"
+        "description": "Mostra le note di rilascio dopo gli aggiornamenti di Murmur"
       },
       "appDataDirectory": {
         "title": "Cartella Dati App",
-        "description": "Cartella in cui Handy salva i dati"
+        "description": "Cartella in cui Murmur salva i dati"
       },
       "sourceCode": {
         "title": "Codice Sorgente",
         "description": "Vedi e contribuisci al codice sorgente",
         "button": "Vedi su GitHub"
       },
-      "supportDevelopment": {
-        "title": "Supporta lo Sviluppo",
-        "description": "Aiutaci a sviluppare Handy",
-        "button": "Dona"
-      },
       "acknowledgments": {
         "title": "Ringraziamenti",
         "ggml": {
           "title": "ggml",
           "description": "Inferenza ad alte prestazioni del modello di riconoscimento vocale automatico Whisper di OpenAI",
-          "details": "Handy usa ggml per il riconoscimento vocale veloce in locale. Grazie a Georgi Gerganov e collaboratori per il fantastico lavoro."
+          "details": "Murmur usa ggml per il riconoscimento vocale veloce in locale. Grazie a Georgi Gerganov e collaboratori per il fantastico lavoro."
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "Apri i rilasci su GitHub"
   },
   "whatsNew": {
-    "title": "Novità in Handy v{{version}}"
+    "title": "Novità in Murmur v{{version}}"
   },
   "common": {
     "playbackPosition": "Posizione di riproduzione",
@@ -959,7 +961,7 @@
     "microphoneSilentTitle": "Il microfono è muto",
     "microphoneSilent": "Il microfono ha inviato solo silenzio. Verifica che non sia disattivato o scegli un altro microfono in Impostazioni.",
     "recordingFailedTitle": "Impossibile avviare la registrazione",
-    "modelLoadFailed": "Handy non è riuscito a caricare questo modello. Riprova o scegline un altro.",
+    "modelLoadFailed": "Murmur non è riuscito a caricare questo modello. Riprova o scegline un altro.",
     "modelLoadFailedTitle": "Impossibile caricare il modello",
     "noModelSelected": "Scarica o scegli un modello in Impostazioni > Modelli.",
     "noModelSelectedTitle": "Nessun modello selezionato",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "Impossibile incollare il testo",
     "pasteFailed": "Non è stato possibile incollare il testo nell'applicazione attiva.",
     "pasteBlockedElevatedTitle": "Impossibile incollare in app admin",
-    "pasteBlockedElevated": "L'applicazione attiva è in esecuzione come amministratore, quindi Handy non può incollarvi il testo. Puoi copiare la trascrizione da Cronologia.",
+    "pasteBlockedElevated": "L'applicazione attiva è in esecuzione come amministratore, quindi Murmur non può incollarvi il testo. Puoi copiare la trascrizione da Cronologia.",
     "postProcessFailedTitle": "Incollato senza post-elaborazione",
     "postProcessFailed": "La post-elaborazione non è terminata, quindi la trascrizione è stata incollata così com'è.",
     "filePostProcessFailedTitle": "Trascritto senza post-elaborazione",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "Lingua Applicazione",
-    "description": "Cambia la lingua dell'interfaccia di Handy"
+    "description": "Cambia la lingua dell'interfaccia di Murmur"
   },
   "theme": {
     "title": "Tema dell'applicazione",
-    "description": "Scegli se Handy segue il tema di sistema o resta chiaro o scuro",
+    "description": "Scegli se Murmur segue il tema di sistema o resta chiaro o scuro",
     "options": {
       "system": "Sistema",
       "light": "Chiaro",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "Trascrizione...",
     "processing": "Elaborazione...",
-    "loadingModel": "Caricamento del modello..."
+    "loadingModel": "Caricamento del modello...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} potrebbe bloccare 1 scorciatoia",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS sta bloccando temporaneamente {{count}} scorciatoie",
     "recorderBlockedWithCulprit": "{{name}} potrebbe bloccare le modifiche alle scorciatoie",
     "recorderBlockedNoCulprit": "macOS sta bloccando temporaneamente le modifiche alle scorciatoie",
-    "learnMore": "Come risolvere",
     "recorderBlocked": "Non è possibile registrare scorciatoie in questo momento: Secure Input di macOS sta bloccando gli eventi dei tasti. Risolvi prima l'avviso di Secure Input.",
     "dismiss": "Ignora"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

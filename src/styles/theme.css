@@ -123,8 +123,24 @@
     var(--dark-color-background)
   );
 
+  /* Meeting speakers. Me is the brand pink; the others are staggered in
+     lightness as well as hue so they stay apart for colour-blind readers.
+     Every one passes 4.5:1 as text on its background. */
+  --light-speaker-me: #c23a7c;
+  --light-speaker-1: #2b72c6;
+  --light-speaker-2: #8a5d10;
+  --light-speaker-3: #06492a;
+  --light-speaker-4: #631ba6;
+  --dark-speaker-me: #f28cbb;
+  --dark-speaker-1: #a6cbff;
+  --dark-speaker-2: #c4a062;
+  --dark-speaker-3: #5fe89a;
+  --dark-speaker-4: #9a8ffc;
+
   /* Tokens that do not change between light and dark */
   --color-background-ui: #da5893;
+  /* A meeting is recording; the same red as the overlay. */
+  --color-rec: #ff5247;
   --color-mid-gray: #808080;
 
   /* Active palette — defaults to light, follows the OS via the media query
@@ -148,6 +164,11 @@
   --color-moss-wash: var(--light-color-moss-wash);
   --color-warning-wash: var(--light-color-warning-wash);
   --color-error-wash: var(--light-color-error-wash);
+  --speaker-me: var(--light-speaker-me);
+  --speaker-1: var(--light-speaker-1);
+  --speaker-2: var(--light-speaker-2);
+  --speaker-3: var(--light-speaker-3);
+  --speaker-4: var(--light-speaker-4);
 
   /* Grey steps: secondary text, hints/icons, control edges, dividers, hover fill. */
   --color-ink-2: color-mix(in srgb, var(--color-text) 60%, transparent);
@@ -186,6 +207,11 @@
     --color-moss-wash: var(--dark-color-moss-wash);
     --color-warning-wash: var(--dark-color-warning-wash);
     --color-error-wash: var(--dark-color-error-wash);
+    --speaker-me: var(--dark-speaker-me);
+    --speaker-1: var(--dark-speaker-1);
+    --speaker-2: var(--dark-speaker-2);
+    --speaker-3: var(--dark-speaker-3);
+    --speaker-4: var(--dark-speaker-4);
   }
 }
 
@@ -219,6 +245,11 @@
   --color-moss-wash: var(--light-color-moss-wash);
   --color-warning-wash: var(--light-color-warning-wash);
   --color-error-wash: var(--light-color-error-wash);
+  --speaker-me: var(--light-speaker-me);
+  --speaker-1: var(--light-speaker-1);
+  --speaker-2: var(--light-speaker-2);
+  --speaker-3: var(--light-speaker-3);
+  --speaker-4: var(--light-speaker-4);
 }
 
 :root[data-theme="dark"] {
@@ -241,4 +272,9 @@
   --color-moss-wash: var(--dark-color-moss-wash);
   --color-warning-wash: var(--dark-color-warning-wash);
   --color-error-wash: var(--dark-color-error-wash);
+  --speaker-me: var(--dark-speaker-me);
+  --speaker-1: var(--dark-speaker-1);
+  --speaker-2: var(--dark-speaker-2);
+  --speaker-3: var(--dark-speaker-3);
+  --speaker-4: var(--dark-speaker-4);
 }

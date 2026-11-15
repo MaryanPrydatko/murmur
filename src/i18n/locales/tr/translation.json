@@ -15,6 +15,8 @@
     "otherLanguages": "Diğer Diller"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "Genel",
     "models": "Modeller",
     "advanced": "Gelişmiş",
@@ -27,7 +29,7 @@
     "customModelDescription": "Resmi olarak desteklenmiyor",
     "migration": {
       "title": "Modellerinizin güncellenmesi gerekiyor",
-      "description": "Handy artık daha yeni bir model türü kullanıyor. Transkripsiyona devam etmek için yeni sürümü indirin. Eski sürümler kaldırılacak.",
+      "description": "Murmur artık daha yeni bir model türü kullanıyor. Transkripsiyona devam etmek için yeni sürümü indirin. Eski sürümler kaldırılacak.",
       "replaces": "{{name}} yerine geçer",
       "oldFormat": "Eski format",
       "failed": "İndirme başarısız oldu",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "Mikrofon",
-        "why": "Handy sizi duyabilsin diye. Ses bu bilgisayarda metne dönüştürülür, hiçbir yere yüklenmez."
+        "why": "Murmur sizi duyabilsin diye. Ses bu bilgisayarda metne dönüştürülür, hiçbir yere yüklenmez."
       },
       "accessibility": {
         "name": "Erişilebilirlik",
-        "why": "Kısayolunuz her uygulamada çalışsın ve Handy metni imlecinizin bulunduğu yere yazabilsin diye."
+        "why": "Kısayolunuz her uygulamada çalışsın ve Murmur metni imlecinizin bulunduğu yere yazabilsin diye."
       },
       "errors": {
         "checkFailed": "İzinler kontrol edilemedi. Lütfen tekrar deneyin.",
@@ -82,12 +84,12 @@
       "openSettings": "Ayarları aç",
       "allowed": "İzin verildi",
       "waiting": "Bekleniyor",
-      "turnOnMac": "Sistem Ayarları'nda Handy'yi açın, sonra buraya dönün.",
+      "turnOnMac": "Sistem Ayarları'nda Murmur'yi açın, sonra buraya dönün.",
       "turnOnWindows": "Windows Ayarları'nda mikrofon erişimini açın, sonra buraya dönün.",
       "hintBoth": "Devam etmek için ikisine de izin verin",
       "hintMicrophone": "Devam etmek için mikrofona izin verin",
       "welcomeBack": "Tekrar hoş geldiniz. Kaldığınız yerden devam ediyoruz.",
-      "relaunch": "Bundan sonra kısayol yanıt vermiyor mu? <relaunch>Handy'yi yeniden başlatın</relaunch>, doğrudan buraya döneceksiniz."
+      "relaunch": "Bundan sonra kısayol yanıt vermiyor mu? <relaunch>Murmur'yi yeniden başlatın</relaunch>, doğrudan buraya döneceksiniz."
     },
     "shell": {
       "back": "Geri",
@@ -98,11 +100,11 @@
       "title": "Yazmak yerine konuşun, her uygulamada",
       "subtitle": "Konuşacağınız dilleri seçin",
       "languagesLabel": "Diller",
-      "noMatch": "“{{query}}” ile eşleşen dil yok. Handy'nin modelleri yaklaşık 100 dili kapsıyor; daha fazlası ayarlarda.",
+      "noMatch": "“{{query}}” ile eşleşen dil yok. Murmur'nin modelleri yaklaşık 100 dili kapsıyor; daha fazlası ayarlarda.",
       "appLanguage": "Uygulama dili",
       "menusIn": "Menüler <b>{{language}}</b> dilinde",
       "chinese": {
-        "question": "{{languages}} konuşuyorsunuz. Handy hangi karakterleri yazsın?",
+        "question": "{{languages}} konuşuyorsunuz. Murmur hangi karakterleri yazsın?",
         "label": "Çince karakterler",
         "zh-Hans": "Basitleştirilmiş",
         "zh-Hant": "Tayvan",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "Bir deneyin!",
-      "subtitle": "Handy köşede, size yol göstermek için hazır",
+      "subtitle": "Murmur köşede, size yol göstermek için hazır",
       "noteLabel": "Not",
       "placeholder": "Yeni not",
       "hold": "<keys/> tuşlarını basılı tutun ve konuşun.",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "Hazırsınız",
-      "subMac": "Handy artık menü çubuğunuzda. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
-      "subTray": "Handy artık sistem tepsinizde. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
+      "subMac": "Murmur artık menü çubuğunuzda. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
+      "subTray": "Murmur artık sistem tepsinizde. Konuşmak için herhangi bir uygulamada <keys/> tuşlarını basılı tutun veya dokunun.",
       "hint": "Bunları daha sonra Ayarlar'dan değiştirebilirsiniz",
       "highFiveLabel": "Çak bir beşlik",
-      "atLogin": "Oturum açtığımda Handy'yi başlat",
+      "atLogin": "Oturum açtığımda Murmur'yi başlat",
       "finish": "Bitti",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "Hazır",
         "languages": "Diller",
         "model": "Konuşma modeli",
@@ -332,7 +334,7 @@
     "general": {
       "title": "Genel",
       "shortcut": {
-        "title": "Handy Kısayolları",
+        "title": "Murmur Kısayolları",
         "description": "Sesle yazma kaydını başlatmak için klavye kısayollarını yapılandırın",
         "loading": "Kısayollar yükleniyor...",
         "none": "Kısayol yapılandırılmadı",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "Tercih Edilen Diller",
-        "description": "Konuştuğunuz diller. Handy bunları model önermek için kullanır.",
+        "description": "Konuştuğunuz diller. Murmur bunları model önermek için kullanır.",
         "noMatch": "“{{query}}” ile eşleşen dil yok",
         "weak": "Henüz hiçbir model {{languages}} dilini iyi tanımıyor."
       },
@@ -401,17 +403,17 @@
         "fits": "Dilleriniz için",
         "untested": "Test edilmemiş"
       },
-      "untestedNote": "Handy ile test edilmedi. Daha yavaş olabilir veya daha fazla hata yapabilir.",
+      "untestedNote": "Murmur ile test edilmedi. Daha yavaş olabilir veya daha fazla hata yapabilir.",
       "untestedHidden_one": "{{count}} model daha yazdırma için ayarlanmamış. Bulmak için arama yapın.",
       "untestedHidden_other": "{{count}} model daha yazdırma için ayarlanmamış. Bulmak için arama yapın.",
-      "emptyYours": "Henüz model yok. Aşağıdan birini seçin: iner, sonra Handy onu kullanır.",
+      "emptyYours": "Henüz model yok. Aşağıdan birini seçin: iner, sonra Murmur onu kullanır.",
       "showMore": "{{count}} tane daha göster",
       "showFewer": "Daha az göster",
       "download": "İndir ve kullan",
       "downloadingThenUse": "{{total}} içinden %{{percent}}, sonra geçilir",
       "loading": "Yükleniyor…",
       "deleteAsk": "{{name}} silinsin mi? {{size}} yer açılır.",
-      "deleteAskActive": "{{name}} silinsin mi? Başka bir model seçene kadar Handy transkripsiyon yapamaz.",
+      "deleteAskActive": "{{name}} silinsin mi? Başka bir model seçene kadar Murmur transkripsiyon yapamaz.",
       "cancel": "İptal",
       "deleteModel": "{{name}} modelini sil",
       "cancelDownload": "{{name}} indirmesini durdur",
@@ -425,14 +427,14 @@
         "marks": "? henüz ölçülmedi. — o dili duymaz."
       },
       "retiredNotice": {
-        "title": "Eski modeller artık Handy ile çalışmıyor",
+        "title": "Eski modeller artık Murmur ile çalışmıyor",
         "description": "Bilgisayarınızda {{size}} yer kaplıyorlar.",
         "delete": "Modelleri sil",
         "deleteFailed": "Bazı eski modeller silinemedi. Ayrıntılar için günlüğe bakın."
       },
       "rescan": {
         "label": "Yeniden Tara",
-        "tooltip": "Handy dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
+        "tooltip": "Murmur dışında modeller klasörüne veya Hugging Face önbelleğine eklenen modelleri yeniden tara"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "Başlangıçta Çalıştır",
-        "description": "Bilgisayara giriş yaptığınızda Handy otomatik olarak başlatılır."
+        "description": "Bilgisayara giriş yaptığınızda Murmur otomatik olarak başlatılır."
       },
       "showTrayIcon": {
         "label": "Tepsi Simgesini Göster",
-        "description": "Handy simgesini sistem tepsisinde göster."
+        "description": "Murmur simgesini sistem tepsisinde göster."
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "Güncellemeleri Kontrol Et",
-        "description": "Handy için yeni sürümleri otomatik olarak kontrol eder",
+        "description": "Murmur için yeni sürümleri otomatik olarak kontrol eder",
         "lockedDescription": "Sistem yapılandırması tarafından devre dışı bırakıldı (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Klavye Tanılaması",
-        "description": "Klavye olaylarının Handy'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
+        "description": "Klavye olaylarının Murmur'ye ulaşıp ulaşmadığını denetler. Yalnızca olay sayıları kaydedilir — hangi tuşlara bastığınız asla kaydedilmez.",
         "run": "10 sn'lik tanılamayı çalıştır",
         "running": "Dinleniyor… kısayolunuza birkaç kez basın (ör. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,7 +879,7 @@
         "mouse": "Fare",
         "verdictBlocked": "Secure Input tuş olaylarını engelliyor — normal tuş içeren kısayollar bu sorun çözülene kadar çalışamaz.",
         "verdictSuspicious": "Değiştirici olayları geldi ancak hiç tuş olayı gelmedi — Secure Input devre dışı görünmesine rağmen bir şey tuşları bastırıyor. Lütfen bunu GitHub'da bildirin.",
-        "verdictOk": "Tuş olayları Handy'ye normal şekilde ulaşıyor.",
+        "verdictOk": "Tuş olayları Murmur'ye normal şekilde ulaşıyor.",
         "verdictNoEvents": "Hiç olay yakalanmadı — test sırasında herhangi bir tuşa bastınız mı?",
         "failed": "Tanılama başarısız: {{error}}"
       }
@@ -886,32 +888,32 @@
       "title": "Hakkında",
       "version": {
         "title": "Sürüm",
-        "description": "Handy'nin mevcut sürümü"
+        "description": "Murmur'nin mevcut sürümü"
       },
       "whatsNewUpdates": {
         "label": "Yenilikleri Göster",
-        "description": "Handy güncellemelerinden sonra sürüm notlarını göster"
+        "description": "Murmur güncellemelerinden sonra sürüm notlarını göster"
       },
       "appDataDirectory": {
         "title": "Uygulama Veri Dizini",
-        "description": "Handy'nin verilerini sakladığı konum"
+        "description": "Murmur'nin verilerini sakladığı konum"
       },
       "sourceCode": {
         "title": "Kaynak Kodu",
         "description": "Kaynak kodunu görüntüle ve katkıda bulun",
         "button": "GitHub'da Görüntüle"
       },
-      "supportDevelopment": {
-        "title": "Geliştirmeyi Destekle",
-        "description": "Handy'yi geliştirmeye devam etmemize yardımcı olun",
-        "button": "Bağış Yap"
-      },
       "acknowledgments": {
         "title": "Teşekkürler",
         "ggml": {
           "title": "ggml",
           "description": "Cihaz üzerinde makine öğrenmesi çıkarımı için yüksek performanslı tensör kütüphanesi",
-          "details": "Handy'nin yerel konuşmadan metne dönüştürme özelliği transcribe.cpp ve ggml üzerine kuruludur. Georgi Gerganov'a ve katkıda bulunanlara harika çalışmaları için teşekkür ederiz."
+          "details": "Murmur'nin yerel konuşmadan metne dönüştürme özelliği transcribe.cpp ve ggml üzerine kuruludur. Georgi Gerganov'a ve katkıda bulunanlara harika çalışmaları için teşekkür ederiz."
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "GitHub Releases’i aç"
   },
   "whatsNew": {
-    "title": "Handy v{{version}} yenilikleri"
+    "title": "Murmur v{{version}} yenilikleri"
   },
   "common": {
     "playbackPosition": "Oynatma konumu",
@@ -959,7 +961,7 @@
     "microphoneSilentTitle": "Mikrofon sessiz",
     "microphoneSilent": "Mikrofonunuz yalnızca sessizlik gönderdi. Sesinin kapalı olmadığını kontrol edin veya Ayarlar'dan başka bir mikrofon seçin.",
     "recordingFailedTitle": "Kayıt başlatılamadı",
-    "modelLoadFailed": "Handy bu modeli yükleyemedi. Yeniden deneyin veya başka bir model seçin.",
+    "modelLoadFailed": "Murmur bu modeli yükleyemedi. Yeniden deneyin veya başka bir model seçin.",
     "modelLoadFailedTitle": "Model yüklenemedi",
     "noModelSelected": "Ayarlar > Modeller bölümünden bir model indirin veya seçin.",
     "noModelSelectedTitle": "Model seçilmedi",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "Metin yapıştırılamadı",
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
     "pasteBlockedElevatedTitle": "Yapıştırma engellendi",
-    "pasteBlockedElevated": "Etkin uygulama yönetici olarak çalışıyor, bu yüzden Handy içine yapıştıramıyor. Metni Geçmiş'ten kopyalayabilirsiniz.",
+    "pasteBlockedElevated": "Etkin uygulama yönetici olarak çalışıyor, bu yüzden Murmur içine yapıştıramıyor. Metni Geçmiş'ten kopyalayabilirsiniz.",
     "postProcessFailedTitle": "Son işlem olmadan yapıştırıldı",
     "postProcessFailed": "Son işlem tamamlanmadı, bu yüzden metin olduğu gibi yapıştırıldı.",
     "filePostProcessFailedTitle": "Son işlem olmadan yazıya döküldü",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "Uygulama Dili",
-    "description": "Handy arayüzünün dilini değiştirin"
+    "description": "Murmur arayüzünün dilini değiştirin"
   },
   "theme": {
     "title": "Uygulama Teması",
-    "description": "Handy'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
+    "description": "Murmur'nin sistem temasını izlemesini ya da açık veya koyu kalmasını seçin",
     "options": {
       "system": "Sistem",
       "light": "Açık",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "Transkribe ediliyor...",
     "processing": "İşleniyor...",
-    "loadingModel": "Model yükleniyor..."
+    "loadingModel": "Model yükleniyor...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} 1 kısayolu engelliyor olabilir",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS geçici olarak {{count}} kısayolu engelliyor",
     "recorderBlockedWithCulprit": "{{name}} kısayol değişikliklerini engelliyor olabilir",
     "recorderBlockedNoCulprit": "macOS geçici olarak kısayol değişikliklerini engelliyor",
-    "learnMore": "Bu nasıl düzeltilir",
     "recorderBlocked": "Şu anda kısayol kaydedilemiyor — macOS Secure Input tuş olaylarını engelliyor. Önce Secure Input uyarısını giderin.",
     "dismiss": "Kapat"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

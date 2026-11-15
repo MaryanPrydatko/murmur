@@ -15,6 +15,8 @@
     "otherLanguages": "Bahasa Lain"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "Umum",
     "models": "Model",
     "advanced": "Lanjutan",
@@ -27,7 +29,7 @@
     "customModelDescription": "Tidak didukung secara resmi",
     "migration": {
       "title": "Model Anda perlu diperbarui",
-      "description": "Handy kini menggunakan jenis model yang lebih baru. Unduh versi baru untuk terus mentranskripsi. Versi lama akan dihapus.",
+      "description": "Murmur kini menggunakan jenis model yang lebih baru. Unduh versi baru untuk terus mentranskripsi. Versi lama akan dihapus.",
       "replaces": "Menggantikan {{name}}",
       "oldFormat": "Format lama",
       "failed": "Unduhan gagal",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "Mikrofon",
-        "why": "Agar Handy dapat mendengar Anda. Audio diubah menjadi teks di komputer ini dan tidak pernah diunggah."
+        "why": "Agar Murmur dapat mendengar Anda. Audio diubah menjadi teks di komputer ini dan tidak pernah diunggah."
       },
       "accessibility": {
         "name": "Aksesibilitas",
-        "why": "Agar pintasan Anda berfungsi di semua aplikasi, dan Handy dapat mengetik teks di tempat kursor Anda berada."
+        "why": "Agar pintasan Anda berfungsi di semua aplikasi, dan Murmur dapat mengetik teks di tempat kursor Anda berada."
       },
       "errors": {
         "checkFailed": "Gagal memeriksa izin. Silakan coba lagi.",
@@ -82,12 +84,12 @@
       "openSettings": "Buka pengaturan",
       "allowed": "Diizinkan",
       "waiting": "Menunggu",
-      "turnOnMac": "Aktifkan Handy di Pengaturan Sistem, lalu kembali ke sini.",
+      "turnOnMac": "Aktifkan Murmur di Pengaturan Sistem, lalu kembali ke sini.",
       "turnOnWindows": "Aktifkan akses mikrofon di Setelan Windows, lalu kembali ke sini.",
       "hintBoth": "Izinkan keduanya untuk melanjutkan",
       "hintMicrophone": "Izinkan mikrofon untuk melanjutkan",
       "welcomeBack": "Selamat datang kembali. Kita lanjutkan dari tadi.",
-      "relaunch": "Pintasan tidak merespons setelah ini? <relaunch>Luncurkan ulang Handy</relaunch> dan Anda akan kembali tepat ke sini."
+      "relaunch": "Pintasan tidak merespons setelah ini? <relaunch>Luncurkan ulang Murmur</relaunch> dan Anda akan kembali tepat ke sini."
     },
     "shell": {
       "back": "Kembali",
@@ -98,11 +100,11 @@
       "title": "Bicara, bukan mengetik, di aplikasi apa pun",
       "subtitle": "Pilih bahasa yang akan Anda gunakan untuk mendikte",
       "languagesLabel": "Bahasa",
-      "noMatch": "Tidak ada bahasa yang cocok dengan “{{query}}”. Model Handy mencakup sekitar 100 bahasa; sisanya ada di pengaturan.",
+      "noMatch": "Tidak ada bahasa yang cocok dengan “{{query}}”. Model Murmur mencakup sekitar 100 bahasa; sisanya ada di pengaturan.",
       "appLanguage": "Bahasa aplikasi",
       "menusIn": "Menu dalam <b>{{language}}</b>",
       "chinese": {
-        "question": "Anda berbicara {{languages}}. Aksara mana yang harus ditulis Handy?",
+        "question": "Anda berbicara {{languages}}. Aksara mana yang harus ditulis Murmur?",
         "label": "Aksara Mandarin",
         "zh-Hans": "Sederhana",
         "zh-Hant": "Taiwan",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "Coba sekarang!",
-      "subtitle": "Handy ada di pojok untuk memandu Anda",
+      "subtitle": "Murmur ada di pojok untuk memandu Anda",
       "noteLabel": "Catatan",
       "placeholder": "Catatan baru",
       "hold": "Tahan <keys/> dan bicara.",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "Semua siap",
-      "subMac": "Handy kini ada di bilah menu Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
-      "subTray": "Handy kini ada di baki sistem Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
+      "subMac": "Murmur kini ada di bilah menu Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
+      "subTray": "Murmur kini ada di baki sistem Anda. Tahan atau ketuk <keys/> di aplikasi apa pun untuk bicara.",
       "hint": "Anda dapat mengubahnya nanti di Pengaturan",
       "highFiveLabel": "Tos",
-      "atLogin": "Jalankan Handy saat saya masuk",
+      "atLogin": "Jalankan Murmur saat saya masuk",
       "finish": "Selesai",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "Siap",
         "languages": "Bahasa",
         "model": "Model ucapan",
@@ -332,7 +334,7 @@
     "general": {
       "title": "Umum",
       "shortcut": {
-        "title": "Pintasan Handy",
+        "title": "Pintasan Murmur",
         "description": "Atur pintasan keyboard untuk memulai perekaman ucapan-ke-teks",
         "loading": "Memuat pintasan...",
         "none": "Belum ada pintasan yang diatur",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "Bahasa Pilihan",
-        "description": "Bahasa yang Anda gunakan. Handy memakainya untuk merekomendasikan model.",
+        "description": "Bahasa yang Anda gunakan. Murmur memakainya untuk merekomendasikan model.",
         "noMatch": "Tidak ada bahasa yang cocok dengan “{{query}}”",
         "weak": "Belum ada model yang mengenali {{languages}} dengan baik."
       },
@@ -401,17 +403,17 @@
         "fits": "Untuk bahasa Anda",
         "untested": "Belum diuji"
       },
-      "untestedNote": "Belum diuji dengan Handy. Mungkin lebih lambat atau lebih banyak salah.",
+      "untestedNote": "Belum diuji dengan Murmur. Mungkin lebih lambat atau lebih banyak salah.",
       "untestedHidden_one": "{{count}} model lagi tidak disetel untuk dikte. Cari untuk menemukannya.",
       "untestedHidden_other": "{{count}} model lagi tidak disetel untuk dikte. Cari untuk menemukannya.",
-      "emptyYours": "Belum ada model. Pilih satu di bawah: model diunduh, lalu Handy menggunakannya.",
+      "emptyYours": "Belum ada model. Pilih satu di bawah: model diunduh, lalu Murmur menggunakannya.",
       "showMore": "Tampilkan {{count}} lagi",
       "showFewer": "Tampilkan lebih sedikit",
       "download": "Unduh dan gunakan",
       "downloadingThenUse": "{{percent}}% dari {{total}}, lalu beralih",
       "loading": "Memuat…",
       "deleteAsk": "Hapus {{name}}? Ini membebaskan {{size}}.",
-      "deleteAskActive": "Hapus {{name}}? Handy tidak dapat mentranskripsi sampai Anda memilih model lain.",
+      "deleteAskActive": "Hapus {{name}}? Murmur tidak dapat mentranskripsi sampai Anda memilih model lain.",
       "cancel": "Batal",
       "deleteModel": "Hapus {{name}}",
       "cancelDownload": "Hentikan unduhan {{name}}",
@@ -425,14 +427,14 @@
         "marks": "? belum diukur. — tidak mengenali bahasa itu."
       },
       "retiredNotice": {
-        "title": "Model lama tidak lagi berfungsi dengan Handy",
+        "title": "Model lama tidak lagi berfungsi dengan Murmur",
         "description": "Model tersebut memakan {{size}} di komputer Anda.",
         "delete": "Hapus model",
         "deleteFailed": "Beberapa model lama tidak dapat dihapus. Periksa log untuk detailnya."
       },
       "rescan": {
         "label": "Pindai Ulang",
-        "tooltip": "Pindai ulang model yang ditambahkan ke folder model atau cache Hugging Face dari luar Handy"
+        "tooltip": "Pindai ulang model yang ditambahkan ke folder model atau cache Hugging Face dari luar Murmur"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "Jalankan saat Komputer Dinyalakan",
-        "description": "Mulai Handy secara otomatis saat Anda masuk ke komputer."
+        "description": "Mulai Murmur secara otomatis saat Anda masuk ke komputer."
       },
       "showTrayIcon": {
         "label": "Tampilkan Ikon Baki Sistem",
-        "description": "Tampilkan ikon Handy di baki sistem."
+        "description": "Tampilkan ikon Murmur di baki sistem."
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "Periksa Pembaruan",
-        "description": "Periksa versi baru Handy secara otomatis",
+        "description": "Periksa versi baru Murmur secara otomatis",
         "lockedDescription": "Dinonaktifkan oleh konfigurasi sistem (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "Diagnostik Keyboard",
-        "description": "Memeriksa apakah peristiwa keyboard mencapai Handy. Hanya jumlah peristiwa yang dicatat — bukan tombol yang Anda tekan.",
+        "description": "Memeriksa apakah peristiwa keyboard mencapai Murmur. Hanya jumlah peristiwa yang dicatat — bukan tombol yang Anda tekan.",
         "run": "Jalankan diagnostik 10 dtk",
         "running": "Mendengarkan… tekan pintasan Anda beberapa kali (mis. Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,7 +879,7 @@
         "mouse": "Mouse",
         "verdictBlocked": "Secure Input memblokir peristiwa tombol — pintasan keyboard tidak dapat berfungsi sampai masalah ini diselesaikan.",
         "verdictSuspicious": "Peristiwa tombol pengubah diterima, tetapi tidak ada peristiwa tombol — sesuatu memblokir input tombol meskipun Secure Input dilaporkan nonaktif. Harap laporkan ini di GitHub.",
-        "verdictOk": "Peristiwa tombol mencapai Handy secara normal.",
+        "verdictOk": "Peristiwa tombol mencapai Murmur secara normal.",
         "verdictNoEvents": "Tidak ada peristiwa yang tertangkap — apakah Anda menekan tombol selama pengujian?",
         "failed": "Diagnostik gagal: {{error}}"
       }
@@ -886,32 +888,32 @@
       "title": "Tentang",
       "version": {
         "title": "Versi",
-        "description": "Versi Handy saat ini"
+        "description": "Versi Murmur saat ini"
       },
       "whatsNewUpdates": {
         "label": "Tampilkan Yang Baru",
-        "description": "Tampilkan catatan rilis setelah Handy diperbarui"
+        "description": "Tampilkan catatan rilis setelah Murmur diperbarui"
       },
       "appDataDirectory": {
         "title": "Direktori Data Aplikasi",
-        "description": "Lokasi Handy menyimpan datanya"
+        "description": "Lokasi Murmur menyimpan datanya"
       },
       "sourceCode": {
         "title": "Kode Sumber",
         "description": "Lihat kode sumber dan berkontribusi",
         "button": "Lihat di GitHub"
       },
-      "supportDevelopment": {
-        "title": "Dukung Pengembangan",
-        "description": "Bantu kami terus mengembangkan Handy",
-        "button": "Donasi"
-      },
       "acknowledgments": {
         "title": "Ucapan Terima Kasih",
         "ggml": {
           "title": "ggml",
           "description": "Pustaka tensor berkinerja tinggi untuk inferensi pembelajaran mesin di perangkat",
-          "details": "Fitur ucapan-ke-teks lokal Handy dibangun menggunakan transcribe.cpp dan ggml. Terima kasih kepada Georgi Gerganov dan para kontributor atas karya luar biasa mereka."
+          "details": "Fitur ucapan-ke-teks lokal Murmur dibangun menggunakan transcribe.cpp dan ggml. Terima kasih kepada Georgi Gerganov dan para kontributor atas karya luar biasa mereka."
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "Buka GitHub Releases"
   },
   "whatsNew": {
-    "title": "Baru di Handy v{{version}}"
+    "title": "Baru di Murmur v{{version}}"
   },
   "common": {
     "playbackPosition": "Posisi pemutaran",
@@ -959,7 +961,7 @@
     "microphoneSilentTitle": "Mikrofon Senyap",
     "microphoneSilent": "Mikrofon Anda hanya mengirim keheningan. Pastikan mikrofon tidak dibisukan, atau pilih mikrofon lain di Pengaturan.",
     "recordingFailedTitle": "Gagal Memulai Perekaman",
-    "modelLoadFailed": "Handy tidak dapat memuat model ini. Coba lagi atau pilih model lain.",
+    "modelLoadFailed": "Murmur tidak dapat memuat model ini. Coba lagi atau pilih model lain.",
     "modelLoadFailedTitle": "Gagal Memuat Model",
     "noModelSelected": "Unduh atau pilih model di Pengaturan > Model.",
     "noModelSelectedTitle": "Tidak Ada Model Dipilih",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "Gagal Menempelkan Teks",
     "pasteFailed": "Teks tidak dapat ditempelkan ke aplikasi aktif.",
     "pasteBlockedElevatedTitle": "Gagal Tempel ke Aplikasi Admin",
-    "pasteBlockedElevated": "Aplikasi aktif berjalan sebagai administrator, jadi Handy tidak dapat menempel ke dalamnya. Anda dapat menyalin transkrip dari Riwayat.",
+    "pasteBlockedElevated": "Aplikasi aktif berjalan sebagai administrator, jadi Murmur tidak dapat menempel ke dalamnya. Anda dapat menyalin transkrip dari Riwayat.",
     "postProcessFailedTitle": "Ditempel Tanpa Pascaproses",
     "postProcessFailed": "Pascaproses tidak selesai, jadi transkrip ditempelkan apa adanya.",
     "filePostProcessFailedTitle": "Ditranskripsi Tanpa Pascaproses",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "Bahasa Aplikasi",
-    "description": "Ubah bahasa antarmuka Handy"
+    "description": "Ubah bahasa antarmuka Murmur"
   },
   "theme": {
     "title": "Tema Aplikasi",
-    "description": "Pilih apakah Handy mengikuti tema sistem atau selalu menggunakan tema terang atau gelap",
+    "description": "Pilih apakah Murmur mengikuti tema sistem atau selalu menggunakan tema terang atau gelap",
     "options": {
       "system": "Sistem",
       "light": "Terang",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "Mentranskripsikan...",
     "processing": "Memproses...",
-    "loadingModel": "Memuat model..."
+    "loadingModel": "Memuat model...",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} mungkin memblokir 1 pintasan",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS untuk sementara memblokir {{count}} pintasan",
     "recorderBlockedWithCulprit": "{{name}} mungkin memblokir perubahan pintasan",
     "recorderBlockedNoCulprit": "macOS untuk sementara memblokir perubahan pintasan",
-    "learnMore": "Cara memperbaiki",
     "recorderBlocked": "Pintasan tidak dapat direkam saat ini — macOS Secure Input memblokir peristiwa tombol. Selesaikan peringatan Secure Input terlebih dahulu.",
     "dismiss": "Tutup"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

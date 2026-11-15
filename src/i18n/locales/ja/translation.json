@@ -15,6 +15,8 @@
     "otherLanguages": "その他の言語"
   },
   "sidebar": {
+    "label": "Sections",
+    "meetings": "Meetings",
     "general": "一般",
     "models": "モデル",
     "advanced": "詳細設定",
@@ -27,7 +29,7 @@
     "customModelDescription": "公式サポート対象外",
     "migration": {
       "title": "モデルの更新が必要です",
-      "description": "Handy は新しい種類のモデルを使用するようになりました。文字起こしを続けるには、新しいバージョンをダウンロードしてください。古いバージョンは削除されます。",
+      "description": "Murmur は新しい種類のモデルを使用するようになりました。文字起こしを続けるには、新しいバージョンをダウンロードしてください。古いバージョンは削除されます。",
       "replaces": "{{name}} の後継",
       "oldFormat": "旧形式",
       "failed": "ダウンロードに失敗しました",
@@ -64,11 +66,11 @@
     "permissions": {
       "microphone": {
         "name": "マイク",
-        "why": "Handy があなたの声を聞くために必要です。音声はこのコンピューター上でテキストに変換され、アップロードされることはありません。"
+        "why": "Murmur があなたの声を聞くために必要です。音声はこのコンピューター上でテキストに変換され、アップロードされることはありません。"
       },
       "accessibility": {
         "name": "アクセシビリティ",
-        "why": "どのアプリでもショートカットが使え、Handy がカーソル位置にテキストを入力できるようにします。"
+        "why": "どのアプリでもショートカットが使え、Murmur がカーソル位置にテキストを入力できるようにします。"
       },
       "errors": {
         "checkFailed": "権限の確認に失敗しました。もう一度お試しください。",
@@ -82,12 +84,12 @@
       "openSettings": "設定を開く",
       "allowed": "許可済み",
       "waiting": "待機中",
-      "turnOnMac": "システム設定で Handy をオンにして、ここに戻ってください。",
+      "turnOnMac": "システム設定で Murmur をオンにして、ここに戻ってください。",
       "turnOnWindows": "Windows の設定でマイクへのアクセスをオンにして、ここに戻ってください。",
       "hintBoth": "続けるには両方を許可してください",
       "hintMicrophone": "続けるにはマイクを許可してください",
       "welcomeBack": "おかえりなさい。前回の続きから始めます。",
-      "relaunch": "このあとショートカットが反応しない場合は、<relaunch>Handy を再起動</relaunch>してください。この画面にすぐ戻れます。"
+      "relaunch": "このあとショートカットが反応しない場合は、<relaunch>Murmur を再起動</relaunch>してください。この画面にすぐ戻れます。"
     },
     "shell": {
       "back": "戻る",
@@ -98,11 +100,11 @@
       "title": "どのアプリでも、入力のかわりに話すだけ",
       "subtitle": "音声入力で使う言語を選んでください",
       "languagesLabel": "言語",
-      "noMatch": "「{{query}}」に一致する言語はありません。Handy のモデルは約100言語に対応しており、ほかの言語は設定から選べます。",
+      "noMatch": "「{{query}}」に一致する言語はありません。Murmur のモデルは約100言語に対応しており、ほかの言語は設定から選べます。",
       "appLanguage": "アプリの言語",
       "menusIn": "メニューは<b>{{language}}</b>で表示",
       "chinese": {
-        "question": "{{languages}}を話しますね。Handy にはどの文字で書かせますか?",
+        "question": "{{languages}}を話しますね。Murmur にはどの文字で書かせますか?",
         "label": "中国語の文字",
         "zh-Hans": "簡体字",
         "zh-Hant": "台湾",
@@ -172,7 +174,7 @@
     },
     "try": {
       "title": "さっそく試してみよう!",
-      "subtitle": "画面の隅から Handy が案内します",
+      "subtitle": "画面の隅から Murmur が案内します",
       "noteLabel": "メモ",
       "placeholder": "新規メモ",
       "hold": "<keys/> を押したまま話してください。",
@@ -200,14 +202,14 @@
     },
     "done": {
       "title": "準備完了です",
-      "subMac": "Handy はメニューバーにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
-      "subTray": "Handy はシステムトレイにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
+      "subMac": "Murmur はメニューバーにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
+      "subTray": "Murmur はシステムトレイにいます。どのアプリでも <keys/> を押したまま、またはタップして話してください。",
       "hint": "これらは後から設定で変更できます",
       "highFiveLabel": "ハイタッチ",
-      "atLogin": "ログイン時に Handy を起動する",
+      "atLogin": "ログイン時に Murmur を起動する",
       "finish": "完了",
       "panel": {
-        "name": "Handy",
+        "name": "Murmur",
         "ready": "準備完了",
         "languages": "言語",
         "model": "音声モデル",
@@ -332,7 +334,7 @@
     "general": {
       "title": "一般",
       "shortcut": {
-        "title": "Handy ショートカット",
+        "title": "Murmur ショートカット",
         "description": "音声録音を開始するキーボードショートカットを設定",
         "loading": "ショートカットを読み込み中…",
         "none": "ショートカットが設定されていません",
@@ -374,7 +376,7 @@
       },
       "preferredLanguages": {
         "title": "使用する言語",
-        "description": "あなたが話す言語です。Handy はこれをもとにモデルをおすすめします。",
+        "description": "あなたが話す言語です。Murmur はこれをもとにモデルをおすすめします。",
         "noMatch": "「{{query}}」に一致する言語はありません",
         "weak": "{{languages}}をうまく認識できるモデルはまだありません。"
       },
@@ -401,17 +403,17 @@
         "fits": "選んだ言語向け",
         "untested": "未テスト"
       },
-      "untestedNote": "Handy ではテストされていません。速度が遅かったり、間違いが多かったりする可能性があります。",
+      "untestedNote": "Murmur ではテストされていません。速度が遅かったり、間違いが多かったりする可能性があります。",
       "untestedHidden_one": "音声入力向けに調整されていないモデルがあと {{count}} 個あります。検索で見つけられます。",
       "untestedHidden_other": "音声入力向けに調整されていないモデルがあと {{count}} 個あります。検索で見つけられます。",
-      "emptyYours": "モデルはまだありません。下から選ぶとダウンロードされ、Handy が使用します。",
+      "emptyYours": "モデルはまだありません。下から選ぶとダウンロードされ、Murmur が使用します。",
       "showMore": "さらに {{count}} 個を表示",
       "showFewer": "表示を減らす",
       "download": "ダウンロードして使用",
       "downloadingThenUse": "{{total}} のうち {{percent}}%、完了後に切り替え",
       "loading": "読み込み中…",
       "deleteAsk": "{{name}} を削除しますか? {{size}} の空き容量が増えます。",
-      "deleteAskActive": "{{name}} を削除しますか? ほかのモデルを選ぶまで、Handy は文字起こしできません。",
+      "deleteAskActive": "{{name}} を削除しますか? ほかのモデルを選ぶまで、Murmur は文字起こしできません。",
       "cancel": "キャンセル",
       "deleteModel": "{{name}} を削除",
       "cancelDownload": "{{name}} のダウンロードを中止",
@@ -425,14 +427,14 @@
         "marks": "? はまだ測定されていません。— はその言語を聞き取れません。"
       },
       "retiredNotice": {
-        "title": "古いモデルは Handy で使用できなくなりました",
+        "title": "古いモデルは Murmur で使用できなくなりました",
         "description": "コンピューター上で {{size}} を使用しています。",
         "delete": "モデルを削除",
         "deleteFailed": "一部の古いモデルを削除できませんでした。詳細はログを確認してください。"
       },
       "rescan": {
         "label": "再スキャン",
-        "tooltip": "Handy を使わずに models フォルダーまたは Hugging Face キャッシュに追加されたモデルを再スキャンします"
+        "tooltip": "Murmur を使わずに models フォルダーまたは Hugging Face キャッシュに追加されたモデルを再スキャンします"
       }
     },
     "languages": {
@@ -516,11 +518,11 @@
       },
       "autostart": {
         "label": "起動時に実行",
-        "description": "コンピューターにログインしたときに Handy を自動的に起動。"
+        "description": "コンピューターにログインしたときに Murmur を自動的に起動。"
       },
       "showTrayIcon": {
         "label": "トレイアイコンを表示",
-        "description": "システムトレイに Handy のアイコンを表示します。"
+        "description": "システムトレイに Murmur のアイコンを表示します。"
       },
       "overlay": {
         "style": {
@@ -757,7 +759,7 @@
       },
       "updateChecks": {
         "label": "アップデートを確認",
-        "description": "Handy の新しいバージョンを自動的にチェック",
+        "description": "Murmur の新しいバージョンを自動的にチェック",
         "lockedDescription": "システム設定により無効化されています (HANDY_DISABLE_UPDATER)"
       },
       "whatsNewPreview": {
@@ -863,7 +865,7 @@
       },
       "keyboardDiagnostic": {
         "title": "キーボード診断",
-        "description": "キーボードイベントが Handy に届いているかを確認します。記録されるのはイベント数のみで、押したキーの内容は記録されません。",
+        "description": "キーボードイベントが Murmur に届いているかを確認します。記録されるのはイベント数のみで、押したキーの内容は記録されません。",
         "run": "10 秒間の診断を実行",
         "running": "待機中… ショートカットを数回押してください (例: Option+Space)",
         "secureInputLabel": "Secure Input",
@@ -877,7 +879,7 @@
         "mouse": "マウス",
         "verdictBlocked": "Secure Input がキーイベントをブロックしています。解消されるまで、通常キーを含むショートカットは動作しません。",
         "verdictSuspicious": "修飾キーのイベントは届いていますが、キーイベントは届いていません。Secure Input は無効と報告されているのに、何かがキーを抑制しています。GitHub で報告してください。",
-        "verdictOk": "キーイベントは Handy に正常に届いています。",
+        "verdictOk": "キーイベントは Murmur に正常に届いています。",
         "verdictNoEvents": "イベントを検出できませんでした。テスト中にキーを押しましたか？",
         "failed": "診断に失敗しました: {{error}}"
       }
@@ -886,32 +888,32 @@
       "title": "概要",
       "version": {
         "title": "バージョン",
-        "description": "Handy の現在のバージョン"
+        "description": "Murmur の現在のバージョン"
       },
       "whatsNewUpdates": {
         "label": "新機能を表示",
-        "description": "Handy のアップデート後にリリースノートを表示"
+        "description": "Murmur のアップデート後にリリースノートを表示"
       },
       "appDataDirectory": {
         "title": "アプリデータディレクトリ",
-        "description": "Handy がデータを保存する場所"
+        "description": "Murmur がデータを保存する場所"
       },
       "sourceCode": {
         "title": "ソースコード",
         "description": "ソースコードを見て貢献する",
         "button": "GitHub で見る"
       },
-      "supportDevelopment": {
-        "title": "開発を支援",
-        "description": "Handy の開発を支援してください",
-        "button": "寄付する"
-      },
       "acknowledgments": {
         "title": "謝辞",
         "ggml": {
           "title": "ggml",
           "description": "オンデバイス機械学習推論のための高性能テンソルライブラリ",
-          "details": "Handy のローカルの音声からテキストへの文字起こしは transcribe.cpp と ggml を基盤としています。Georgi Gerganov 氏と貢献者の皆様の素晴らしい仕事に感謝します。"
+          "details": "Murmur のローカルの音声からテキストへの文字起こしは transcribe.cpp と ggml を基盤としています。Georgi Gerganov 氏と貢献者の皆様の素晴らしい仕事に感謝します。"
+        },
+        "handy": {
+          "title": "Handy",
+          "description": "Based on Handy by CJ Pais (MIT)",
+          "button": "View on GitHub"
         }
       }
     }
@@ -932,7 +934,7 @@
     "portableUpdateBrowseButton": "GitHub Releases を開く"
   },
   "whatsNew": {
-    "title": "Handy v{{version}} の新機能"
+    "title": "Murmur v{{version}} の新機能"
   },
   "common": {
     "playbackPosition": "再生位置",
@@ -967,7 +969,7 @@
     "pasteFailedTitle": "テキストの貼り付けに失敗しました",
     "pasteFailed": "アクティブなアプリにテキストを貼り付けられませんでした。",
     "pasteBlockedElevatedTitle": "管理者アプリに貼り付けできません",
-    "pasteBlockedElevated": "アクティブなアプリが管理者として実行されているため、Handy は貼り付けできません。文字起こしは履歴からコピーできます。",
+    "pasteBlockedElevated": "アクティブなアプリが管理者として実行されているため、Murmur は貼り付けできません。文字起こしは履歴からコピーできます。",
     "postProcessFailedTitle": "後処理なしで貼り付けました",
     "postProcessFailed": "後処理が完了しなかったため、文字起こしをそのまま貼り付けました。",
     "filePostProcessFailedTitle": "後処理なしで文字起こししました",
@@ -991,11 +993,11 @@
   },
   "appLanguage": {
     "title": "アプリの言語",
-    "description": "Handy インターフェースの言語を変更"
+    "description": "Murmur インターフェースの言語を変更"
   },
   "theme": {
     "title": "アプリのテーマ",
-    "description": "Handy をシステムのテーマに合わせるか、ライトまたはダークで固定するかを選択します",
+    "description": "Murmur をシステムのテーマに合わせるか、ライトまたはダークで固定するかを選択します",
     "options": {
       "system": "システム",
       "light": "ライト",
@@ -1005,7 +1007,14 @@
   "overlay": {
     "transcribing": "文字起こし中…",
     "processing": "処理中…",
-    "loadingModel": "モデルを読み込み中…"
+    "loadingModel": "モデルを読み込み中…",
+    "cancel": "Cancel",
+    "stop": "Stop",
+    "stopMeeting": "Stop meeting",
+    "me": "Me",
+    "others": "Others",
+    "meetingTranscribing": "Transcribing meeting",
+    "percent": "{{percent}}%"
   },
   "secureInput": {
     "blockedWithCulprit_one": "{{name}} が1個のショートカットをブロックしている可能性があります",
@@ -1014,8 +1023,85 @@
     "blockedNoCulprit_other": "macOS が一時的に{{count}}個のショートカットをブロックしています",
     "recorderBlockedWithCulprit": "{{name}} がショートカットの変更をブロックしている可能性があります",
     "recorderBlockedNoCulprit": "macOS が一時的にショートカットの変更をブロックしています",
-    "learnMore": "解決方法",
     "recorderBlocked": "現在ショートカットを記録できません。macOS の Secure Input がキーイベントをブロックしています。先に Secure Input の警告を解消してください。",
     "dismiss": "閉じる"
+  },
+  "meetings": {
+    "title": "Meetings",
+    "start": "Start meeting",
+    "stop": "Stop meeting",
+    "recording": "Recording",
+    "recordingFor": "Recording {{time}}",
+    "transcribing": "Transcribing",
+    "percent": "{{percent}}%",
+    "failed": "Transcription failed",
+    "interrupted": "Recording interrupted",
+    "failedBody": "The recordings are safe in this meeting's folder.",
+    "searchAll": "Search titles and transcripts",
+    "searchAllLabel": "Search meetings",
+    "noMatch": "No meetings match “{{query}}”.",
+    "clearSearch": "Clear search",
+    "loadFailed": "Murmur could not read the meetings database.",
+    "loadFailedTitle": "Meetings could not be loaded",
+    "loadFailedBody": "{{error}}. Your recordings are untouched.",
+    "tryAgain": "Try again",
+    "openRecordings": "Open the recordings folder",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Earlier this week",
+      "lastWeek": "Last week",
+      "undated": "No date"
+    },
+    "defaultTitle": "Meeting {{date}}",
+    "untitled": "Meeting",
+    "minutes": "{{count}} min",
+    "hoursMinutes": "{{hours}} h {{minutes}} min",
+    "speakerCount_one": "{{count}} speaker",
+    "speakerCount_other": "{{count}} speakers",
+    "titleLabel": "Meeting title",
+    "renameFailed": "Could not save the name",
+    "openInObsidian": "Open in Obsidian",
+    "note": "Note: {{path}}",
+    "noNote": "No note written yet",
+    "more": "More actions",
+    "copyTranscript": "Copy transcript",
+    "copyFailed": "Could not copy the transcript",
+    "openFolder": "Open folder",
+    "speakersGroup": "Speakers. Select a name to rename it.",
+    "rename": "Rename",
+    "speakerName": "Speaker name",
+    "share": "{{percent}}%",
+    "me": "Me",
+    "others": "Others",
+    "speaker": "Speaker {{n}}",
+    "searchMeeting": "Search this meeting",
+    "hitCount": "{{current}} of {{total}}",
+    "noHits": "No matches",
+    "notSeparated": "The other side could not be split into separate speakers.",
+    "noTranscript": "Nothing was transcribed in this meeting.",
+    "playFrom": "Play from {{time}}",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "position": "Position",
+      "speed": "Playback speed",
+      "speedValue": "{{speed}}×",
+      "choice": "Which side to hear",
+      "both": "Both tracks",
+      "me": "Only me",
+      "others": "Only others",
+      "failed": "Could not play the recording"
+    },
+    "recordingBody": "Recording your microphone and this computer's audio as two tracks. Nothing leaves this computer. You can keep dictating while this runs.",
+    "transcribingBody": "The recording is saved, so you can listen now. The transcript appears here when it is done.",
+    "steps": {
+      "mic": "Your microphone",
+      "system": "The other side",
+      "speakers": "Telling speakers apart"
+    },
+    "emptyTitle": "No meetings yet",
+    "emptyBody": "Murmur records your microphone and this computer's audio, then writes down who said what. Everything stays on this computer.",
+    "emptyHint": "Also in the tray menu, or from a terminal with <kbd>--toggle-meeting</kbd>"
   }
 }

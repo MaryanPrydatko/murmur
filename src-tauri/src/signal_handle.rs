@@ -4,7 +4,7 @@ use crate::TranscriptionCoordinator;
 use log::debug;
 use log::warn;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[cfg(target_os = "macos")]
 use signal_hook::consts::SIGUSR1;
@@ -28,12 +28,29 @@ pub fn send_transcription_input(app: &AppHandle, binding_id: &str, source: &str)
 /// Start or stop a meeting, off the calling thread: it opens audio devices.
 /// Used by the CLI flag and the tray.
 pub fn toggle_meeting(app: &AppHandle) {
+    change_meeting(app, MeetingManager::toggle);
+}
+
+/// Start or stop a meeting as the user asked, off the calling thread. Used by
+/// the Meetings page and the overlay, which can each still show a stale state.
+pub fn set_meeting_recording(app: &AppHandle, recording: bool) {
+    change_meeting(app, move |meetings| meetings.set_recording(recording));
+}
+
+fn change_meeting(app: &AppHandle, change: impl FnOnce(&MeetingManager) + Send + 'static) {
     let Some(meetings) = app.try_state::<Arc<MeetingManager>>() else {
         warn!("MeetingManager not initialized");
         return;
     };
     let meetings = Arc::clone(&meetings);
-    std::thread::spawn(move || meetings.toggle());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        change(&meetings);
+        // Also when nothing changed: the callers wait for this.
+        crate::overlay::set_meeting_recording(&app, meetings.is_recording());
+        // The Meetings page reads the list again.
+        let _ = app.emit("meetings-changed", ());
+    });
 }
 
 /// Listen for Unix signals that remotely toggle transcription.

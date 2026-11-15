@@ -1,5 +1,7 @@
 use crate::managers::history::HistoryManager;
-use crate::managers::meetings::store::{self, MeetingDetail, MeetingRow};
+use crate::managers::meetings::store::{
+    self, MeetingAudio, MeetingDetail, MeetingHit, MeetingRow, MeetingSpeakerKeys,
+};
 use crate::managers::meetings::{self, MeetingManager, Rerun};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -81,4 +83,51 @@ pub fn rediarize_meeting(
 #[specta::specta]
 pub fn active_meeting(meetings: State<'_, Arc<MeetingManager>>) -> Option<String> {
     meetings.active_id()
+}
+
+/// A meeting's recorded tracks, for playback.
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_audio(
+    history: State<'_, Arc<HistoryManager>>,
+    id: String,
+) -> Result<Vec<MeetingAudio>, String> {
+    let conn = history.get_connection().map_err(|e| e.to_string())?;
+    store::audio(&conn, &id).map_err(|e| e.to_string())
+}
+
+/// Every meeting's speaker keys.
+#[tauri::command]
+#[specta::specta]
+pub fn list_meeting_speakers(
+    history: State<'_, Arc<HistoryManager>>,
+) -> Result<Vec<MeetingSpeakerKeys>, String> {
+    let conn = history.get_connection().map_err(|e| e.to_string())?;
+    store::speaker_keys(&conn).map_err(|e| e.to_string())
+}
+
+/// Meetings whose transcript contains `query`, with the first match in each.
+#[tauri::command]
+#[specta::specta]
+pub fn search_meetings(
+    history: State<'_, Arc<HistoryManager>>,
+    query: String,
+) -> Result<Vec<MeetingHit>, String> {
+    let conn = history.get_connection().map_err(|e| e.to_string())?;
+    store::search(&conn, &query).map_err(|e| e.to_string())
+}
+
+/// Starts a meeting, or stops the one recording; does nothing if it already is
+/// as asked.
+#[tauri::command]
+#[specta::specta]
+pub fn set_meeting_recording(app: AppHandle, recording: bool) {
+    crate::signal_handle::set_meeting_recording(&app, recording);
+}
+
+/// Whether a meeting is recording right now.
+#[tauri::command]
+#[specta::specta]
+pub fn is_meeting_recording(meetings: State<'_, Arc<MeetingManager>>) -> bool {
+    meetings.is_recording()
 }

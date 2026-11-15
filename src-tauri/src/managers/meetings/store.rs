@@ -259,6 +259,112 @@ pub fn rename_speaker(conn: &Connection, id: &str, key: &str, label: Option<&str
     Ok(())
 }
 
+/// One of a meeting's recorded tracks and where its file is.
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
+pub struct MeetingAudio {
+    /// `mic`, `system` or `mixed`.
+    pub kind: String,
+    pub path: String,
+    /// When the track's first sample was heard, from the meeting's start.
+    pub start_offset_ms: i64,
+    pub duration_ms: i64,
+}
+
+/// The meeting's tracks, each resolved inside the meeting's folder. A track
+/// whose stored name isn't a plain file name is left out.
+pub fn audio(conn: &Connection, id: &str) -> Result<Vec<MeetingAudio>> {
+    let mut stmt = conn.prepare(
+        "SELECT m.dir, t.kind, t.file_name, t.start_offset_ms, t.duration_ms
+         FROM meeting_tracks t JOIN meetings m ON m.id = t.meeting_id
+         WHERE t.meeting_id = ?1 AND m.dir IS NOT NULL ORDER BY t.kind",
+    )?;
+    let rows = stmt.query_map([id], |row| {
+        Ok((
+            row.get::<_, String>("dir")?,
+            row.get::<_, String>("file_name")?,
+            MeetingAudio {
+                kind: row.get("kind")?,
+                path: String::new(),
+                start_offset_ms: row.get("start_offset_ms")?,
+                duration_ms: row.get("duration_ms")?,
+            },
+        ))
+    })?;
+    let mut tracks = Vec::new();
+    for row in rows {
+        let (dir, file_name, mut track) = row?;
+        let name = std::path::Path::new(&file_name);
+        if name.file_name() != Some(name.as_os_str()) {
+            continue;
+        }
+        track.path = std::path::Path::new(&dir)
+            .join(name)
+            .to_string_lossy()
+            .into_owned();
+        tracks.push(track);
+    }
+    Ok(tracks)
+}
+
+/// The speakers of every meeting, for the dots in the list.
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
+pub struct MeetingSpeakerKeys {
+    pub meeting_id: String,
+    /// `me`, `them`, `s1`, ... in key order.
+    pub keys: Vec<String>,
+}
+
+pub fn speaker_keys(conn: &Connection) -> Result<Vec<MeetingSpeakerKeys>> {
+    let mut stmt = conn.prepare(
+        "SELECT meeting_id, group_concat(key, ' ') AS keys
+         FROM (SELECT meeting_id, key FROM meeting_speakers ORDER BY meeting_id, key)
+         GROUP BY meeting_id",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let keys: String = row.get("keys")?;
+        Ok(MeetingSpeakerKeys {
+            meeting_id: row.get("meeting_id")?,
+            keys: keys.split(' ').map(str::to_owned).collect(),
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The first line of a meeting's transcript that matches a search.
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
+pub struct MeetingHit {
+    pub meeting_id: String,
+    pub t0_ms: i64,
+    pub text: String,
+}
+
+/// Meetings whose transcript contains `query` in any letter case, with their
+/// first match. Case is folded here: SQLite's LIKE folds ASCII only.
+pub fn search(conn: &Connection, query: &str) -> Result<Vec<MeetingHit>> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn
+        .prepare("SELECT meeting_id, t0_ms, text FROM meeting_segments ORDER BY meeting_id, idx")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(MeetingHit {
+            meeting_id: row.get("meeting_id")?,
+            t0_ms: row.get("t0_ms")?,
+            text: row.get("text")?,
+        })
+    })?;
+    let mut hits: Vec<MeetingHit> = Vec::new();
+    for hit in rows {
+        let hit = hit?;
+        let seen = hits.last().is_some_and(|h| h.meeting_id == hit.meeting_id);
+        if !seen && hit.text.to_lowercase().contains(&query) {
+            hits.push(hit);
+        }
+    }
+    Ok(hits)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::{MeetingStatus, MeetingTrack, Speaker, TrackKind};
@@ -370,5 +476,42 @@ mod tests {
             "INSERT INTO meetings (id, source, source_id) VALUES (?1, 'superwhisper', 'abc')";
         conn.execute(import, ["a"]).unwrap();
         assert!(conn.execute(import, ["b"]).is_err());
+    }
+
+    #[test]
+    fn finds_a_meeting_by_its_transcript_and_resolves_its_tracks() {
+        let mut conn = db();
+        let id = "2026-11-15_14-03-22";
+        save(&mut conn, &meeting(MeetingStatus::Done)).unwrap();
+        let utterances = [
+            said(0, Speaker::Me, "the 50% build"),
+            said(1_000, Speaker::Remote(1), "Ship BUILD 215"),
+            said(2_000, Speaker::Remote(1), "build again"),
+            said(3_000, Speaker::Remote(1), "Привіт, Über alles"),
+        ];
+        save_transcript(&mut conn, id, &utterances).unwrap();
+
+        let hits = search(&conn, "build 2").unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].t0_ms, 1_000);
+        assert_eq!(search(&conn, "50%").unwrap()[0].t0_ms, 0);
+        assert!(search(&conn, "5_%").unwrap().is_empty());
+        assert!(search(&conn, "  ").unwrap().is_empty());
+        assert_eq!(search(&conn, "привіт").unwrap()[0].t0_ms, 3_000);
+        assert_eq!(search(&conn, "über").unwrap()[0].t0_ms, 3_000);
+
+        let keys = speaker_keys(&conn).unwrap();
+        assert_eq!(keys[0].keys, ["me", "s1"]);
+
+        let tracks = audio(&conn, id).unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].kind, "system");
+        assert_eq!(tracks[0].start_offset_ms, 120);
+        assert!(tracks[0]
+            .path
+            .ends_with("meetings/2026-11-15_14-03-22/system.wav"));
+        conn.execute("UPDATE meeting_tracks SET file_name = '../x.wav'", [])
+            .unwrap();
+        assert!(audio(&conn, id).unwrap().is_empty());
     }
 }
