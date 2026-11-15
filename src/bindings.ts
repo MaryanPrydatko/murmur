@@ -783,6 +783,62 @@ async renameSpeaker(meetingId: string, key: string, label: string | null) : Prom
 }
 },
 /**
+ * Names a meeting; a blank or missing `title` clears the name.
+ */
+async renameMeeting(id: string, title: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("rename_meeting", { id, title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * A meeting's recorded tracks, for playback.
+ */
+async meetingAudio(id: string) : Promise<Result<MeetingAudio[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_audio", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Every meeting's speaker keys.
+ */
+async listMeetingSpeakers() : Promise<Result<MeetingSpeakerKeys[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_meeting_speakers") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Meetings whose transcript contains `query`, with the first match in each.
+ */
+async searchMeetings(query: string) : Promise<Result<MeetingHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_meetings", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Starts a meeting, or stops the one recording.
+ */
+async toggleMeeting() : Promise<void> {
+    await TAURI_INVOKE("toggle_meeting");
+},
+/**
+ * Whether a meeting is recording right now.
+ */
+async isMeetingRecording() : Promise<boolean> {
+    return await TAURI_INVOKE("is_meeting_recording");
+},
+/**
  * Whether the language detector is on disk.
  */
 async isLanguageDetectorDownloaded() : Promise<boolean> {
@@ -1084,10 +1140,8 @@ async updateRecordingRetentionPeriod(period: string) : Promise<Result<null, stri
 }
 },
 /**
- * Checks if the Mac is a laptop by detecting battery presence
- * 
- * This uses pmset to check for battery information.
- * Returns true if a battery is detected (laptop), false otherwise (desktop)
+ * Stub implementation for non-macOS platforms
+ * Always returns false since laptop detection is macOS-specific
  */
 async isLaptop() : Promise<Result<boolean, string>> {
     try {
@@ -1367,11 +1421,27 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * A macOS privacy permission Handy asks for during onboarding.
  */
 export type MacPermission = "accessibility" | "microphone"
+/**
+ * One of a meeting's recorded tracks and where its file is.
+ */
+export type MeetingAudio = { 
+/**
+ * `mic`, `system` or `mixed`.
+ */
+kind: string; path: string; 
+/**
+ * When the track's first sample was heard, from the meeting's start.
+ */
+start_offset_ms: number; duration_ms: number }
 export type MeetingDetail = { meeting: MeetingRow; speakers: MeetingSpeaker[]; 
 /**
  * In order.
  */
 segments: MeetingSegment[] }
+/**
+ * The first line of a meeting's transcript that matches a search.
+ */
+export type MeetingHit = { meeting_id: string; t0_ms: number; text: string }
 export type MeetingRow = { id: string; source: string; source_id: string | null; title: string | null; started_at: number | null; duration_ms: number | null; 
 /**
  * `recording`, `transcribing`, `done` or `failed`.
@@ -1387,6 +1457,14 @@ key: string;
  * The name the user gave them.
  */
 label: string | null }
+/**
+ * The speakers of every meeting, for the dots in the list.
+ */
+export type MeetingSpeakerKeys = { meeting_id: string; 
+/**
+ * `me`, `them`, `s1`, ... in key order.
+ */
+keys: string[] }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
