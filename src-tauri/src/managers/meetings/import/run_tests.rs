@@ -211,7 +211,7 @@ fn imports_each_meeting_once_with_names_from_wispr_and_audio_from_spokenly() {
     assert_eq!(detail.meeting.started_at, Some(T0_SECS));
     let names: Vec<_> = detail.speakers.iter().map(|s| s.label.as_deref()).collect();
     assert_eq!(names, [Some("Ana"), Some("Bo"), None]);
-    assert_eq!(detail.segments.len(), 3);
+    assert_eq!(detail.segments.len(), 4);
     let dir = world.meetings_dir().join(&roadmap);
     let spokenly_audio = fs::read(
         fs::read_dir(&world.roots.spokenly)

@@ -169,7 +169,8 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
     };
 
     // A segment can be written again as it's refined: keep its last line.
-    let mut lines: BTreeMap<String, Line> = BTreeMap::new();
+    // Keyed on the start too, in case `segment` numbers something coarser.
+    let mut lines: BTreeMap<(String, i64), Line> = BTreeMap::new();
     if ndjson.is_file() {
         for (n, text) in fs::read_to_string(ndjson)?.lines().enumerate() {
             if text.trim().is_empty() {
@@ -182,7 +183,7 @@ fn read(row: Row, ndjson: &Path) -> Result<SourceMeeting> {
                 .segment
                 .as_ref()
                 .map_or_else(|| format!("line {n}"), raw_id);
-            lines.insert(key, line);
+            lines.insert((key, line.start_ms.unwrap_or(0)), line);
         }
     }
     let mut lines: Vec<Line> = lines.into_values().collect();

@@ -82,7 +82,10 @@ fn reads_wispr_meetings_from_a_database_wispr_still_has_open() {
         [("s1", Some("Ana")), ("s2", Some("Bo")), ("s3", None)]
     );
     let texts: Vec<&str> = meeting.segments.iter().map(|s| s.text.as_str()).collect();
-    assert_eq!(texts, ["Let's start.", "Sounds good.", "Bye."]);
+    assert_eq!(
+        texts,
+        ["Let's start.", "Sounds good.", "Then again.", "Bye."]
+    );
     assert_eq!(
         meeting.summary.as_deref(),
         Some("## Notes\nAna and Bo agreed; Speaker 3 left.")

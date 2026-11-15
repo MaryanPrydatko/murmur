@@ -343,6 +343,8 @@ pub struct ImportReport {
     pub no_audio: u32,
     /// Meetings imported with their transcript.
     pub imported: u32,
+    /// Of those, the ones no app kept audio for.
+    pub without_audio: u32,
     /// Meetings only Spokenly had, to be transcribed here.
     pub to_transcribe: u32,
     pub failed: u32,
@@ -375,6 +377,7 @@ impl fmt::Display for ImportReport {
         )?;
         writeln!(f, "spokenly meetings without audio: {}", self.no_audio)?;
         writeln!(f, "imported with transcript: {}", self.imported)?;
+        writeln!(f, "  of which without audio: {}", self.without_audio)?;
         writeln!(f, "to transcribe: {}", self.to_transcribe)?;
         writeln!(f, "notes written: {}", self.notes)?;
         writeln!(f, "failed: {}", self.failed)?;
@@ -440,6 +443,9 @@ pub fn run(
             continue;
         }
         report.merged += meeting.merged.len() as u32;
+        if meeting.audio.is_none() && !meeting.needs_transcription() {
+            report.without_audio += 1;
+        }
         if dry_run {
             match meeting.needs_transcription() {
                 true => report.to_transcribe += 1,

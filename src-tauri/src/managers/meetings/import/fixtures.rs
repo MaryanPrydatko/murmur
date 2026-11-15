@@ -132,6 +132,8 @@ pub fn wispr(
         line(0, 1_000, 2_000, "Let's star", 0),
         line(1, 2_500, 4_000, "Sounds good.", 1),
         line(0, 1_000, 2_200, "Let's start.", 0),
+        // The same segment number, later: a separate line.
+        line(1, 5_000, 6_000, "Then again.", 1),
         line(2, ms - 3_000, ms, "Bye.", 2),
     ];
     fs::write(folder.join("live.ndjson"), lines.join("\n") + "\n").unwrap();
