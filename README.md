@@ -10,7 +10,7 @@ Murmur is a fork of [Handy](https://github.com/cjpais/Handy) by CJ Pais.
 
 - **Dictation.** Hold or tap a global shortcut, talk, and the transcript is pasted where your cursor is.
 - **Meetings.** Records your microphone and the computer's audio as two tracks, then transcribes both. Computer audio works on Linux today, see [macOS](#macos).
-- **Speaker labels.** Your side is labelled as you. The other side is split into speakers, which you can rename.
+- **Speaker labels.** Your side is labelled as you. The other side is split into speakers, which you can rename. Splitting needs a speaker model that is not installed at first: until you download it, the other side stays one speaker and a notice after the meeting offers the download.
 - **Notes to Obsidian.** Set a vault in Settings and each finished meeting is written there as a note, in the `Meetings` folder by default. A note is written once and never overwritten.
 - **Local models.** Models are downloaded in the app and run on your CPU or GPU. Parakeet Ultra covers 25 European languages. Whisper and other models can be picked in Settings > Models.
 
@@ -35,7 +35,9 @@ chmod +x Murmur_*_amd64.AppImage
 
 The `.deb` adds Murmur to the app grid. The AppImage is a single file you start yourself. Either way Murmur sits in the system tray while it runs.
 
-Pasting needs a helper tool that depends on your display server, see [Linux notes](docs/troubleshooting.md#linux-notes).
+The `.deb` installs the same files as Handy's `.deb` (the `handy` command among them), so the two cannot be installed side by side: APT removes Handy's package when it installs Murmur's, and asks first.
+
+Pasting needs a helper tool that the packages do not install. Which one depends on your desktop, see [Linux notes](docs/troubleshooting.md#linux-notes).
 
 ### macOS
 
@@ -54,7 +56,7 @@ Murmur asks for microphone and accessibility access on first run. Recording the 
 
 ### Dictation
 
-The default shortcut is `Ctrl+Alt+Space` on Linux and `Option+Space` on macOS. Hold it while you talk and let go to finish, or tap it once to start and once to stop. You can change it in Settings. `Esc` cancels.
+The default shortcut is `Ctrl+Alt+Space` on Linux and `Option+Space` on macOS. Hold it while you talk and let go to finish, or tap it once to start and once to stop. You can change it in Settings. On macOS `Esc` cancels. On Linux there is no cancel key: cancel from the tray menu or with `handy --cancel`.
 
 On Wayland the desktop may not pass global shortcuts to apps. In that case bind a system shortcut to `handy --toggle-transcription` (see [Command line](#command-line) and [Linux notes](docs/troubleshooting.md#linux-notes)).
 
