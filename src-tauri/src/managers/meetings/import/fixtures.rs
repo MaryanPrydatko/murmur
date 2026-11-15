@@ -1,5 +1,6 @@
 //! Folders laid out like each app keeps them, with made-up meetings.
 
+use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use std::fs;
@@ -47,8 +48,9 @@ pub fn superwhisper_dictation(recordings: &Path, unix_secs: i64, segments: Value
     fs::write(folder.join("meta.json"), meta.to_string()).unwrap();
 }
 
-/// `flow.sqlite` in WAL mode. Keep the connection open, as a running Wispr
-/// Flow would: its rows stay in `flow.sqlite-wal`.
+/// `flow.sqlite` in WAL mode, its columns declared as Wispr Flow declares
+/// them. Keep the connection open, as a running Wispr Flow would: its rows
+/// stay in `flow.sqlite-wal`.
 pub fn wispr_db(root: &Path) -> Connection {
     fs::create_dir_all(root.join("meetings")).unwrap();
     let conn = Connection::open(root.join("flow.sqlite")).unwrap();
@@ -58,15 +60,15 @@ pub fn wispr_db(root: &Path) -> Connection {
     assert_eq!(mode, "wal");
     conn.execute_batch(
         "CREATE TABLE Meetings (
-            id TEXT PRIMARY KEY NOT NULL,
-            title TEXT,
-            createdAt TEXT,
-            updatedAt TEXT,
-            endedAt TEXT,
-            recordedMs INTEGER,
-            summary TEXT,
-            speakerMap TEXT,
-            isDeleted INTEGER DEFAULT 0
+            id VARCHAR(36) PRIMARY KEY NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            createdAt DATETIME NOT NULL,
+            modifiedAt DATETIME NOT NULL,
+            endedAt INTEGER DEFAULT NULL,
+            recordedMs INTEGER DEFAULT NULL,
+            summary TEXT DEFAULT NULL,
+            speakerMap TEXT DEFAULT NULL,
+            isDeleted TINYINT(1) NOT NULL DEFAULT 0
         );",
     )
     .unwrap();
@@ -105,12 +107,13 @@ pub fn wispr(
         },
     });
     conn.execute(
-        "INSERT INTO Meetings (id, title, createdAt, updatedAt, endedAt, recordedMs, summary, speakerMap)
-         VALUES (?1, 'Roadmap sync', ?2, ?3, ?3, ?4, ?5, ?6)",
+        "INSERT INTO Meetings (id, title, createdAt, modifiedAt, endedAt, recordedMs, summary, speakerMap)
+         VALUES (?1, 'Roadmap sync', ?2, ?2, ?3, ?4, ?5, ?6)",
         params![
             id,
             wispr_time(start_ms),
-            wispr_time(start_ms + ms + 4_000),
+            // Unix ms, not a date like `createdAt`.
+            start_ms + ms + 4_000,
             recorded.then_some(ms),
             "## Notes\n<@speaker:0> and <@speaker:1> agreed; <@speaker:2> left.",
             speaker_map.to_string(),
@@ -148,8 +151,26 @@ pub fn wispr(
 
 pub fn wispr_deleted(conn: &Connection, id: &str, start_ms: i64) {
     conn.execute(
-        "INSERT INTO Meetings (id, title, createdAt, recordedMs, isDeleted) VALUES (?1, 'Gone', ?2, 600000, 1)",
+        "INSERT INTO Meetings (id, title, createdAt, modifiedAt, recordedMs, isDeleted)
+         VALUES (?1, 'Gone', ?2, ?2, 600000, 1)",
         params![id, wispr_time(start_ms)],
+    )
+    .unwrap();
+}
+
+/// A Wispr Flow meeting nobody spoke in, its times stored as given: a
+/// column keeps a value its declared type can't hold as it came.
+pub fn wispr_row(
+    conn: &Connection,
+    id: &str,
+    created: SqlValue,
+    ended: SqlValue,
+    recorded: SqlValue,
+) {
+    conn.execute(
+        "INSERT INTO Meetings (id, title, createdAt, modifiedAt, endedAt, recordedMs)
+         VALUES (?1, 'Odd one', ?2, '', ?3, ?4)",
+        params![id, created, ended, recorded],
     )
     .unwrap();
 }

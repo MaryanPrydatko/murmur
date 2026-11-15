@@ -80,12 +80,10 @@ pub(crate) fn fail_job(app: &AppHandle, id: &str, error: &str) {
 fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn ChunkControl) {
     let tm = app.state::<Arc<TranscriptionManager>>();
     let mut unseparated = None;
-    // Tracks cut short while recording, then any whose file ends early.
-    let mut cut_short: Vec<String> = app
+    // What went wrong while recording, then any track whose file ends early.
+    let mut problems = app
         .state::<Arc<MeetingManager>>()
-        .take_cut_short(&meeting.id)
-        .into_iter()
-        .collect();
+        .take_track_problems(&meeting.id);
     let mut transcribed = false;
     // Whether the transcript was written: a speakers-only rerun that can't
     // tell them apart keeps the one there is.
@@ -102,7 +100,9 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 transcribed = true;
                 let (samples, total, short) = read_track(&track.file)?;
                 if short {
-                    cut_short.push(format!("{:?}: the file ends early", track.kind));
+                    problems
+                        .cut_short
+                        .push(format!("{:?}: the file ends early", track.kind));
                 }
                 let reporting = Reporting::new(app, &meeting.id, step, control);
                 tm.transcribe_words_in_chunks(samples, total, &reporting)
@@ -199,13 +199,7 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
                 }
                 None => {}
             }
-            if !cut_short.is_empty() {
-                notices::raise(
-                    app,
-                    Notice::new(NoticeCode::MeetingTrackIncomplete, NoticeSource::Meeting)
-                        .with_detail(cut_short.join("; ")),
-                );
-            }
+            problems.raise(app);
         }
         Err(e) => {
             error!("Meeting {} transcription failed: {e:#}", meeting.id);

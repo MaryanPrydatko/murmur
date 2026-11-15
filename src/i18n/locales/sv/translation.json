@@ -980,6 +980,8 @@
     "meetingSpeakersNotSeparatedTitle": "Speakers Not Separated",
     "meetingTrackIncompleteTitle": "Meeting Audio Cut Short",
     "meetingTrackIncomplete": "Part of the meeting wasn't recorded. The transcript covers the rest.",
+    "meetingSystemAudioWithheldTitle": "System Audio Not Recorded",
+    "meetingSystemAudioWithheld": "macOS gave Murmur no audio from the output for part of the meeting, so what the others said then isn't in the transcript. Check that Murmur is allowed in System Settings > Privacy & Security > Screen & System Audio Recording.",
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "Transkriptionen misslyckades"

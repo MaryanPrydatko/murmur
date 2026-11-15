@@ -95,6 +95,86 @@ fn reads_wispr_meetings_from_a_database_wispr_still_has_open() {
 }
 
 #[test]
+fn reads_wispr_times_as_whatever_type_they_are_stored_in() {
+    use rusqlite::types::Value::{Integer, Null, Real, Text};
+    let tmp = tempfile::tempdir().unwrap();
+    let conn = wispr_db(tmp.path());
+    let t0 = T0_SECS * 1000;
+    let date = |ms: i64| {
+        Text(
+            chrono::DateTime::from_timestamp_millis(ms)
+                .unwrap()
+                .to_rfc3339(),
+        )
+    };
+    // As Wispr Flow writes them: a date, Unix ms, and no recordedMs early on.
+    wispr(&conn, tmp.path(), "wf-real", t0, 30, false);
+    let stored: String = conn
+        .query_row(
+            "SELECT typeof(createdAt) || ' ' || typeof(endedAt) FROM Meetings",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(stored, "text integer");
+    wispr_row(&conn, "wf-ms", Integer(t0 + 1), Integer(t0 + 600_001), Null);
+    wispr_row(
+        &conn,
+        "wf-real-ms",
+        Real(t0 as f64 + 2.4),
+        Null,
+        Real(90_000.4),
+    );
+    wispr_row(
+        &conn,
+        "wf-dates",
+        date(t0 + 3),
+        date(t0 + 300_003),
+        Text("x".into()),
+    );
+    // No start: counted back from its end.
+    wispr_row(
+        &conn,
+        "wf-no-start",
+        Text("soon".into()),
+        Integer(t0 + 400_004),
+        Integer(100_000),
+    );
+    wispr_row(
+        &conn,
+        "wf-undated",
+        Text("secret words".into()),
+        Null,
+        Integer(100_000),
+    );
+
+    let mut scan = wispr::scan(tmp.path());
+    scan.meetings.sort_by(|a, b| a.source_id.cmp(&b.source_id));
+    let found: Vec<_> = scan
+        .meetings
+        .iter()
+        .map(|m| (m.source_id.as_str(), m.started_at_ms, m.duration_ms))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("wf-dates", t0 + 3, 300_000),
+            ("wf-ms", t0 + 1, 600_000),
+            ("wf-no-start", t0 + 300_004, 100_000),
+            ("wf-real", t0, 30 * 60_000),
+            ("wf-real-ms", t0 + 2, 90_000),
+        ]
+    );
+    // The one that can't be dated is left out alone, and not quoted.
+    let [undated] = scan.unreadable.as_slice() else {
+        panic!("one unreadable, got {:?}", scan.unreadable);
+    };
+    assert!(undated.contains("wf-undated"), "{undated}");
+    assert!(!undated.contains("secret"), "{undated}");
+    drop(conn);
+}
+
+#[test]
 fn skips_a_wispr_line_cut_off_at_the_end_but_not_in_the_middle() {
     let tmp = tempfile::tempdir().unwrap();
     let conn = wispr_db(tmp.path());

@@ -1,5 +1,6 @@
 //! Capture: each track streamed to its own WAV, and the output's monitor
-//! found through PulseAudio.
+//! found through PulseAudio. On macOS the output is recorded through the
+//! recorder's tap on the default output instead.
 
 use anyhow::{anyhow, Context, Result};
 use handy_recorder::{AudioChunk, EndReason, Recorder, RecorderConfig, Sink};
@@ -8,7 +9,7 @@ use log::{info, warn};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -26,6 +27,10 @@ pub(super) struct TrackFeed {
     /// The loudest sample since the last read, as `f32` bits: for a
     /// non-negative float those order like the float.
     peak: AtomicU32,
+    /// Whether a sample since the last read was other than zero.
+    heard: AtomicBool,
+    /// Set once the track gave only zeros for too long while it recorded.
+    withheld: AtomicBool,
 }
 
 impl TrackFeed {
@@ -39,6 +44,25 @@ impl TrackFeed {
     /// The loudest sample since the last call, 0 to 1.
     pub fn take_peak(&self) -> f32 {
         f32::from_bits(self.peak.swap(0, Ordering::Relaxed))
+    }
+
+    /// Whether the track had a sample other than zero since the last call.
+    /// The macOS system track always has while its tap is given the audio:
+    /// see [`handy_recorder::SYSTEM_OUTPUT_DEVICE`].
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn take_heard(&self) -> bool {
+        self.heard.swap(false, Ordering::Relaxed)
+    }
+
+    /// Notes that the track gave only zeros for too long.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn set_withheld(&self) {
+        self.withheld.store(true, Ordering::Relaxed);
+    }
+
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn withheld(&self) -> bool {
+        self.withheld.load(Ordering::Relaxed)
     }
 }
 
@@ -138,6 +162,9 @@ impl Sink for WavSink {
             .iter()
             .fold(0.0f32, |peak, s| peak.max(s.abs().min(1.0)));
         self.feed.peak.fetch_max(peak.to_bits(), Ordering::Relaxed);
+        if peak > 0.0 {
+            self.feed.heard.store(true, Ordering::Relaxed);
+        }
         let samples = audio
             .iter()
             .map(|&sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16);
@@ -245,6 +272,7 @@ pub(super) fn stop_track(track: &TrackRecorder, meeting_started: Instant) -> Res
 }
 
 /// The id of the input that records `monitor_source`.
+#[cfg(not(target_os = "macos"))]
 pub(super) fn monitor_input(monitor_source: &str) -> Result<String> {
     let devices = handy_recorder::list_input_devices()?;
     monitor_device_id(
@@ -255,12 +283,21 @@ pub(super) fn monitor_input(monitor_source: &str) -> Result<String> {
     .ok_or_else(|| anyhow!("No input device for the output monitor {monitor_source}"))
 }
 
+/// The input that records what the Mac plays: the recorder's tap on the
+/// default output, whichever that is when it's opened. `_output` only tells
+/// [`default_monitor_source`]'s callers when to open it again.
+#[cfg(target_os = "macos")]
+pub(super) fn monitor_input(_output: &str) -> Result<String> {
+    Ok(handy_recorder::SYSTEM_OUTPUT_DEVICE.to_string())
+}
+
 /// How long PulseAudio gets to say what the default output is.
 const PULSE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// The monitor source of the current default output, by its PulseAudio
-/// name. Asked on a thread of its own, so a server that never answers
-/// costs [`PULSE_TIMEOUT`], not a stuck caller.
+/// name; on macOS, the default output itself, by its Core Audio id. Asked on
+/// a thread of its own, so a server that never answers costs
+/// [`PULSE_TIMEOUT`], not a stuck caller.
 pub(super) fn default_monitor_source() -> Result<String> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()
@@ -295,13 +332,27 @@ fn query_default_monitor() -> Result<String> {
     Ok(name.to_string_lossy().into_owned())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
 fn query_default_monitor() -> Result<String> {
-    Err(anyhow!("Recording the output is only supported on Linux"))
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+
+    let output = crate::audio_toolkit::get_cpal_host()
+        .default_output_device()
+        .ok_or_else(|| anyhow!("No output device"))?;
+    let id = output.id().context("Failed to read the default output")?;
+    Ok(id.to_string())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn query_default_monitor() -> Result<String> {
+    Err(anyhow!(
+        "Recording the output is only supported on Linux and macOS"
+    ))
 }
 
 /// The id of the monitor input named `monitor_source`, from `(id, is_monitor)`
 /// pairs. Ids are `<host>:<name>`.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 fn monitor_device_id<'a>(
     devices: impl IntoIterator<Item = (&'a str, bool)>,
     monitor_source: &str,
@@ -393,6 +444,26 @@ mod tests {
         assert!(feed.offset_ms(started).is_some());
         assert_eq!(feed.take_peak(), 0.25);
         assert_eq!(feed.take_peak(), 0.0, "read once");
+    }
+
+    #[test]
+    fn a_track_is_heard_once_a_sample_is_not_zero() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("system.wav");
+        let feed = Arc::new(TrackFeed::default());
+        let mut sink = WavSink::create(&path, Arc::clone(&feed)).unwrap();
+        sink.process_chunk(chunk(&[0.0; 1_600]));
+        assert!(!feed.take_heard(), "only zeros: macOS withheld the audio");
+        // What an allowed tap hears when nothing plays: the recorder's own
+        // output, too quiet to reach the 16-bit file.
+        sink.process_chunk(chunk(&[1.0e-5; 1_600]));
+        assert!(feed.take_heard());
+        assert!(!feed.take_heard(), "read once");
+        assert_eq!(sink.finish().unwrap(), (3_200, None));
+        assert!(hound::WavReader::open(&path)
+            .unwrap()
+            .into_samples::<i16>()
+            .all(|s| s.unwrap() == 0));
     }
 
     #[test]

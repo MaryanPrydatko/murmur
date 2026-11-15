@@ -2536,8 +2536,6 @@ dependencies = [
 [[package]]
 name = "handy-cpal"
 version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07b0f0a55e498d0260eae6bc9a61a976b60d0c014c038771d6fbcc95907b79d4"
 dependencies = [
  "alsa",
  "block2",
@@ -2589,8 +2587,6 @@ dependencies = [
 [[package]]
 name = "handy-recorder"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29602f3465cb080cc437b08903ea7ef395c55a41120264a897acdd25ff9b255a"
 dependencies = [
  "dasp_sample",
  "futures",

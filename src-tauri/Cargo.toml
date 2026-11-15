@@ -65,7 +65,7 @@ symphonia = { version = "0.5.5", features = ["aac", "alac", "isomp4", "mp3", "ai
 symphonia-adapter-libopus = "0.2.9"
 # Resamples a decoded file to 16 kHz; the version handy-recorder already uses.
 rubato = "5"
-handy-recorder = "0.1.1"
+handy-recorder = "=0.1.1"
 reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "deflate"] }
 futures-util = "0.3"
 rustfft = "6.4.0"
@@ -211,6 +211,12 @@ transcribe-cpp = { version = "0.4.2", default-features = false, features = [
 [patch.crates-io]
 tao = { git = "https://github.com/cjpais/tao", rev = "c3bee28c1d446d95f08c95c3b6f8d4bde052b876" }
 tao-macros = { git = "https://github.com/cjpais/tao", rev = "c3bee28c1d446d95f08c95c3b6f8d4bde052b876" }
+# Patched copies in vendor/: on macOS a meeting's system track taps the default
+# output (a Core Audio process tap), which neither crate offers. The versions
+# are pinned (handy-recorder asks for handy-cpal =0.18.2), so a bump can't
+# silently drop the patch. See vendor/README.md.
+handy-cpal = { path = "vendor/handy-cpal-0.18.2" }
+handy-recorder = { path = "vendor/handy-recorder-0.1.1" }
 
 [dev-dependencies]
 tempfile = "3"
