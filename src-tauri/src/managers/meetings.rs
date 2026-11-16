@@ -27,7 +27,7 @@ use specta::Type;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, TryLockError};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
@@ -318,24 +318,40 @@ impl MeetingManager {
         if !is_meeting_id(id) {
             bail!("{id:?} is not a meeting");
         }
-        // A meeting that's stopping is neither recording nor queued yet.
-        let _toggling = self.toggling.lock().unwrap_or_else(PoisonError::into_inner);
+        // A meeting that's stopping is neither recording nor queued yet, so
+        // nothing is deleted during a start or stop. Refused, not waited
+        // for: a command runs on the main thread, and a start or stop needs
+        // that thread for the tray before it lets go.
+        let _toggling = match self.toggling.try_lock() {
+            Ok(toggling) => toggling,
+            Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+            Err(TryLockError::WouldBlock) => {
+                bail!("A meeting is starting or stopping; try again in a moment")
+            }
+        };
         if self.active_id().as_deref() == Some(id) {
             bail!("Meeting {id} is still recording");
         }
-        self.app
+        let mut tried = false;
+        let deleted = self
+            .app
             .state::<Arc<TranscriptionJobManager>>()
             .delete_meeting(id, || {
+                tried = true;
                 let dir = meetings_dir(&self.app)?;
                 let mut conn = self.app.state::<Arc<HistoryManager>>().get_connection()?;
                 remove_meeting(&mut conn, &dir, id)
-            })?;
-        self.track_problems
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .remove(id);
+            });
+        // Also when it failed part way: the rows may be gone by then.
+        if tried {
+            self.track_problems
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(id);
+            emit_changed(&self.app, id);
+        }
+        deleted?;
         info!("Meeting {id} deleted");
-        emit_changed(&self.app, id);
         Ok(())
     }
 
