@@ -217,7 +217,7 @@ fn paste_via_clipboard(
     // cannot tell. The transcript stays on the clipboard (and the primary
     // selection, with Shift+Insert) so the user can paste it by hand.
     if paste_result == Ok(false) && reach != EnigoReach::Reaches {
-        log::warn!("No tool could send the paste keys to a Wayland window ({reach:?}); the text is left on the clipboard");
+        log::warn!("Only XTest sent the paste keys, which may not reach a Wayland window ({reach:?}); the text is left on the clipboard");
         return Ok(Delivery::OnClipboard);
     }
 
@@ -927,7 +927,7 @@ fn paste_direct(
     // enigo's keys did not reach the window, or Handy cannot tell. Put the
     // text where the user can paste it from.
     if reach != EnigoReach::Reaches {
-        log::warn!("No tool could type into a Wayland window ({reach:?}); the text is put on the clipboard");
+        log::warn!("Only XTest typed the text, which may not reach a Wayland window ({reach:?}); the text is put on the clipboard");
         write_text_to_clipboard(app_handle, text)?;
         return Ok(Delivery::OnClipboard);
     }
