@@ -203,8 +203,15 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<MeetingDetail>> {
     else {
         return Ok(None);
     };
+    // Only who speaks in the transcript there is now: after the speakers
+    // are told apart, the row of "them" stays for its name and says nothing.
     let speakers = conn
-        .prepare("SELECT key, label FROM meeting_speakers WHERE meeting_id = ?1 ORDER BY key")?
+        .prepare(
+            "SELECT key, label FROM meeting_speakers
+             WHERE meeting_id = ?1 AND key IN
+                 (SELECT speaker_key FROM meeting_segments WHERE meeting_id = ?1)
+             ORDER BY key",
+        )?
         .query_map([id], |row| {
             Ok(MeetingSpeaker {
                 key: row.get("key")?,
@@ -510,7 +517,11 @@ mod tests {
         let keys = speaker_keys(&conn).unwrap();
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0].keys, ["me", "s1"]);
-        assert_eq!(get(&conn, id).unwrap().unwrap().speakers.len(), 3);
+        // The meeting's page and note get the same two: with "them" still
+        // listed they would say the other side was not told apart.
+        let shown = get(&conn, id).unwrap().unwrap().speakers;
+        let shown: Vec<&str> = shown.iter().map(|s| s.key.as_str()).collect();
+        assert_eq!(shown, ["me", "s1"]);
 
         save_transcript(&mut conn, id, &[]).unwrap();
         assert!(speaker_keys(&conn).unwrap().is_empty());
