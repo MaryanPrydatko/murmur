@@ -542,8 +542,9 @@ impl<'a> SpokenToken<'a> {
 
 enum SpokenPiece {
     Text(String),
-    /// A line break (1) or a paragraph break (2).
-    Break(usize),
+    /// A line break (1) or a paragraph break (2), and the words it was
+    /// spoken as.
+    Break(usize, String),
     /// A list marker: its number, or `None` for a bullet, and the words it
     /// was spoken as.
     Marker(Option<usize>, String),
@@ -595,11 +596,8 @@ fn spoken_break_at(tokens: &[SpokenToken], i: usize, clause_start: bool) -> Opti
         return found.then_some((breaks, i + 2));
     }
     if token.core == "newline" {
-        let own_phrase = token.ends_with_any(&CLAUSE_END);
-        // Said without a pause, Parakeet still sets the command off as one
-        // capitalised word: "Hi John Newline, thanks".
-        let set_off = own_phrase && token.raw.starts_with('N');
-        if (clause_start && (own_phrase || is_last(i))) || set_off {
+        let own_phrase = is_last(i) || token.ends_with_any(&CLAUSE_END);
+        if clause_start && own_phrase {
             return Some((1, i + 1));
         }
     }
@@ -608,7 +606,7 @@ fn spoken_break_at(tokens: &[SpokenToken], i: usize, clause_start: bool) -> Opti
 
 /// The numbered marker spoken at token `i`: its number, and the token after
 /// it. "Number one," counts at any clause start. Whether a bare "One," or
-/// "1." counts here is the caller's `bare_allowed`.
+/// "1." counts here is the caller's `bare_allowed`; a bare "One." never does.
 fn spoken_number_at(
     tokens: &[SpokenToken],
     i: usize,
@@ -619,6 +617,11 @@ fn spoken_number_at(
     let (numeral, next) = if clause_start && token.core == "number" && token.tail.is_empty() {
         (tokens.get(i + 1).filter(|t| t.lead.is_empty())?, i + 2)
     } else if bare_allowed {
+        // "One." on its own is an answer or a count. A bare item starts
+        // with "One," or with the "1." Parakeet writes.
+        if token.tail.contains('.') && NUMBER_WORDS.contains(&token.core.as_str()) {
+            return None;
+        }
         (token, i + 1)
     } else {
         return None;
@@ -662,7 +665,7 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
         let command = if !token.lead.is_empty() {
             None
         } else if let Some((breaks, next)) = spoken_break_at(tokens, i, clause_start) {
-            Some((SpokenPiece::Break(breaks), next))
+            Some((SpokenPiece::Break(breaks, spoken(i, next)), next))
         } else if let Some(end) = bullet_phrase_end(tokens, i).filter(|_| bullet_allowed) {
             Some((SpokenPiece::Marker(None, spoken(i, end + 1)), end + 1))
         } else if let Some((number, next)) = spoken_number_at(tokens, i, clause_start, bare_allowed)
@@ -691,9 +694,11 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
     pieces
 }
 
-/// Turns every marker that is not part of a list back into the words it was
-/// spoken as. A bullet needs text after it. A numbered list counts up from
-/// one, has text after every marker, and has at least two markers.
+/// Turns every command that would change nothing, or is not part of a list,
+/// back into the words it was spoken as. A break needs text before and after
+/// it: at either end of a dictation it would only delete its own words. A
+/// bullet needs text after it. A numbered list counts up from one, has text
+/// after every marker, and has at least two markers.
 fn reject_stray_markers(pieces: Vec<SpokenPiece>) -> Vec<SpokenPiece> {
     let has_text = |index: usize| match pieces.get(index) {
         Some(SpokenPiece::Text(text)) => text.chars().any(char::is_alphanumeric),
@@ -704,7 +709,12 @@ fn reject_stray_markers(pieces: Vec<SpokenPiece>) -> Vec<SpokenPiece> {
         _ => None,
     };
 
-    let mut stray = Vec::new();
+    let is_break = |piece: &SpokenPiece| matches!(piece, SpokenPiece::Break(..));
+    let leading = pieces.iter().take_while(|piece| is_break(piece)).count();
+    let trailing = pieces.iter().rev().take_while(|piece| is_break(piece)).count();
+    let mut stray: Vec<usize> = (0..leading)
+        .chain(pieces.len() - trailing..pieces.len())
+        .collect();
     let mut j = 0;
     while let Some(piece) = pieces.get(j) {
         match piece {
@@ -733,7 +743,11 @@ fn reject_stray_markers(pieces: Vec<SpokenPiece>) -> Vec<SpokenPiece> {
     let mut merged: Vec<SpokenPiece> = Vec::new();
     for (index, piece) in pieces.into_iter().enumerate() {
         let piece = match piece {
-            SpokenPiece::Marker(_, spoken) if stray.contains(&index) => SpokenPiece::Text(spoken),
+            SpokenPiece::Marker(_, spoken) | SpokenPiece::Break(_, spoken)
+                if stray.contains(&index) =>
+            {
+                SpokenPiece::Text(spoken)
+            }
             other => other,
         };
         match (merged.last_mut(), piece) {
@@ -770,7 +784,7 @@ fn render_spoken(pieces: &[SpokenPiece]) -> String {
     while let Some(piece) = pieces.get(j) {
         j += 1;
         match (piece, pieces.get(j)) {
-            (SpokenPiece::Break(breaks), _) => {
+            (SpokenPiece::Break(breaks, _), _) => {
                 break_line(&mut out, *breaks, 0);
                 capital_owed = true;
             }
@@ -1270,9 +1284,6 @@ Hi John, new line, thanks for the update. => Hi John,<NL>Thanks for the update.
 The intro is done. New paragraph. The second part starts here. => The intro is done.<NL><NL>The second part starts here.
 Line one is short. Newline. Line two is longer. => Line one is short.<NL>Line two is longer.
 Dear team, new paragraph. I will be late tomorrow. => Dear team,<NL><NL>I will be late tomorrow.
-New line. Hello there. => Hello there.
-Hello there. New line. => Hello there.
-Thanks, new line. => Thanks,
 Alpha is ready. New line. New line. Beta is not. => Alpha is ready.<NL><NL>Beta is not.
 Alpha is ready. New paragraph. New paragraph. Beta is not. => Alpha is ready.<NL><NL>Beta is not.
 Send it to Anna. New line, new line. Best, Maryan. => Send it to Anna.<NL><NL>Best, Maryan.
@@ -1298,15 +1309,14 @@ We ship on Friday. Number one, tests pass, number two, docs are done. => We ship
 Hello. New line. Number one, write tests. Number two, ship. => Hello.<NL>1. Write tests<NL>2. Ship
 Number one, apples. Number two, pears. Number two, plums. => 1. Apples<NL>2. Pears<NL>Number two, plums.
 Bullet point. New line. Done. => Bullet point.<NL>Done.
-# Known false positives, pinned so they are a decision.
-How many do you want? One. And for her? Two. Okay. => How many do you want?<NL>1. And for her?<NL>2. Okay
+# Known false positives, pinned so they are a decision: a command phrase
+# that is an item of a sentence, and "One," "Two," opening two sentences.
+Old line, new line, it does not matter. => Old line,<NL>It does not matter.
+I have two kids. One, Anna, is five. Two, Ben, is three. => I have two kids.<NL>1. Anna, is five<NL>2. Ben, is three
 # What Parakeet Ultra wrote for generated speech (six voices, 2026-11-16)
 # where it differs from the forms above: a comma for a short pause,
 # "Newline" as one word, digits for the numbers of a list.
 Hi John, Newline, thanks for the update. => Hi John,<NL>Thanks for the update.
-Hi John Newline, thanks for the update. => Hi John<NL>Thanks for the update.
-Hello there, new line. => Hello there,
-New line, hello there. => Hello there.
 Line 1 is short, new line, line 2 is longer. => Line 1 is short,<NL>Line 2 is longer.
 Alpha is ready, new line, new line, beta is not. => Alpha is ready,<NL><NL>Beta is not.
 See you on Mundy, New Line, Best Regards, New Line, Marion. => See you on Mundy,<NL>Best Regards,<NL>Marion.
@@ -1390,6 +1400,22 @@ New line.
 New line
 New paragraph
 New line. New paragraph.
+# A break at the start or the end would only delete its own words.
+New line. Hello there.
+Hello there. New line.
+Hello there, new line.
+New line, hello there.
+Thanks, new line.
+Hello there. New paragraph. New line.
+What did he add? New paragraph.
+Try saying, new line.
+The character is called Newline.
+# "Newline" inside a clause is a word.
+It prints a Newline, then the name.
+Hi John Newline, thanks for the update.
+# "One." on its own is an answer or a count.
+How many do you want? One. And for her? Two. Okay.
+Rate it from one to ten. One. Bad. Two. Also bad.
 # Ordinary sentences as Parakeet Ultra wrote them.
 Print a new line, then the name.
 Add a new line at the end of the file.
@@ -1424,7 +1450,6 @@ Dear team, new paragraph. I will be late tomorrow. => Dear team, I will be late 
 Alpha is ready. New line. New line. Beta is not. => Alpha is ready. Beta is not.
 Number one, apples. Number two, pears. Let me know. => 1. Apples; 2. Pears; Let me know.
 Shopping list. Bullet point milk. Bullet point eggs. => Shopping list. - Milk; - Eggs
-Hi John Newline, thanks for the update. => Hi John; Thanks for the update.
 "#;
 
     fn spoken_rows(table: &'static str) -> impl Iterator<Item = &'static str> {

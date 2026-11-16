@@ -1418,9 +1418,13 @@ mod tests {
             ..settings_pasting_with(PasteMethod::ShiftInsert)
         };
         for (spoken, pasted) in [
-            ("Hello there. New line.", "Hello there."),
-            ("Hello there. New paragraph. New line.", "Hello there."),
-            ("Bullet point milk. Bullet point eggs. New line.", "- Milk\n- Eggs"),
+            ("Hi John. New line. Thanks.", "Hi John.\nThanks."),
+            // A break with nothing after it stays the words it was.
+            ("Hello there. New line.", "Hello there. New line."),
+            (
+                "Bullet point milk. Bullet point eggs. New line.",
+                "- Milk\n- Eggs\nNew line.",
+            ),
         ] {
             assert_eq!(
                 apply_spoken_formatting(&settings, None, false, spoken.to_string()),
