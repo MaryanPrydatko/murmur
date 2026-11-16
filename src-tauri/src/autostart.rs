@@ -39,6 +39,35 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
             e
         );
     }
+    #[cfg(target_os = "linux")]
+    if enabled {
+        fix_desktop_entry_comment(app);
+    }
+}
+
+/// The plugin writes the entry's comment without a space, as
+/// "Comment=Murmurstartup script". Desktops show it in their startup lists.
+#[cfg(target_os = "linux")]
+fn fix_desktop_entry_comment(app: &AppHandle) {
+    use tauri::Manager;
+
+    let name = &app.package_info().name;
+    let Ok(config) = app.path().config_dir() else {
+        return;
+    };
+    let entry = config.join("autostart").join(format!("{name}.desktop"));
+    let Ok(text) = std::fs::read_to_string(&entry) else {
+        return;
+    };
+    let fixed = text.replace(
+        &format!("Comment={name}startup script"),
+        &format!("Comment=Start {name} at login"),
+    );
+    if fixed != text {
+        if let Err(e) = std::fs::write(&entry, fixed) {
+            log::warn!("Failed to fix the autostart entry's comment: {e}");
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
