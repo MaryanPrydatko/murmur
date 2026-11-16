@@ -204,6 +204,8 @@ fn try_send_key_combo_linux(paste_method: &PasteMethod) -> bool {
 
 /// Attempts to type text directly using Linux-native tools.
 /// Returns `Ok(true)` if a native tool handled it, `Ok(false)` to fall back to enigo.
+/// A tool the user picked reports its failure instead; on Auto, a ydotool
+/// that fails hands over to enigo.
 #[cfg(target_os = "linux")]
 fn try_direct_typing_linux(text: &str, preferred_tool: TypingTool) -> Result<bool, String> {
     // If user specified a tool, try only that one
@@ -263,9 +265,7 @@ fn try_direct_typing_linux(text: &str, preferred_tool: TypingTool) -> Result<boo
             type_text_via_dotool(text)?;
             return Ok(true);
         }
-        if is_ydotool_available() {
-            info!("Using ydotool for direct text input");
-            type_text_via_ydotool(text)?;
+        if is_ydotool_available() && type_text_via_ydotool_or_hand_over(text) {
             return Ok(true);
         }
     } else {
@@ -275,14 +275,27 @@ fn try_direct_typing_linux(text: &str, preferred_tool: TypingTool) -> Result<boo
             type_text_via_xdotool(text)?;
             return Ok(true);
         }
-        if is_ydotool_available() {
-            info!("Using ydotool for direct text input");
-            type_text_via_ydotool(text)?;
+        if is_ydotool_available() && type_text_via_ydotool_or_hand_over(text) {
             return Ok(true);
         }
     }
 
     Ok(false)
+}
+
+/// Types `text` with ydotool when the user left the tool on Auto. An installed
+/// ydotool whose daemon is not running fails before it types anything, so a
+/// failure hands over to enigo, the same as when ydotool is not installed.
+#[cfg(target_os = "linux")]
+fn type_text_via_ydotool_or_hand_over(text: &str) -> bool {
+    info!("Using ydotool for direct text input");
+    match type_text_via_ydotool(text) {
+        Ok(()) => true,
+        Err(e) => {
+            log::warn!("ydotool could not type the text: {e}");
+            false
+        }
+    }
 }
 
 /// Returns the list of available typing tools on this system.
