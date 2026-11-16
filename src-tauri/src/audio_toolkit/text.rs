@@ -602,8 +602,8 @@ fn spoken_break_at(tokens: &[SpokenToken], i: usize, clause_start: bool) -> Opti
 }
 
 /// The numbered marker spoken at token `i`: its number, and the token after
-/// it. "Number one," counts at any clause start. A bare "One," or "1." has to
-/// start a sentence or follow an earlier marker (`bare_allowed`).
+/// it. "Number one," counts at any clause start. Whether a bare "One," or
+/// "1." counts here is the caller's `bare_allowed`.
 fn spoken_number_at(
     tokens: &[SpokenToken],
     i: usize,
@@ -648,7 +648,11 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
         let clause_start = starts_after(i, &CLAUSE_END);
         let sentence_start = starts_after(i, &SENTENCE_END);
         let bullet_allowed = sentence_start || (clause_start && bullet_seen);
-        let bare_allowed = sentence_start || (clause_start && number_seen);
+        // Inside a list only the number as Parakeet writes it counts after a
+        // comma ("1. The price is too high, 2. The delivery is too slow"), so
+        // "sizes one, two, and three" stays in its item.
+        let written_number = token.tail == "." && token.core.chars().all(|c| c.is_ascii_digit());
+        let bare_allowed = sentence_start || (clause_start && number_seen && written_number);
 
         let command = if !token.lead.is_empty() {
             None
@@ -1321,8 +1325,11 @@ My priorities are, number one, speed, number two, cost. => My priorities are,<NL
 Number 1. Fix the login bug. Number 2. Ship it on Friday. => 1. Fix the login bug<NL>2. Ship it on Friday
 Number 1, apples, number 2, pears, number 3, milk, new paragraph, that is all. => 1. Apples<NL>2. Pears<NL>3. Milk<NL><NL>That is all.
 Number 1, call the bank. Number 2, book the flights, number 3, pack. => 1. Call the bank<NL>2. Book the flights<NL>3. Pack
+# A count inside an item is not the next item.
+Number one, sizes one, two, and three. Number two, colours. => 1. Sizes one, two, and three<NL>2. Colours
+Number 1, sizes 1, 2, and 3. Number 2, colours. => 1. Sizes 1, 2, and 3<NL>2. Colours
+Number one, we need three, four, maybe five servers. Number two, ship. => 1. We need three, four, maybe five servers<NL>2. Ship
 1. Speed. 2. Cost. => 1. Speed<NL>2. Cost
-1, speed, 2, cost. => 1. Speed<NL>2. Cost
 Three reasons. 1. It is too expensive. 2. Nobody asked for it. 3. It is local. => Three reasons.<NL>1. It is too expensive<NL>2. Nobody asked for it<NL>3. It is local
 I have two points. 1. The price is too high. 2. The delivery is too slow. That is it. => I have two points.<NL>1. The price is too high<NL>2. The delivery is too slow<NL>That is it.
 I have two points. 1. the price is too high, 2. the delivery is too slow, that is it. => I have two points.<NL>1. The price is too high<NL>2. The delivery is too slow, that is it
@@ -1387,6 +1394,8 @@ My priorities are number 1, speed, number 2, cost.
 I have two points, 1, the price is too high, 2, the delivery is too slow, that is it.
 Agenda 1, Budget 2, hiring.
 1 speed 2 cost
+1, speed, 2, cost.
+1. Speed, 2, cost.
 "#;
 
     /// What is typed when the paste cannot carry line breaks.
