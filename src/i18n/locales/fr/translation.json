@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Ça ne marche pas ? <guide>Guide de configuration Linux</guide>",
-      "done": "Ça ne marche pas dans les autres apps ? <guide>Guide de configuration Linux</guide>"
+      "done": "Ça ne marche pas dans les autres apps ? <guide>Guide de configuration Linux</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Aucun raccourci configuré",
         "notFound": "Raccourci non trouvé",
         "pressKeys": "Appuyez sur les touches...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Raccourci de Transcription",

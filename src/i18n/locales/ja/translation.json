@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "うまくいかない場合は <guide>Linux セットアップガイド</guide>",
-      "done": "ほかのアプリで動かない場合は <guide>Linux セットアップガイド</guide>"
+      "done": "ほかのアプリで動かない場合は <guide>Linux セットアップガイド</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "ショートカットが設定されていません",
         "notFound": "ショートカットが見つかりません",
         "pressKeys": "キーを押してください…",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "文字起こしのショートカット",

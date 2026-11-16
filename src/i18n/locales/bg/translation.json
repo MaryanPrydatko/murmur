@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Не работи? <guide>Ръководство за настройка на Linux</guide>",
-      "done": "Не работи в други приложения? <guide>Ръководство за настройка на Linux</guide>"
+      "done": "Не работи в други приложения? <guide>Ръководство за настройка на Linux</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Няма настроени бързи клавиши",
         "notFound": "Бързият клавиш не е намерен",
         "pressKeys": "Натиснете клавишите...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Бърз клавиш за транскрипция",

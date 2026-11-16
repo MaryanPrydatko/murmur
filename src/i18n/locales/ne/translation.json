@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "काम गरेन? <guide>Linux सेटअप गाइड</guide>",
-      "done": "अन्य एपहरूमा काम गरेन? <guide>Linux सेटअप गाइड</guide>"
+      "done": "अन्य एपहरूमा काम गरेन? <guide>Linux सेटअप गाइड</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "कुनै सर्टकट सेट गरिएको छैन",
         "notFound": "सर्टकट भेटिएन",
         "pressKeys": "किहरू थिच्नुहोस्...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "ट्रान्सक्राइब सर्टकट",

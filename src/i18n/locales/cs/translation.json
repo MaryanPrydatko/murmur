@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Nefunguje to? <guide>Průvodce nastavením pro Linux</guide>",
-      "done": "Nefunguje to v jiných aplikacích? <guide>Průvodce nastavením pro Linux</guide>"
+      "done": "Nefunguje to v jiných aplikacích? <guide>Průvodce nastavením pro Linux</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Žádné zkratky nejsou nastavené",
         "notFound": "Zkratka nenalezena",
         "pressKeys": "Stiskněte klávesy...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Zkratka přepisu",

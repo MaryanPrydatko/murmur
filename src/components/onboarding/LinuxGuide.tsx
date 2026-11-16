@@ -7,7 +7,11 @@ import { LINUX_SETUP_URL } from "@/lib/constants/links";
 
 /** Linux footer hint linking the setup guide; shortcuts and pasting vary by desktop. */
 export const LinuxGuide: React.FC<{
-  i18nKey: "onboarding.linux.tryIt" | "onboarding.linux.done";
+  i18nKey:
+    | "onboarding.linux.tryIt"
+    | "onboarding.linux.done"
+    | "onboarding.linux.wayland"
+    | "settings.general.shortcut.waylandHint";
 }> = ({ i18nKey }) => (
   <Trans i18nKey={i18nKey} components={{ guide: <GuideLink /> }} />
 );

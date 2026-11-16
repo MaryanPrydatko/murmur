@@ -864,6 +864,7 @@ pub fn run(cli_args: CliArgs) {
             shortcut::change_whats_new_last_seen_version_setting,
             shortcut::change_keyboard_implementation_setting,
             shortcut::get_keyboard_implementation,
+            shortcut::is_wayland_session,
             shortcut::change_show_tray_icon_setting,
             shortcut::change_transcribe_accelerator_setting,
             shortcut::change_transcribe_gpu_device,

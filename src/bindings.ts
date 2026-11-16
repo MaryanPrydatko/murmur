@@ -491,6 +491,14 @@ async changeKeyboardImplementationSetting(implementation: string) : Promise<Resu
 async getKeyboardImplementation() : Promise<string> {
     return await TAURI_INVOKE("get_keyboard_implementation");
 },
+/**
+ * Whether this is a Wayland session. The Tauri implementation's shortcuts
+ * are X11 key grabs there, which only fire while an XWayland window has
+ * focus, so the settings page says so.
+ */
+async isWaylandSession() : Promise<boolean> {
+    return await TAURI_INVOKE("is_wayland_session");
+},
 async changeShowTrayIconSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_show_tray_icon_setting", { enabled }) };

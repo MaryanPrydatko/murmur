@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Fungerar det inte? <guide>Installationsguide för Linux</guide>",
-      "done": "Fungerar det inte i andra appar? <guide>Installationsguide för Linux</guide>"
+      "done": "Fungerar det inte i andra appar? <guide>Installationsguide för Linux</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Inga kortkommandon konfigurerade",
         "notFound": "Kortkommando hittades inte",
         "pressKeys": "Tryck på tangenter...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Kortkommando för transkribering",

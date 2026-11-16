@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "沒有作用嗎？<guide>Linux 設定指南</guide>",
-      "done": "在其他應用程式中沒有作用嗎？<guide>Linux 設定指南</guide>"
+      "done": "在其他應用程式中沒有作用嗎？<guide>Linux 設定指南</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "未設定快捷鍵",
         "notFound": "未找到快捷鍵",
         "pressKeys": "請按鍵...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "轉錄快捷鍵",

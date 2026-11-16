@@ -81,7 +81,9 @@ Without these tools, Murmur falls back to enigo which may have limited compatibi
 - The recording overlay is disabled by default on Linux (`Overlay Position: None`) because certain compositors treat it as the active window. When the overlay is visible it can steal focus, which prevents Murmur from pasting back into the application that triggered transcription. If you enable the overlay anyway, be aware that clipboard-based pasting might fail or end up in the wrong window.
 - Murmur picks the WebKit renderer on Linux from the linked WebKitGTK version: 2.54 and newer keep the compositor on shared memory (`WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`), older releases disable DMA-BUF rendering (`WEBKIT_DISABLE_DMABUF_RENDERER=1`). Explicit values for either variable are preserved. For rendering workarounds, see [Troubleshooting → Configure the WebKit renderer](#3-configure-the-webkit-renderer).
 - If Murmur fails to start reliably on Linux, see [Troubleshooting → Linux Startup Crashes or Instability](#linux-startup-crashes-or-instability).
-- **Global keyboard shortcuts (Wayland):** On Wayland, system-level shortcuts must be configured through your desktop environment or window manager. Use the [CLI flags](../README.md#command-line) as the command for your custom shortcut.
+- **Global keyboard shortcuts (Wayland):** Murmur's own shortcut is an X11 key grab by default. On Wayland it only works while an XWayland window has focus (Murmur's own window is one on GNOME); in a native Wayland window, such as GNOME's terminal or text editor, nothing happens. Two things work in every window:
+  - A system shortcut, configured through your desktop environment or window manager, that runs one of the [CLI flags](../README.md#command-line). The steps are below.
+  - The **Handy Keys** mode: open the Debug page with `Ctrl+Shift+D` and set **Keyboard Implementation** to **Handy Keys**. It reads the keyboard from `/dev/input` and needs write access to `/dev/uinput`. Without that access Murmur says so and goes back to the default.
 
   **GNOME:**
   1. Open **Settings > Keyboard > Keyboard Shortcuts > Custom Shortcuts**

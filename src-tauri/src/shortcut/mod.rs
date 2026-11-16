@@ -439,6 +439,18 @@ pub fn get_keyboard_implementation(app: AppHandle) -> String {
     }
 }
 
+/// Whether this is a Wayland session. The Tauri implementation's shortcuts
+/// are X11 key grabs there, which only fire while an XWayland window has
+/// focus, so the settings page says so.
+#[tauri::command]
+#[specta::specta]
+pub fn is_wayland_session() -> bool {
+    #[cfg(target_os = "linux")]
+    return crate::utils::is_wayland();
+    #[cfg(not(target_os = "linux"))]
+    false
+}
+
 // ============================================================================
 // Validation Helpers
 // ============================================================================

@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Không hoạt động? <guide>Hướng dẫn thiết lập Linux</guide>",
-      "done": "Không hoạt động trong các ứng dụng khác? <guide>Hướng dẫn thiết lập Linux</guide>"
+      "done": "Không hoạt động trong các ứng dụng khác? <guide>Hướng dẫn thiết lập Linux</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Chưa cấu hình phím tắt",
         "notFound": "Không tìm thấy phím tắt",
         "pressKeys": "Nhấn phím...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Phím tắt chuyển đổi",

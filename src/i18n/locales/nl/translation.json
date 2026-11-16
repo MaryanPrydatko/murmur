@@ -220,7 +220,8 @@
     },
     "linux": {
       "tryIt": "Werkt het niet? <guide>Linux-installatiegids</guide>",
-      "done": "Werkt het niet in andere apps? <guide>Linux-installatiegids</guide>"
+      "done": "Werkt het niet in andere apps? <guide>Linux-installatiegids</guide>",
+      "wayland": "On Wayland the shortcut only works in some windows. <guide>Linux setup guide</guide>"
     }
   },
   "modelTable": {
@@ -340,6 +341,7 @@
         "none": "Geen sneltoetsen geconfigureerd",
         "notFound": "Sneltoets niet gevonden",
         "pressKeys": "Druk op toetsen...",
+        "waylandHint": "On Wayland this shortcut only works while some windows have focus. Two things work everywhere: the Handy Keys mode (on the Debug page, Ctrl+Shift+D; it needs access to /dev/input and /dev/uinput), or a system shortcut that runs \"murmur --toggle-transcription\". <guide>Linux setup guide</guide>",
         "bindings": {
           "transcribe": {
             "name": "Sneltoets voor dicteren",

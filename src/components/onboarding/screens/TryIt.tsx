@@ -20,6 +20,7 @@ import { useOnboardingStore } from "../onboardingStore";
 import { useTryEngine } from "../useTryEngine";
 import { MicrophoneDropdown } from "../../settings/MicrophoneSelector";
 import { useSettings } from "@/hooks/useSettings";
+import { useWaylandShortcutLimit } from "@/hooks/useWaylandShortcutLimit";
 import type { CatalogModel } from "@/lib/models/catalog";
 import "./tryit.css";
 
@@ -188,6 +189,7 @@ export const TryIt: React.FC<TryItProps> = ({
   const anyDone = e.lessons.hold || e.lessons.tap;
   const { languages, atLogin, set } = useOnboardingStore();
   const { refreshAudioDevices } = useSettings();
+  const shortcutLimited = useWaylandShortcutLimit();
 
   // The mic list isn't loaded until onboarding ends; load it for the picker.
   const silent = e.result.kind === "silent";
@@ -493,7 +495,11 @@ export const TryIt: React.FC<TryItProps> = ({
   const hint = after ? (
     // On Linux, working here doesn't guarantee it works in other apps.
     os === "linux" ? (
-      <LinuxGuide i18nKey="onboarding.linux.done" />
+      <LinuxGuide
+        i18nKey={
+          shortcutLimited ? "onboarding.linux.wayland" : "onboarding.linux.done"
+        }
+      />
     ) : (
       t("onboarding.done.hint")
     )
