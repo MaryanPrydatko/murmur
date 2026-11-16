@@ -642,7 +642,7 @@
       },
       "spokenFormatting": {
         "title": "Spoken Formatting",
-        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\" and \"new paragraph\" between two sentences, \"bullet point\" for each item of a list of two or more, and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
       },
       "chineseScript": {
         "title": "Chữ Hán giản thể/phồn thể",
