@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager};
 
 use super::store::{self, MeetingDetail};
 use super::{emit_changed, is_meeting_id, meetings_dir, notes};
-use crate::actions::{strip_invisible_chars, strip_think_block};
+use crate::actions::strip_think_block;
 use crate::llm_client;
 use crate::managers::history::HistoryManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
@@ -117,9 +117,12 @@ fn strip_fences(reply: &str) -> &str {
 }
 
 /// The summary in a model's reply: without the thinking some models put in
-/// front of it and the fences some put around it.
+/// front of it and the fences some put around it. Of the invisible
+/// characters only the byte order mark and the zero width space go: the
+/// zero width joiner and non-joiner are part of Persian and Indic words and
+/// of joined emoji.
 fn clean(reply: &str) -> String {
-    let reply = strip_invisible_chars(reply);
+    let reply = reply.replace(['\u{200B}', '\u{FEFF}'], "");
     strip_fences(strip_think_block(&reply).trim()).to_string()
 }
 
@@ -569,6 +572,9 @@ mod tests {
         ] {
             assert_eq!(clean(&reply), summary, "{reply:?}");
         }
+        // Joiners are letters of the language the summary is in.
+        let persian = "می\u{200C}خواهم. \u{1F468}\u{200D}\u{1F469}";
+        assert_eq!(clean(&format!("\u{200B}{persian}")), persian);
         // A fenced block inside the summary is part of it.
         for kept in [
             "A summary.\n\n```\nmurmur --toggle-meeting\n```".to_string(),
