@@ -105,6 +105,16 @@ const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
 /// never answers would otherwise hold the dictation until a proxy gives up.
 const POST_PROCESS_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Deletes the recording of a dictation cancelled before it got a history
+/// row. History's limit and retention only clean up files that have one.
+fn discard_recording(wav_path: &std::path::Path) {
+    if let Err(e) = std::fs::remove_file(wav_path) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            warn!("Failed to delete a cancelled recording: {e}");
+        }
+    }
+}
+
 /// Bumped per recording session, so a late paste from an earlier session
 /// doesn't reset the tray or hide the overlay of a newer one.
 static RECORDING_SESSION: AtomicU64 = AtomicU64::new(0);
@@ -841,6 +851,7 @@ impl ShortcutAction for TranscribeAction {
 
                     if rm.was_cancelled_since(cancel_generation) {
                         debug!("Transcription operation cancelled before output handling");
+                        discard_recording(&wav_path_for_verify);
                         utils::hide_recording_overlay(&ah);
                         set_tray_state(&ah, TrayIconState::Idle);
                         return;
@@ -871,6 +882,7 @@ impl ShortcutAction for TranscribeAction {
                             .await
                             else {
                                 debug!("Transcription operation cancelled during output handling");
+                                discard_recording(&wav_path_for_verify);
                                 utils::hide_recording_overlay(&ah);
                                 set_tray_state(&ah, TrayIconState::Idle);
                                 return;
@@ -878,6 +890,7 @@ impl ShortcutAction for TranscribeAction {
 
                             if rm.was_cancelled_since(cancel_generation) {
                                 debug!("Transcription operation cancelled before paste");
+                                discard_recording(&wav_path_for_verify);
                                 utils::hide_recording_overlay(&ah);
                                 set_tray_state(&ah, TrayIconState::Idle);
                                 return;
@@ -1042,6 +1055,7 @@ impl ShortcutAction for TranscribeAction {
                                 debug!(
                                     "Transcription operation cancelled after transcription error"
                                 );
+                                discard_recording(&wav_path_for_verify);
                                 utils::hide_recording_overlay(&ah);
                                 set_tray_state(&ah, TrayIconState::Idle);
                                 return;
@@ -1213,6 +1227,18 @@ mod tests {
 
     fn run_post_process(settings: &AppSettings, transcription: &str) -> PostProcessOutcome {
         tauri::async_runtime::block_on(post_process_transcription(settings, transcription))
+    }
+
+    #[test]
+    fn a_cancelled_recording_is_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let wav = dir.path().join("handy-1.wav");
+        std::fs::write(&wav, b"RIFF").unwrap();
+
+        super::discard_recording(&wav);
+        assert!(!wav.exists());
+        // Gone already (the save failed): nothing to do.
+        super::discard_recording(&wav);
     }
 
     #[test]
