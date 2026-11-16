@@ -188,7 +188,7 @@ fn sanitize(title: &str) -> String {
         .to_string()
 }
 
-fn speaker_name(detail: &MeetingDetail, key: &str) -> String {
+pub(super) fn speaker_name(detail: &MeetingDetail, key: &str) -> String {
     let label = detail
         .speakers
         .iter()
@@ -215,12 +215,7 @@ fn quoted(value: &str) -> String {
 
 /// The meeting's `summary.md`, its headings kept under the note's own.
 fn summary(meeting: &MeetingRow) -> Option<String> {
-    let path = Path::new(meeting.dir.as_deref()?).join("summary.md");
-    let text = fs::read_to_string(path).ok()?;
-    let text = text.trim();
-    if text.is_empty() {
-        return None;
-    }
+    let text = super::summary::read(Path::new(meeting.dir.as_deref()?))?;
     let demoted: Vec<String> = text
         .lines()
         .map(

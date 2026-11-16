@@ -91,6 +91,9 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
   MeetingNoteFailed: {
     title: "errors.meetingNoteFailedTitle",
   },
+  MeetingSummaryFailed: {
+    title: "errors.meetingSummaryFailedTitle",
+  },
 };
 
 export const noticeDisplay = (code: NoticeCode) => NOTICE_DISPLAY[code];

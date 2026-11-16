@@ -875,6 +875,37 @@ async changeObsidianNotesFolderSetting(folder: string) : Promise<Result<null, st
 }
 },
 /**
+ * Asks the post-processing provider for the meeting's summary and saves
+ * it, replacing the one there is. Fails unless Summarise Meetings is on.
+ */
+async summariseMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("summarise_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The meeting's summary as Markdown; `None` if it has none.
+ */
+async meetingSummary(id: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_summary", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async changeSummariseMeetingsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_summarise_meetings_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * A meeting's recorded tracks, for playback.
  */
 async meetingAudio(id: string) : Promise<Result<MeetingAudio[], string>> {
@@ -1394,6 +1425,11 @@ overlay_style?: OverlayStyle;
  */
 obsidian_vault_path?: string | null; 
 /**
+ * Whether a transcribed meeting's transcript is sent to the
+ * post-processing provider for a summary. Off: no transcript is sent.
+ */
+summarise_meetings?: boolean; 
+/**
  * The folder in the vault the notes go into.
  */
 obsidian_notes_folder?: string }
@@ -1675,7 +1711,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingTrackIncomplete" | "MeetingSystemAudioWithheld" | "MeetingNoteFailed"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingTrackIncomplete" | "MeetingSystemAudioWithheld" | "MeetingNoteFailed" | "MeetingSummaryFailed"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.

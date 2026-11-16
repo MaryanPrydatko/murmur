@@ -186,6 +186,9 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
             notices::clear(app, NoticeSource::Meeting);
             if written {
                 info!("Meeting {} transcribed", meeting.id);
+                // Before the note, which is written once and takes the
+                // summary there is by then.
+                super::summary::on_done(app, &meeting.id);
                 super::notes::on_done(app, &meeting.id);
             } else {
                 info!(

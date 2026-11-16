@@ -13,6 +13,7 @@ pub mod notes;
 mod pipeline;
 mod recovery;
 pub mod store;
+pub mod summary;
 mod transcript;
 
 pub(crate) use pipeline::{fail_job, run_job};

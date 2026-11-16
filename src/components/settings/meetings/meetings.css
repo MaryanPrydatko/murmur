@@ -496,6 +496,23 @@
   padding: 18px 24px 28px;
   user-select: text;
 }
+/* summary: what the provider wrote, above what was said */
+.mtg .summary {
+  max-width: calc(56px + 66ch);
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+.mtg .summary > summary {
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-ink-3);
+  cursor: pointer;
+}
+.mtg .transcript > .hintline[role="status"] {
+  margin: 0 0 14px;
+}
 .mtg .turn {
   display: grid;
   grid-template-columns: 44px minmax(0, 66ch);

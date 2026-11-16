@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { SettingContainer } from "../ui/SettingContainer";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
+import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface MeetingNotesProps {
@@ -17,9 +18,10 @@ interface MeetingNotesProps {
 export const MeetingNotes: React.FC<MeetingNotesProps> = React.memo(
   ({ descriptionMode = "tooltip", grouped = false }) => {
     const { t } = useTranslation();
-    const { getSetting, updateSetting } = useSettings();
+    const { getSetting, updateSetting, isUpdating } = useSettings();
     const vault = getSetting("obsidian_vault_path") ?? "";
     const folder = getSetting("obsidian_notes_folder") ?? "";
+    const summarise = getSetting("summarise_meetings") ?? false;
 
     const browse = async () => {
       const picked = await open({ directory: true, multiple: false });
@@ -68,6 +70,17 @@ export const MeetingNotes: React.FC<MeetingNotesProps> = React.memo(
             disabled={!vault}
           />
         </SettingContainer>
+        <ToggleSwitch
+          checked={summarise}
+          onChange={(enabled) => updateSetting("summarise_meetings", enabled)}
+          isUpdating={isUpdating("summarise_meetings")}
+          label={t("settings.advanced.meetingNotes.summarise.title")}
+          description={t(
+            "settings.advanced.meetingNotes.summarise.description",
+          )}
+          descriptionMode={descriptionMode}
+          grouped={grouped}
+        />
       </>
     );
   },

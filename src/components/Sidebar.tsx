@@ -83,7 +83,9 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.postProcessing",
     icon: Sparkles,
     component: PostProcessingSettings,
-    enabled: (settings) => settings?.post_process_enabled ?? false,
+    // Summaries use the provider, key and model set here.
+    enabled: (settings) =>
+      Boolean(settings?.post_process_enabled || settings?.summarise_meetings),
     group: "settings",
   },
   debug: {

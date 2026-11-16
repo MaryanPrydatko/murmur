@@ -576,6 +576,10 @@ pub struct AppSettings {
     /// while unset.
     #[serde(default)]
     pub obsidian_vault_path: Option<String>,
+    /// Whether a transcribed meeting's transcript is sent to the
+    /// post-processing provider for a summary. Off: no transcript is sent.
+    #[serde(default)]
+    pub summarise_meetings: bool,
     /// The folder in the vault the notes go into.
     #[serde(default = "default_obsidian_notes_folder")]
     pub obsidian_notes_folder: String,
@@ -1093,6 +1097,7 @@ pub fn get_default_settings() -> AppSettings {
         language_detection_window_secs: default_language_detection_window_secs(),
         overlay_style: default_overlay_style(),
         obsidian_vault_path: None,
+        summarise_meetings: false,
         obsidian_notes_folder: default_obsidian_notes_folder(),
     }
 }

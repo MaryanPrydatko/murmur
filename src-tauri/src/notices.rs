@@ -65,6 +65,9 @@ pub enum NoticeCode {
     MeetingSystemAudioWithheld,
     // The meeting is transcribed, but its note isn't in the vault.
     MeetingNoteFailed,
+    // The meeting is transcribed, but the provider gave no summary; the
+    // detail is its error, or what isn't set up.
+    MeetingSummaryFailed,
 }
 
 impl NoticeCode {
@@ -87,7 +90,8 @@ impl NoticeCode {
             | Self::MeetingSpeakersNotSeparated
             | Self::MeetingTrackIncomplete
             | Self::MeetingSystemAudioWithheld
-            | Self::MeetingNoteFailed => NoticeLevel::Warning,
+            | Self::MeetingNoteFailed
+            | Self::MeetingSummaryFailed => NoticeLevel::Warning,
         }
     }
 
@@ -112,6 +116,7 @@ impl NoticeCode {
             Self::MeetingTrackIncomplete => &strings.meeting_track_incomplete_title,
             Self::MeetingSystemAudioWithheld => &strings.meeting_system_audio_withheld_title,
             Self::MeetingNoteFailed => &strings.meeting_note_failed_title,
+            Self::MeetingSummaryFailed => &strings.meeting_summary_failed_title,
         }
     }
 }
@@ -291,6 +296,14 @@ mod tests {
     #[test]
     fn no_model_selected_is_an_error() {
         assert_eq!(NoticeCode::NoModelSelected.level(), NoticeLevel::Error);
+    }
+
+    #[test]
+    fn a_meeting_without_its_summary_is_a_warning() {
+        assert_eq!(
+            NoticeCode::MeetingSummaryFailed.level(),
+            NoticeLevel::Warning
+        );
     }
 
     #[test]

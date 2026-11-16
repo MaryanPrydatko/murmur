@@ -28,11 +28,18 @@ interface MeetingsStore {
   progress: Record<string, MeetingProgress>;
   /** A start or stop was asked for and the backend hasn't finished it. */
   pending: boolean;
+  /** Meetings whose summary was asked for and isn't back yet. */
+  summarising: Record<string, true>;
   refresh: () => Promise<void>;
   /** Starts or stops a meeting; ignored while one is pending. */
   toggle: () => Promise<void>;
   /** The backend finished a start or stop (`meeting-switched`). */
   changed: () => Promise<void>;
+  /**
+   * Asks for meeting `id`'s summary, which can take minutes; ignored while
+   * one is on its way. Resolves to the error if it failed.
+   */
+  summarise: (id: string) => Promise<string | null>;
 }
 
 export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
@@ -42,6 +49,7 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
   recordingId: null,
   progress: {},
   pending: false,
+  summarising: {},
   refresh: async () => {
     try {
       const [rows, speakers, recordingId] = await Promise.all([
@@ -86,6 +94,23 @@ export const useMeetingsStore = create<MeetingsStore>((set, get) => ({
     clearTimeout(toggleTimer);
     await get().refresh();
     set({ pending: false });
+  },
+  summarise: async (id) => {
+    if (get().summarising[id]) return null;
+    set((s) => ({ summarising: { ...s.summarising, [id]: true } }));
+    let error: string | null = null;
+    try {
+      const result = await commands.summariseMeeting(id);
+      if (result.status === "error") error = result.error;
+    } catch (e) {
+      error = String(e);
+    }
+    set((s) => ({
+      summarising: Object.fromEntries(
+        Object.entries(s.summarising).filter(([key]) => key !== id),
+      ),
+    }));
+    return error;
   },
 }));
 

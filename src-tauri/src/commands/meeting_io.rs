@@ -3,7 +3,7 @@
 
 use crate::managers::history::HistoryManager;
 use crate::managers::meetings::import::{self, ImportReport};
-use crate::managers::meetings::{notes, store};
+use crate::managers::meetings::{self, notes, store, summary};
 use crate::settings::{get_settings, write_settings};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
@@ -47,6 +47,34 @@ pub fn export_meeting_note(
     notes::export(&conn, &detail, &folder)
         .map(|path| path.to_string_lossy().into_owned())
         .map_err(|e| format!("{e:#}"))
+}
+
+/// Asks the post-processing provider for the meeting's summary and saves
+/// it, replacing the one there is. Fails unless Summarise Meetings is on.
+#[tauri::command]
+#[specta::specta]
+pub async fn summarise_meeting(app: AppHandle, id: String) -> Result<(), String> {
+    summary::summarise(&app, &id).await
+}
+
+/// The meeting's summary as Markdown; `None` if it has none.
+#[tauri::command]
+#[specta::specta]
+pub fn meeting_summary(app: AppHandle, id: String) -> Result<Option<String>, String> {
+    if !meetings::is_meeting_id(&id) {
+        return Err(format!("{id:?} is not a meeting"));
+    }
+    let dir = meetings::meetings_dir(&app).map_err(|e| format!("{e:#}"))?;
+    Ok(summary::read(&dir.join(&id)))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_summarise_meetings_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = get_settings(&app);
+    settings.summarise_meetings = enabled;
+    write_settings(&app, settings);
+    Ok(())
 }
 
 #[tauri::command]

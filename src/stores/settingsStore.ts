@@ -160,6 +160,8 @@ const settingUpdaters: {
     commands.changeObsidianVaultPathSetting(value as string | null),
   obsidian_notes_folder: (value) =>
     commands.changeObsidianNotesFolderSetting(value as string),
+  summarise_meetings: (value) =>
+    commands.changeSummariseMeetingsSetting(value as boolean),
   clipboard_handling: (value) =>
     commands.changeClipboardHandlingSetting(value as string),
   auto_submit: (value) => commands.changeAutoSubmitSetting(value as boolean),

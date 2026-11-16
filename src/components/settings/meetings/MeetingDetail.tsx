@@ -23,6 +23,8 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { ProgressLine } from "@/components/shared/ProgressLine";
+import { MarkdownContent } from "@/components/whats-new/MarkdownContent";
+import { useSettings } from "@/hooks/useSettings";
 import { DIARIZER_ID } from "@/lib/notices";
 import { useModelStore } from "@/stores/modelStore";
 import { notify } from "@/stores/noticeStore";
@@ -154,12 +156,15 @@ const rerun = async (t: TFunction, id: string, speakersOnly = false) => {
     notify({ title: t("meetings.rerunFailed"), detail: result.error });
 };
 
-const MoreMenu: React.FC<{ detail: Detail; onDelete: () => void }> = ({
-  detail,
-  onDelete,
-}) => {
+const MoreMenu: React.FC<{
+  detail: Detail;
+  hasSummary: boolean;
+  onDelete: () => void;
+}> = ({ detail, hasSummary, onDelete }) => {
   const { t } = useTranslation();
+  const { getSetting } = useSettings();
   const refresh = useMeetingsStore((s) => s.refresh);
+  const summarise = useMeetingsStore((s) => s.summarise);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -229,6 +234,22 @@ const MoreMenu: React.FC<{ detail: Detail; onDelete: () => void }> = ({
                 });
               refresh();
             })}
+          {getSetting("summarise_meetings") &&
+            detail.segments.length > 0 &&
+            item(
+              hasSummary
+                ? t("meetings.summariseAgain")
+                : t("meetings.summarise"),
+              async () => {
+                // The summary shows once `meeting-changed` says it's saved.
+                const error = await summarise(id);
+                if (error)
+                  notify({
+                    title: t("meetings.summariseFailed"),
+                    detail: error,
+                  });
+              },
+            )}
           {item(t("meetings.rediarize"), () => rerun(t, id, true))}
           {item(t("meetings.retranscribe"), () => rerun(t, id))}
           {item(t("meetings.delete"), onDelete)}
@@ -416,6 +437,7 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
   const { t } = useTranslation();
   const recordingId = useMeetingsStore((s) => s.recordingId);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const status = meetingStatus(row);
@@ -433,10 +455,24 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
         setLoadError(null);
       } else setLoadError(r.error);
     });
+    commands.meetingSummary(row.id).then((r) => {
+      if (!stale) setSummary(r.status === "ok" ? r.data : null);
+    });
     return () => {
       stale = true;
     };
   }, [row.id, row.status, row.title, row.note_path, version]);
+
+  // A summary arrives after the meeting is done, when nothing in its row
+  // changes any more.
+  useEffect(() => {
+    const off = events.meetingChanged.listen((e) => {
+      if (e.payload.id === row.id) setVersion((v) => v + 1);
+    });
+    return () => {
+      off.then((f) => f());
+    };
+  }, [row.id]);
 
   const deleteDialog = (
     <DeleteMeetingDialog
@@ -539,6 +575,7 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
     <>
       <DoneView
         detail={detail}
+        summary={summary}
         row={row}
         onBack={onBack}
         onChanged={() => setVersion((v) => v + 1)}
@@ -570,14 +607,25 @@ export const DetailSkeleton = () => (
 
 const DoneView: React.FC<{
   detail: Detail;
+  summary: string | null;
   row: MeetingRow;
   onBack: () => void;
   onChanged: () => void;
   onDelete: () => void;
   playback: ReturnType<typeof useMeetingPlayback>;
   durationS: number;
-}> = ({ detail, row, onBack, onChanged, onDelete, playback, durationS }) => {
+}> = ({
+  detail,
+  summary,
+  row,
+  onBack,
+  onChanged,
+  onDelete,
+  playback,
+  durationS,
+}) => {
   const { t } = useTranslation();
+  const summarising = useMeetingsStore((s) => row.id in s.summarising);
   const [query, setQuery] = useState("");
   const [hit, setHit] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -660,7 +708,11 @@ const DoneView: React.FC<{
         <ExternalLink className="ic" aria-hidden="true" />
         {t("meetings.openInObsidian")}
       </Button>
-      <MoreMenu detail={detail} onDelete={onDelete} />
+      <MoreMenu
+        detail={detail}
+        hasSummary={summary !== null}
+        onDelete={onDelete}
+      />
     </div>
   );
 
@@ -721,6 +773,17 @@ const DoneView: React.FC<{
         )}
       </Header>
       <div className="transcript" ref={transcriptRef}>
+        {summarising && (
+          <p className="hintline" role="status">
+            {t("meetings.summarising")}
+          </p>
+        )}
+        {summary !== null && (
+          <details className="summary" open>
+            <summary>{t("meetings.summary")}</summary>
+            <MarkdownContent markdown={summary} />
+          </details>
+        )}
         {turns.length === 0 && (
           <p className="hintline">{t("meetings.noTranscript")}</p>
         )}

@@ -489,6 +489,10 @@
           "title": "Notes Folder",
           "description": "The folder in the vault the notes go into.",
           "placeholder": "Meetings"
+        },
+        "summarise": {
+          "title": "Summarise Meetings",
+          "description": "After a meeting is transcribed, saves a summary, decisions and action items for it. The transcript is sent to the AI provider set under Post Process, and with a provider on this computer nothing leaves it. While this is off, no transcript is sent."
         }
       },
       "experimentalToggle": {
@@ -983,6 +987,7 @@
     "meetingSystemAudioWithheldTitle": "System Audio Not Recorded",
     "meetingSystemAudioWithheld": "macOS gave Murmur no audio from the output for part of the meeting, so what the others said then isn't in the transcript. Check that Murmur is allowed in System Settings > Privacy & Security > Screen & System Audio Recording.",
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
+    "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
     "transcriptionFailedTitle": "文字起こしに失敗しました"
   },
@@ -1072,6 +1077,11 @@
     "openFolder": "Open folder",
     "writeNote": "Write the note to Obsidian",
     "writeNoteFailed": "Could not write the note",
+    "summary": "Summary",
+    "summarise": "Summarise",
+    "summariseAgain": "Summarise again",
+    "summarising": "Summarising...",
+    "summariseFailed": "Could not summarise the meeting",
     "rediarize": "Tell speakers apart again",
     "retranscribe": "Transcribe again",
     "rerunFailed": "Could not start the transcription",
