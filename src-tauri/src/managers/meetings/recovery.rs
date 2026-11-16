@@ -35,6 +35,13 @@ pub(super) enum Recovery {
     WrapUp,
 }
 
+impl Recovery {
+    /// Whether the meeting is transcribed again, speakers and all.
+    fn transcribes(&self) -> bool {
+        matches!(self, Recovery::Repair | Recovery::Requeue)
+    }
+}
+
 pub(super) fn recovery(meeting: &Meeting) -> Option<Recovery> {
     match meeting.status {
         MeetingStatus::Recording => Some(Recovery::Repair),
@@ -55,7 +62,9 @@ pub fn reconcile(app: &AppHandle) {
     let Ok(entries) = std::fs::read_dir(&dir) else {
         return;
     };
-    let active = app.state::<Arc<MeetingManager>>().active_id();
+    let manager = app.state::<Arc<MeetingManager>>();
+    let active = manager.active_id();
+    let mut fetching = false;
     for entry in entries.flatten() {
         let folder = entry.path();
         if !folder.join("meeting.json").exists() {
@@ -75,6 +84,12 @@ pub fn reconcile(app: &AppHandle) {
             continue;
         };
         info!("Recovering meeting {}: {recovery:?}", meeting.id);
+        // As when a meeting starts: without the speaker model the transcript
+        // and its note would say "Them" for good.
+        if recovery.transcribes() && !fetching {
+            fetching = true;
+            manager.fetch_speaker_model();
+        }
         let id = meeting.id.clone();
         let jobs = app.state::<Arc<TranscriptionJobManager>>();
         let result = match recovery {
@@ -333,6 +348,9 @@ mod tests {
         }
         assert_eq!(requeued, MAX_ATTEMPTS);
         assert_eq!(recovery(&crashing), Some(Recovery::GiveUp));
+        // Only a meeting that is transcribed again needs the speaker model.
+        assert!(Recovery::Repair.transcribes() && Recovery::Requeue.transcribes());
+        assert!(!Recovery::GiveUp.transcribes());
         assert_eq!(recovery(&meeting(MeetingStatus::Done, 0)), None);
         assert_eq!(recovery(&meeting(MeetingStatus::Failed, 5)), None);
     }
@@ -344,6 +362,7 @@ mod tests {
         let mut waiting = meeting(MeetingStatus::Done, 1);
         waiting.wrap_up = true;
         assert_eq!(recovery(&waiting), Some(Recovery::WrapUp));
+        assert!(!Recovery::WrapUp.transcribes());
         // Only a marked meeting: older ones without a note stay as they are.
         waiting.wrap_up = false;
         assert_eq!(recovery(&waiting), None);

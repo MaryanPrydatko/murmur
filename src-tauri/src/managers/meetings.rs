@@ -278,9 +278,10 @@ impl MeetingManager {
     }
 
     /// Starts downloading the speaker model when it isn't on disk, so the
-    /// meeting that just started can have its speakers told apart. On its
-    /// own task: the recording never waits for it. A download that fails is
-    /// tried again by the next meeting.
+    /// meeting that just started, or one transcribed after a restart, can
+    /// have its speakers told apart. On its own task: the recording never
+    /// waits for it. A download that fails is tried again by the next
+    /// meeting.
     fn fetch_speaker_model(&self) {
         let models = Arc::clone(&self.app.state::<Arc<ModelManager>>());
         if crate::catalog::DIARIZER.is_none() || models.diarizer_path().is_some() {
