@@ -9,9 +9,11 @@ Murmur is a fork of [Handy](https://github.com/cjpais/Handy) by CJ Pais.
 ## What it does
 
 - **Dictation.** Hold or tap a global shortcut, talk, and the transcript is pasted where your cursor is.
+- **Spoken formatting.** When you dictate in English, "new line", "new paragraph", "bullet point" and "number one, ... number two, ..." become line breaks and lists. A command only counts when you say it as its own phrase, with a short pause around it, so "a new line of code" stays as it is. It is on by default and can be turned off in Settings > Advanced. With the Direct or External Script paste method the text stays on one line.
 - **Meetings.** Records your microphone and the computer's audio as two tracks, then transcribes both. On a Mac the computer's audio needs macOS 14.2 or newer.
-- **Speaker labels.** Your side is labelled as you. The other side is split into speakers, which you can rename. Splitting needs a speaker model that is not installed at first: until you download it, the other side stays one speaker and a notice after the meeting offers the download.
+- **Speaker labels.** Your side is labelled as you. The other side is split into speakers, which you can rename. Splitting needs a speaker model (about 140 MB). If it is not on your computer yet, it is downloaded when you start a meeting. If the download fails, the other side stays one speaker and a notice after the meeting offers the download.
 - **Notes to Obsidian.** Set a vault in Settings and each finished meeting is written there as a note, in the `Meetings` folder by default. A note is written once and never overwritten.
+- **Meeting summaries.** Off by default. Turn on Summarise Meetings in Settings > Advanced and set an AI provider under Post Process, and each transcribed meeting gets a summary, decisions and action items. The summary is shown on the meeting's page and goes into its note. The transcript is sent to that provider. The provider can be a model on your own computer, and then nothing leaves it.
 - **Local models.** Models are downloaded in the app and run on your CPU or GPU. Parakeet Ultra covers 25 European languages. Whisper and other models can be picked in Settings > Models.
 
 ## Install
@@ -64,6 +66,8 @@ murmur --toggle-meeting
 ```
 
 When you stop, the recording is transcribed and shows up on the Meetings page, where you can play it, search it, rename speakers and open the note. You can keep dictating while a meeting is recording.
+
+To delete a meeting, use **Delete meeting** in the menu on its page or the trash icon on its row in the list. Its recordings, transcript and summary are removed from your computer and cannot be brought back. The note in Obsidian stays. A meeting that is recording or being transcribed cannot be deleted.
 
 ### Command line
 
