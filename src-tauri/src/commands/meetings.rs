@@ -78,6 +78,14 @@ pub fn rediarize_meeting(
         .map_err(|e| format!("{e:#}"))
 }
 
+/// Deletes a meeting: its recordings, transcript and summary. Its note in
+/// the vault stays. Fails while the meeting records or is transcribed.
+#[tauri::command]
+#[specta::specta]
+pub fn delete_meeting(meetings: State<'_, Arc<MeetingManager>>, id: String) -> Result<(), String> {
+    meetings.delete(&id).map_err(|e| format!("{e:#}"))
+}
+
 /// The id of the meeting recording now, if one is.
 #[tauri::command]
 #[specta::specta]

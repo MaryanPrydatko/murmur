@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import { commands, type MeetingHit, type MeetingRow } from "@/bindings";
 import { ProgressLine } from "@/components/shared/ProgressLine";
 import { Button } from "@/components/ui/Button";
+import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
 import { Highlight } from "./Highlight";
 import { useMeetingsStore } from "./meetingsStore";
 import {
@@ -150,6 +151,8 @@ export const MeetingList: React.FC<MeetingListProps> = ({
   const { t, i18n } = useTranslation();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<Record<string, MeetingHit>>({});
+  const [deleting, setDeleting] = useState<MeetingRow | null>(null);
+  const recordingId = useMeetingsStore((s) => s.recordingId);
   const q = query.trim();
 
   useEffect(() => {
@@ -199,27 +202,44 @@ export const MeetingList: React.FC<MeetingListProps> = ({
           lastGroup = key;
           const status = meetingStatus(row);
           const title = meetingTitle(t, i18n.language, row);
+          // Not while it records or is transcribed: the backend refuses too.
+          const deletable =
+            status !== "transcribing" &&
+            !(status === "recording" && row.id === recordingId);
           return (
             <React.Fragment key={row.id}>
               {heading && <div className="day">{groupLabel(t, group)}</div>}
-              <button
-                type="button"
-                className="row"
-                aria-current={row.id === selectedId}
-                onClick={() => onSelect(row.id)}
-              >
-                <div className="t">
-                  <span className="title">
-                    <Highlight text={title} query={q} />
-                  </span>
-                  <span className="dur">
-                    {status === "recording"
-                      ? ""
-                      : formatDuration(t, row.duration_ms)}
-                  </span>
-                </div>
-                <RowMeta row={row} hit={hits[row.id]} q={q} />
-              </button>
+              <div className="rowwrap">
+                <button
+                  type="button"
+                  className="row"
+                  aria-current={row.id === selectedId}
+                  onClick={() => onSelect(row.id)}
+                >
+                  <div className="t">
+                    <span className="title">
+                      <Highlight text={title} query={q} />
+                    </span>
+                    <span className="dur">
+                      {status === "recording"
+                        ? ""
+                        : formatDuration(t, row.duration_ms)}
+                    </span>
+                  </div>
+                  <RowMeta row={row} hit={hits[row.id]} q={q} />
+                </button>
+                {deletable && (
+                  <button
+                    type="button"
+                    className="iconbtn rowdel"
+                    aria-label={t("meetings.delete")}
+                    title={t("meetings.delete")}
+                    onClick={() => setDeleting(row)}
+                  >
+                    <Trash2 className="ic" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
             </React.Fragment>
           );
         })}
@@ -233,6 +253,7 @@ export const MeetingList: React.FC<MeetingListProps> = ({
           </div>
         )}
       </div>
+      <DeleteMeetingDialog row={deleting} onClose={() => setDeleting(null)} />
     </>
   );
 };

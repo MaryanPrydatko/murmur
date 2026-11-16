@@ -215,6 +215,28 @@
 .mtg .row[aria-current="true"] {
   background: var(--color-pick);
 }
+/* a row and, on hover or focus, its delete button in place of the length */
+.mtg .rowwrap {
+  position: relative;
+}
+.mtg .rowwrap:hover .row:not([aria-current="true"]) {
+  background: var(--color-wash);
+}
+.mtg .rowdel {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 3px;
+  height: 26px;
+  opacity: 0;
+}
+.mtg .rowwrap:hover .rowdel,
+.mtg .rowdel:focus-visible {
+  opacity: 1;
+}
+.mtg .rowwrap:has(.rowdel):hover .dur,
+.mtg .rowwrap:has(.rowdel:focus-visible) .dur {
+  visibility: hidden;
+}
 .mtg .row .t {
   display: flex;
   align-items: baseline;

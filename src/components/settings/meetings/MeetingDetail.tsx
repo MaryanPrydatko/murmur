@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { ProgressLine } from "@/components/shared/ProgressLine";
 import { notify } from "@/stores/noticeStore";
 import { copyToClipboard } from "../history/clipboard";
+import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
 import { Highlight } from "./Highlight";
 import { MeetingPlayer } from "./MeetingPlayer";
 import { StartStopButton } from "./MeetingList";
@@ -151,7 +152,10 @@ const rerun = async (t: TFunction, id: string, speakersOnly = false) => {
     notify({ title: t("meetings.rerunFailed"), detail: result.error });
 };
 
-const MoreMenu: React.FC<{ detail: Detail }> = ({ detail }) => {
+const MoreMenu: React.FC<{ detail: Detail; onDelete: () => void }> = ({
+  detail,
+  onDelete,
+}) => {
   const { t } = useTranslation();
   const refresh = useMeetingsStore((s) => s.refresh);
   const [open, setOpen] = useState(false);
@@ -225,6 +229,7 @@ const MoreMenu: React.FC<{ detail: Detail }> = ({ detail }) => {
             })}
           {item(t("meetings.rediarize"), () => rerun(t, id, true))}
           {item(t("meetings.retranscribe"), () => rerun(t, id))}
+          {item(t("meetings.delete"), onDelete)}
         </div>
       )}
     </div>
@@ -393,6 +398,7 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
   const recordingId = useMeetingsStore((s) => s.recordingId);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const status = meetingStatus(row);
   const durationS = (row.duration_ms ?? 0) / 1000;
   const playback = useMeetingPlayback(row.id, durationS, status);
@@ -412,6 +418,16 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
       stale = true;
     };
   }, [row.id, row.status, row.title, row.note_path, version]);
+
+  const deleteDialog = (
+    <DeleteMeetingDialog
+      row={deleting ? row : null}
+      onClose={(deleted) => {
+        setDeleting(false);
+        if (deleted) onBack();
+      }}
+    />
+  );
 
   if (status === "recording" && row.id === recordingId) {
     return (
@@ -468,8 +484,16 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
                 {t("meetings.openFolder")}
               </Button>
             )}
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setDeleting(true)}
+            >
+              {t("meetings.delete")}
+            </Button>
           </div>
         </div>
+        {deleteDialog}
         <div className="transcript" />
         <MeetingPlayer
           playback={playback}
@@ -493,14 +517,18 @@ export const MeetingDetail: React.FC<MeetingDetailProps> = ({
   }
   if (!detail) return <DetailSkeleton />;
   return (
-    <DoneView
-      detail={detail}
-      row={row}
-      onBack={onBack}
-      onChanged={() => setVersion((v) => v + 1)}
-      playback={playback}
-      durationS={durationS}
-    />
+    <>
+      <DoneView
+        detail={detail}
+        row={row}
+        onBack={onBack}
+        onChanged={() => setVersion((v) => v + 1)}
+        onDelete={() => setDeleting(true)}
+        playback={playback}
+        durationS={durationS}
+      />
+      {deleteDialog}
+    </>
   );
 };
 
@@ -526,9 +554,10 @@ const DoneView: React.FC<{
   row: MeetingRow;
   onBack: () => void;
   onChanged: () => void;
+  onDelete: () => void;
   playback: ReturnType<typeof useMeetingPlayback>;
   durationS: number;
-}> = ({ detail, row, onBack, onChanged, playback, durationS }) => {
+}> = ({ detail, row, onBack, onChanged, onDelete, playback, durationS }) => {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [hit, setHit] = useState(0);
@@ -612,7 +641,7 @@ const DoneView: React.FC<{
         <ExternalLink className="ic" aria-hidden="true" />
         {t("meetings.openInObsidian")}
       </Button>
-      <MoreMenu detail={detail} />
+      <MoreMenu detail={detail} onDelete={onDelete} />
     </div>
   );
 

@@ -291,6 +291,34 @@ impl MeetingManager {
             })
     }
 
+    /// Deletes the meeting `id`: its folder with the recordings, and its
+    /// rows. Refuses while it records or is queued or being transcribed. The
+    /// note in the vault is the user's and stays.
+    pub fn delete(&self, id: &str) -> Result<()> {
+        if !is_meeting_id(id) {
+            bail!("{id:?} is not a meeting");
+        }
+        // A meeting that's stopping is neither recording nor queued yet.
+        let _toggling = self.toggling.lock().unwrap_or_else(PoisonError::into_inner);
+        if self.active_id().as_deref() == Some(id) {
+            bail!("Meeting {id} is still recording");
+        }
+        self.app
+            .state::<Arc<TranscriptionJobManager>>()
+            .delete_meeting(id, || {
+                let dir = meetings_dir(&self.app)?;
+                let mut conn = self.app.state::<Arc<HistoryManager>>().get_connection()?;
+                remove_meeting(&mut conn, &dir, id)
+            })?;
+        self.track_problems
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(id);
+        info!("Meeting {id} deleted");
+        emit_changed(&self.app, id);
+        Ok(())
+    }
+
     /// Writes the offsets of the tracks whose audio has arrived into the
     /// recording meeting `id`'s `meeting.json`.
     fn save_offsets(&self, id: &str) {
@@ -537,6 +565,34 @@ pub(crate) fn meetings_dir(app: &AppHandle) -> Result<PathBuf> {
         .join("meetings"))
 }
 
+/// Whether `id` can name a meeting's folder: one plain path component, so
+/// an id from outside never reaches another folder.
+pub(crate) fn is_meeting_id(id: &str) -> bool {
+    !id.is_empty() && Path::new(id).file_name() == Some(std::ffi::OsStr::new(id))
+}
+
+/// Removes the meeting `id` from `meetings_dir` and from the database.
+/// `meeting.json` goes first: without it the next start doesn't take the
+/// folder for a meeting, so a delete cut short never brings one back. The
+/// folder is always `meetings_dir/<id>`, never the one its row names.
+fn remove_meeting(conn: &mut rusqlite::Connection, meetings_dir: &Path, id: &str) -> Result<()> {
+    let dir = meetings_dir.join(id);
+    let gone = |result: std::io::Result<()>| match result {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    };
+    let record = dir.join("meeting.json");
+    gone(std::fs::remove_file(&record))
+        .with_context(|| format!("Failed to remove {}", record.display()))?;
+    store::delete(conn, id)?;
+    gone(std::fs::remove_dir_all(&dir)).map_err(|e| {
+        anyhow!(
+            "Meeting {id} is off the list, but its folder could not be removed: {}: {e}",
+            dir.display()
+        )
+    })
+}
+
 /// Fails unless `file` is a WAV a meeting can be transcribed from.
 fn check_track(file: &Path) -> Result<()> {
     let spec = hound::WavReader::open(file)
@@ -748,6 +804,111 @@ mod tests {
         let e = check_track(&stereo).unwrap_err().to_string();
         assert!(e.contains("44100 Hz, 2 channel"), "{e}");
         assert!(check_track(&dir.path().join("system.wav")).is_err());
+    }
+
+    #[test]
+    fn a_meeting_id_is_one_plain_folder_name() {
+        for id in ["2026-11-15_14-03-22", "2026-11-15_14-03-22-wf"] {
+            assert!(is_meeting_id(id), "{id}");
+        }
+        for id in ["", ".", "..", "../x", "a/b", "/a", "a/"] {
+            assert!(!is_meeting_id(id), "{id:?}");
+        }
+    }
+
+    /// A meeting in `meetings_dir` with its record, a track and a summary,
+    /// and its rows.
+    fn stored(conn: &mut rusqlite::Connection, meetings_dir: &Path, id: &str) -> PathBuf {
+        let dir = meetings_dir.join(id);
+        std::fs::create_dir_all(&dir).unwrap();
+        let meeting = Meeting {
+            id: id.into(),
+            started_at: "2026-11-15T14:03:22+01:00".into(),
+            duration_ms: 1000,
+            status: MeetingStatus::Done,
+            dir: dir.clone(),
+            tracks: vec![MeetingTrack {
+                kind: TrackKind::Mic,
+                file: dir.join("mic.wav"),
+                start_offset_ms: 0,
+                duration_ms: 1000,
+            }],
+            asr_model: None,
+            diar_model: None,
+            language: None,
+            attempts: 1,
+        };
+        write_meeting_json(&meeting).unwrap();
+        wav(&dir.join("mic.wav"), 16_000, 1);
+        std::fs::write(dir.join("summary.md"), "A summary.\n").unwrap();
+        store::save(conn, &meeting).unwrap();
+        let said = Utterance {
+            t0_ms: 0,
+            t1_ms: 500,
+            speaker: Speaker::Me,
+            text: "hi".into(),
+        };
+        store::save_transcript(conn, id, &[said]).unwrap();
+        dir
+    }
+
+    fn db() -> rusqlite::Connection {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        HistoryManager::apply_migrations(&mut conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn deleting_a_meeting_removes_its_folder_and_rows_and_leaves_the_others() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut conn = db();
+        let gone = stored(&mut conn, tmp.path(), "2026-11-15_14-03-22");
+        let kept = stored(&mut conn, tmp.path(), "2026-11-16_09-00-00");
+
+        remove_meeting(&mut conn, tmp.path(), "2026-11-15_14-03-22").unwrap();
+        assert!(!gone.exists());
+        assert!(store::get(&conn, "2026-11-15_14-03-22").unwrap().is_none());
+        let segments: i64 = conn
+            .query_row("SELECT COUNT(*) FROM meeting_segments", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(segments, 1);
+        assert!(kept.join("meeting.json").exists() && kept.join("mic.wav").exists());
+        assert_eq!(store::list(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn deleting_a_meeting_whose_folder_is_gone_removes_its_rows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut conn = db();
+        let dir = stored(&mut conn, tmp.path(), "2026-11-15_14-03-22");
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        remove_meeting(&mut conn, tmp.path(), "2026-11-15_14-03-22").unwrap();
+        assert!(store::list(&conn).unwrap().is_empty());
+        assert!(!dir.exists());
+        // Deleted twice is as good as once.
+        remove_meeting(&mut conn, tmp.path(), "2026-11-15_14-03-22").unwrap();
+    }
+
+    /// The folder is found by the id, not by what the row says: a row
+    /// pointing elsewhere takes nothing else with it.
+    #[test]
+    fn deleting_a_meeting_never_follows_the_folder_its_row_names() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut conn = db();
+        let dir = stored(&mut conn, tmp.path(), "2026-11-15_14-03-22");
+        let elsewhere = tmp.path().join("elsewhere");
+        std::fs::create_dir(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("keep.txt"), "mine").unwrap();
+        conn.execute(
+            "UPDATE meetings SET dir = ?1",
+            [elsewhere.to_string_lossy().as_ref()],
+        )
+        .unwrap();
+
+        remove_meeting(&mut conn, tmp.path(), "2026-11-15_14-03-22").unwrap();
+        assert!(!dir.exists());
+        assert!(elsewhere.join("keep.txt").exists());
     }
 
     #[test]

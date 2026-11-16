@@ -900,6 +900,7 @@ pub fn run(cli_args: CliArgs) {
             commands::meetings::rename_meeting,
             commands::meetings::retranscribe_meeting,
             commands::meetings::rediarize_meeting,
+            commands::meetings::delete_meeting,
             commands::meetings::active_meeting,
             commands::meeting_io::import_meetings,
             commands::meeting_io::export_meeting_note,

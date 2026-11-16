@@ -259,6 +259,19 @@ pub fn rename_speaker(conn: &Connection, id: &str, key: &str, label: Option<&str
     Ok(())
 }
 
+/// Removes the meeting and everything stored for it. Each table by name:
+/// nothing turns foreign keys on, so the `ON DELETE CASCADE`s never run.
+/// An id that isn't there is fine. The import ledger is left alone, so an
+/// imported meeting that's deleted isn't imported again.
+pub fn delete(conn: &mut Connection, id: &str) -> Result<()> {
+    let tx = conn.transaction()?;
+    for table in ["meeting_segments", "meeting_speakers", "meeting_tracks"] {
+        tx.execute(&format!("DELETE FROM {table} WHERE meeting_id = ?1"), [id])?;
+    }
+    tx.execute("DELETE FROM meetings WHERE id = ?1", [id])?;
+    Ok(tx.commit()?)
+}
+
 /// One of a meeting's recorded tracks and where its file is.
 #[derive(Clone, Debug, PartialEq, Serialize, Type)]
 pub struct MeetingAudio {
@@ -500,6 +513,52 @@ mod tests {
 
         save_transcript(&mut conn, id, &[]).unwrap();
         assert!(speaker_keys(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn deleting_a_meeting_removes_its_rows_and_only_its_rows() {
+        let mut conn = db();
+        let kept = Meeting {
+            id: "2026-11-16_09-00-00".into(),
+            ..meeting(MeetingStatus::Done)
+        };
+        let gone = meeting(MeetingStatus::Done);
+        for m in [&kept, &gone] {
+            save(&mut conn, m).unwrap();
+            let utterances = [
+                said(0, Speaker::Me, "hi"),
+                said(1_000, Speaker::Remote(1), "hello"),
+            ];
+            save_transcript(&mut conn, &m.id, &utterances).unwrap();
+        }
+        let counts = |conn: &Connection, id: &str| -> Vec<i64> {
+            [
+                ("meetings", "id"),
+                ("meeting_tracks", "meeting_id"),
+                ("meeting_speakers", "meeting_id"),
+                ("meeting_segments", "meeting_id"),
+            ]
+            .iter()
+            .map(|(table, column)| {
+                conn.query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE {column} = ?1"),
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap()
+            })
+            .collect()
+        };
+        assert_eq!(counts(&conn, &gone.id), [1, 1, 2, 2]);
+
+        delete(&mut conn, &gone.id).unwrap();
+        assert_eq!(counts(&conn, &gone.id), [0, 0, 0, 0]);
+        assert_eq!(counts(&conn, &kept.id), [1, 1, 2, 2]);
+
+        // An id that isn't there changes nothing.
+        delete(&mut conn, &gone.id).unwrap();
+        delete(&mut conn, "elsewhere").unwrap();
+        assert_eq!(counts(&conn, &kept.id), [1, 1, 2, 2]);
     }
 
     #[test]

@@ -351,8 +351,9 @@ fn a_second_run_writes_nothing_and_a_deleted_meeting_stays_deleted() {
     assert_eq!(rows_after, rows_before);
 
     let solo = meeting_id((T0_SECS + 2 * DAY) * 1000, Source::Superwhisper);
-    conn.execute("DELETE FROM meetings WHERE id = ?1", [&solo])
-        .unwrap();
+    let ledger = count(&conn, "meeting_sources");
+    store::delete(&mut conn, &solo).unwrap();
+    assert_eq!(count(&conn, "meeting_sources"), ledger);
     let (after_delete, _) = import(&world, &mut conn, false);
     assert_eq!(after_delete.imported + after_delete.to_transcribe, 0);
     assert_eq!(after_delete.already_imported, 4);
@@ -399,8 +400,9 @@ fn a_later_run_keeps_a_title_the_meeting_has_and_a_deleted_meeting_deleted() {
     let detail = store::get(&conn, &roadmap).unwrap().unwrap();
     assert_eq!(detail.meeting.title.as_deref(), Some("Mine"));
 
-    conn.execute("DELETE FROM meetings WHERE id = ?1", [&roadmap])
-        .unwrap();
+    let ledger = count(&conn, "meeting_sources");
+    store::delete(&mut conn, &roadmap).unwrap();
+    assert_eq!(count(&conn, "meeting_sources"), ledger);
     let (dry, _) = import_notes(&world, &mut conn, true, false);
     let (after_delete, _) = import_notes(&world, &mut conn, false, false);
     assert_eq!((dry.titles_added, after_delete.titles_added), (0, 0));

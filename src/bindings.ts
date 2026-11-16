@@ -816,6 +816,18 @@ async rediarizeMeeting(id: string) : Promise<Result<null, string>> {
 }
 },
 /**
+ * Deletes a meeting: its recordings, transcript and summary. Its note in
+ * the vault stays. Fails while the meeting records or is transcribed.
+ */
+async deleteMeeting(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_meeting", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * The id of the meeting recording now, if one is.
  */
 async activeMeeting() : Promise<string | null> {

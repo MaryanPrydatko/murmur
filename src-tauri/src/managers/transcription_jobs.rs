@@ -116,6 +116,19 @@ impl Jobs {
         Ok(())
     }
 
+    /// Runs `delete` for the meeting `id`, unless it's running or queued:
+    /// its job would find the folder gone and report a failure.
+    fn delete_meeting(&self, id: &str, delete: impl FnOnce() -> Result<()>) -> Result<()> {
+        let running = self
+            .running
+            .as_ref()
+            .is_some_and(|r| r.meeting_id.as_deref() == Some(id));
+        if running || self.meetings.iter().any(|(queued, _)| queued == id) {
+            return Err(anyhow!("Meeting {id} is being transcribed"));
+        }
+        delete()
+    }
+
     /// Drops the entry from the queues; whether it was in one.
     fn unqueue(&mut self, entry_id: i64) -> bool {
         let before = self.retries.len() + self.files.len();
@@ -277,6 +290,12 @@ impl TranscriptionJobManager {
         crate::tray::update_tray_menu(&self.app);
         self.wake.notify_one();
         Ok(())
+    }
+
+    /// Runs `delete` for the meeting `id` with the queue held, so it can't
+    /// be queued meanwhile; refuses while it's queued or being transcribed.
+    pub fn delete_meeting(&self, id: &str, delete: impl FnOnce() -> Result<()>) -> Result<()> {
+        self.lock().delete_meeting(id, delete)
     }
 
     /// Keeps the model held for as long as any job is queued or running.
@@ -544,5 +563,47 @@ mod tests {
         };
         assert!(jobs.queue_meeting("a", Rerun::All).is_err());
         assert!(queued(&jobs).is_empty());
+    }
+
+    #[test]
+    fn a_meeting_running_or_queued_cannot_be_deleted() {
+        let running = Jobs {
+            running: Some(Running {
+                entry_id: None,
+                meeting_id: Some("a".into()),
+                cancelled: Arc::default(),
+            }),
+            ..Jobs::default()
+        };
+        let mut queued = Jobs::default();
+        queued.queue_meeting("a", Rerun::Speakers).unwrap();
+        for jobs in [&running, &queued] {
+            let ran = Cell::new(0);
+            let refused = jobs.delete_meeting("a", || {
+                ran.set(ran.get() + 1);
+                Ok(())
+            });
+            let e = refused.unwrap_err().to_string();
+            assert_eq!(e, "Meeting a is being transcribed");
+            assert_eq!(ran.get(), 0);
+            // Another meeting is free to go.
+            jobs.delete_meeting("b", || Ok(())).unwrap();
+        }
+    }
+
+    #[test]
+    fn an_idle_meeting_is_deleted_once_and_its_error_passed_on() {
+        let jobs = Jobs::default();
+        let ran = Cell::new(0);
+        jobs.delete_meeting("a", || {
+            ran.set(ran.get() + 1);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(ran.get(), 1);
+        let e = jobs
+            .delete_meeting("a", || Err(anyhow!("disk")))
+            .unwrap_err();
+        assert_eq!(e.to_string(), "disk");
     }
 }
