@@ -15,6 +15,28 @@ first thing to read and the last thing to update.
 - This repo is public. No personal data, no meeting content, no secrets, no
   home folder listings.
 
+## Prompts
+
+For the owner to paste. They make a session follow the rule above.
+
+Start on the Mac (in `~/murmur`):
+
+```
+Murmur, my dictation and meeting app. Run git pull, then read docs/STATUS.md and AGENTS.md. That file is the whole context: state, open bugs, rules for tests and releases. Tell me in a few lines where things stand, then wait for what I want to do.
+```
+
+Before leaving either machine:
+
+```
+I'm switching machines. Update docs/STATUS.md (Now, Next, Log): what changed, what you verified and how, what is not verified, which branch holds unfinished work. Commit and push. Tell me the branch and the commit.
+```
+
+Back on the PC (in `~/Desktop/projects/murmur`):
+
+```
+Murmur. I worked on the Mac in between. Run git fetch and git pull, read docs/STATUS.md and the git log since v0.2.0, and tell me what changed. Then bring my Murmur project note in Obsidian up to date with it.
+```
+
 ## Now (16.11.2026, written on the PC)
 
 - Released: **0.2.0** (tag `v0.2.0`, same commit as `main` before this file).
@@ -122,7 +144,7 @@ model loaded.
 
 Newest first. One line per session: date, machine, what changed.
 
-- 16.11.2026, PC: this file added.
+- 16.11.2026, PC: this file added, with the prompts for switching machines.
 - 16.11.2026, PC and Mac: 0.2.0 released. Delete a meeting, speaker model
   downloads with the first meeting, spoken lists and "new line" in dictation,
   meeting summaries through a local or cloud provider (off by default), the
