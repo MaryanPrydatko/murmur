@@ -711,7 +711,11 @@ fn reject_stray_markers(pieces: Vec<SpokenPiece>) -> Vec<SpokenPiece> {
 
     let is_break = |piece: &SpokenPiece| matches!(piece, SpokenPiece::Break(..));
     let leading = pieces.iter().take_while(|piece| is_break(piece)).count();
-    let trailing = pieces.iter().rev().take_while(|piece| is_break(piece)).count();
+    let trailing = pieces
+        .iter()
+        .rev()
+        .take_while(|piece| is_break(piece))
+        .count();
     let mut stray: Vec<usize> = (0..leading)
         .chain(pieces.len() - trailing..pieces.len())
         .collect();

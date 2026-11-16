@@ -98,9 +98,7 @@ pub fn reconcile(app: &AppHandle) {
                 write_meeting(app, &meeting)
             }),
             // The job sees it is transcribed and only wraps it up.
-            Recovery::Requeue | Recovery::WrapUp => {
-                jobs.queue_meeting(&id, Rerun::All, || Ok(()))
-            }
+            Recovery::Requeue | Recovery::WrapUp => jobs.queue_meeting(&id, Rerun::All, || Ok(())),
             Recovery::GiveUp => {
                 meeting.status = MeetingStatus::Failed;
                 notices::raise(
