@@ -205,6 +205,11 @@ pub fn change_binding(
         }
     };
 
+    if let Err(e) = validate_new_binding(&id, &binding, &settings.bindings) {
+        warn!("change_binding validation error: {}", e);
+        return Err(e);
+    }
+
     // If this is the cancel binding, just update the settings and return
     // It's managed dynamically, so we don't register/unregister here
     if id == "cancel" {
@@ -447,6 +452,79 @@ fn validate_shortcut_for_implementation(
         KeyboardImplementation::Tauri => tauri_impl::validate_shortcut(raw),
         KeyboardImplementation::HandyKeys => handy_keys::validate_shortcut(raw),
         KeyboardImplementation::None => Ok(()),
+    }
+}
+
+/// A shortcut as its modifiers and its other keys, so the same chord compares
+/// equal however it is spelled ("Ctrl+Alt+Space", "alt+control+space").
+fn shortcut_parts(raw: &str) -> (::handy_keys::Modifiers, Vec<String>) {
+    let mut modifiers = ::handy_keys::Modifiers::empty();
+    let mut keys = Vec::new();
+    for part in raw.split('+').map(|part| part.trim().to_lowercase()) {
+        match part.parse::<::handy_keys::Modifiers>() {
+            Ok(modifier) => modifiers |= modifier,
+            Err(_) => keys.push(match part.as_str() {
+                "escape" => "esc".to_string(),
+                "return" => "enter".to_string(),
+                _ => part,
+            }),
+        }
+    }
+    keys.sort();
+    (modifiers, keys)
+}
+
+/// Whether `key` can be a shortcut with no modifier: it types nothing and
+/// moves no cursor (function keys, lock keys, media keys and the like).
+fn works_without_modifier(key: &str) -> bool {
+    let function_key = key
+        .strip_prefix('f')
+        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
+    function_key
+        || matches!(
+            key,
+            "capslock"
+                | "numlock"
+                | "scrolllock"
+                | "insert"
+                | "pause"
+                | "printscreen"
+                | "pageup"
+                | "pagedown"
+                | "menu"
+        )
+        || ["audio", "media", "volume", "brightness", "launch"]
+            .iter()
+            .any(|prefix| key.starts_with(prefix))
+}
+
+/// Checks a shortcut the user is setting. The backends accept more than is
+/// sensible: a bare letter fires on every keystroke of ordinary typing, and
+/// the same chord on two bindings leaves one of them dead. Stored bindings
+/// are not checked, so an existing profile keeps what it has.
+fn validate_new_binding(
+    id: &str,
+    raw: &str,
+    bindings: &std::collections::HashMap<String, ShortcutBinding>,
+) -> Result<(), String> {
+    let (modifiers, keys) = shortcut_parts(raw);
+
+    // Cancel is only live while recording, and its default is a bare Escape.
+    // Shift does not count: Shift+A is still typing.
+    let typing = (modifiers - ::handy_keys::Modifiers::SHIFT).is_empty()
+        && keys.iter().any(|key| !works_without_modifier(key));
+    if id != "cancel" && typing {
+        return Err(format!(
+            "'{raw}' is used for typing. Add Ctrl, Alt or another modifier, or use a function key"
+        ));
+    }
+
+    let taken = bindings.values().find(|other| {
+        other.id != id && shortcut_parts(&other.current_binding) == (modifiers, keys.clone())
+    });
+    match taken {
+        Some(other) => Err(format!("'{raw}' is already used by {}", other.name)),
+        None => Ok(()),
     }
 }
 
@@ -1565,8 +1643,85 @@ pub async fn get_available_accelerators(
 
 #[cfg(test)]
 mod tests {
+    use super::validate_new_binding;
+    use crate::settings::get_default_settings;
     use handy_keys::Hotkey;
     use tauri_plugin_global_shortcut::Shortcut;
+
+    #[test]
+    fn a_key_used_for_typing_needs_a_modifier() {
+        let bindings = get_default_settings().bindings;
+        for typed in [
+            "a",
+            "A",
+            "7",
+            "space",
+            "enter",
+            "esc",
+            "shift+a",
+            "Shift+Space",
+            "up",
+        ] {
+            assert!(
+                validate_new_binding("transcribe", typed, &bindings).is_err(),
+                "{typed} was accepted"
+            );
+        }
+        for fine in [
+            "ctrl+alt+m",
+            "alt+a",
+            "super+space",
+            "f9",
+            "shift+f5",
+            "scrolllock",
+            "pause",
+            // handy-keys records these: one modifier, or one side of it.
+            "fn",
+            "option_right",
+            "ctrl+shift",
+        ] {
+            assert_eq!(
+                validate_new_binding("transcribe", fine, &bindings),
+                Ok(()),
+                "{fine} was rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn a_chord_another_binding_uses_is_rejected() {
+        let bindings = get_default_settings().bindings;
+        let taken = &bindings["transcribe_with_post_process"].current_binding;
+        // However it is spelled.
+        let respelled = taken
+            .split('+')
+            .rev()
+            .map(str::to_uppercase)
+            .collect::<Vec<_>>()
+            .join(" + ");
+        for chord in [taken.as_str(), respelled.as_str()] {
+            let error = validate_new_binding("transcribe", chord, &bindings).unwrap_err();
+            assert!(error.contains("already used"), "{chord}: {error}");
+        }
+        // A binding may be set to what it already is.
+        assert_eq!(
+            validate_new_binding("transcribe_with_post_process", taken, &bindings),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn every_default_binding_passes_its_own_check() {
+        // reset_binding sets the default through change_binding.
+        let bindings = get_default_settings().bindings;
+        for (id, binding) in &bindings {
+            assert_eq!(
+                validate_new_binding(id, &binding.default_binding, &bindings),
+                Ok(()),
+                "{id}"
+            );
+        }
+    }
 
     #[test]
     fn compound_shortcut_keys_parse_on_both_backends() {
