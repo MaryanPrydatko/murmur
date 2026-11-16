@@ -246,7 +246,9 @@ export const useMeetingPlayback = (
   useEffect(() => {
     for (const track of tracks.current ?? []) {
       track.audio.playbackRate = speed;
-      track.audio.muted = !audible(track.kind, choice);
+      // By volume: WebKitGTK applied one element's mute to the other
+      // track's stream, so "Only me" played the wrong side.
+      track.audio.volume = audible(track.kind, choice) ? 1 : 0;
     }
   }, [speed, choice, playing]);
 
