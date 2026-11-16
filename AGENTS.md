@@ -2,6 +2,10 @@
 
 This file provides guidance to AI coding assistants working with code in this repository.
 
+## Start here
+
+This is Murmur, a fork of Handy. It is developed on two machines in sessions that do not share memory. Before anything else run `git pull` and read `docs/STATUS.md`: the current state, what is open, and the rules for tests and releases. Before a session ends, update that file, commit and push.
+
 ## Development Commands
 
 **Prerequisites:**
