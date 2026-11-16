@@ -2,7 +2,7 @@
 
 Local dictation and meeting notes for Linux and macOS.
 
-Press a shortcut, speak, and the text is typed into the app you are in. Start a meeting and Murmur records it, writes down who said what, and puts a note in your Obsidian vault. Everything runs on your machine. Audio and text are not uploaded.
+Press a shortcut, speak, and the text is typed into the app you are in. Start a meeting and Murmur records it, writes down who said what, and puts a note in your Obsidian vault. Recording, transcription and speaker labels run on your machine, and text is sent to an AI provider only if you set one up.
 
 Murmur is a fork of [Handy](https://github.com/cjpais/Handy) by CJ Pais.
 
