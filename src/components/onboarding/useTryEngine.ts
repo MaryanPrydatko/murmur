@@ -60,6 +60,8 @@ export const useTryEngine = ({ os }: { os: OSType }) => {
   const field = useRef<HTMLTextAreaElement>(null);
   const takeRef = useRef<Mode | null>(null);
   const lockedRef = useRef(false);
+  /** The note changed since this take's recording stopped. */
+  const notedRef = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout>>();
   const resultTimer = useRef<ReturnType<typeof setTimeout>>();
   const waitTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -82,10 +84,15 @@ export const useTryEngine = ({ os }: { os: OSType }) => {
       if (document.activeElement !== note) return;
       setResult((r) => (r.kind === "nothingTyped" ? { kind: "none" } : r));
     };
+    const noted = () => {
+      notedRef.current = true;
+    };
     note?.addEventListener("focus", fixed);
+    note?.addEventListener("input", noted);
     window.addEventListener("focus", fixed);
     return () => {
       note?.removeEventListener("focus", fixed);
+      note?.removeEventListener("input", noted);
       window.removeEventListener("focus", fixed);
     };
   }, []);
@@ -143,6 +150,7 @@ export const useTryEngine = ({ os }: { os: OSType }) => {
           setResult({ kind: "none" });
         } else {
           // An unknown way is settled when the words land.
+          notedRef.current = false;
           setPhase("typing");
           clearTimeout(waitTimer.current);
           waitTimer.current = setTimeout(() => {
@@ -155,9 +163,14 @@ export const useTryEngine = ({ os }: { os: OSType }) => {
     const offDone = events.transcriptionCompleteEvent.listen(({ payload }) => {
       clearTimeout(waitTimer.current);
       const way = takeRef.current ?? (lockedRef.current ? "tap" : "hold");
-      // Read focus now, not when the result is shown.
+      // The text arriving in the note is the proof. Focus alone is not: on
+      // Wayland, restoring the clipboard after the paste takes it for a
+      // moment, right when this event arrives. Focus still counts for a
+      // paste that reports before the text is in. Read now, not when the
+      // result is shown.
       const landed =
-        document.activeElement === field.current && document.hasFocus();
+        notedRef.current ||
+        (document.activeElement === field.current && document.hasFocus());
       const settle = () => {
         waitingSince.current = null;
         setWaiting(false);
