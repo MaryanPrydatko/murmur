@@ -43,8 +43,8 @@ Murmur. I worked on the Mac in between. Run git fetch and git pull, read docs/ST
   The release has a `.deb` (Ubuntu 26.04+) and a `.dmg` (Apple Silicon). Do
   not use 0.1.0: "Transcribe again" on an imported meeting without audio
   wipes its transcript there.
-- Installed: 0.2.0 on the PC (package `murmur`) and on the Mac
-  (`/Applications/Murmur.app`).
+- Installed: 0.2.0 on the PC (package `murmur`). On the Mac
+  (`/Applications/Murmur.app`) a build of `fix/meeting-echo`, see below.
 - Open branch `fix/meeting-echo` (Mac, not pushed, not merged): a meeting
   recorded without headphones had the other side's words twice, once on the
   system track and again on the mic, which hears the speakers. The merge now
@@ -54,8 +54,10 @@ Murmur. I worked on the Mac in between. Run git fetch and git pull, read docs/ST
   (not in the repo): about 1,170 of 1,480 mic words dropped as echo, every
   sentence of the owner's own kept, about 17 one-word leftovers. Not
   verified: a two-track meeting with headphones (none recorded; a meeting
-  only counts as having echo when 25% of the system words match), and the
-  app build on screen.
+  only counts as having echo when 25% of the system words match). A build of
+  this branch is installed on the Mac in place of 0.2.0 and redid that meeting
+  on start: 1,169 of 1,483 mic words dropped, speaker names kept, new summary.
+  Its windows on screen were not checked by the agent.
 
 ### Never seen working by a person
 
