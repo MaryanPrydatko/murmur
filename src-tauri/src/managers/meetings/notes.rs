@@ -291,6 +291,7 @@ mod tests {
             diar_model: None,
             language: None,
             attempts: 0,
+            wrap_up: false,
         };
         store::save(conn, &meeting).unwrap();
         let said = |t0_ms, speaker, text: &str| Utterance {

@@ -100,6 +100,11 @@ pub struct Meeting {
     /// Transcriptions started, counted before each runs so a crash counts.
     #[serde(default)]
     pub attempts: u8,
+    /// Transcribed, with its summary and note still to come: set in the
+    /// write that marks it done and cleared after both, so a quit in
+    /// between is seen at the next start.
+    #[serde(default)]
+    pub wrap_up: bool,
 }
 
 impl Meeting {
@@ -464,6 +469,7 @@ impl MeetingManager {
             diar_model: None,
             language: None,
             attempts: 0,
+            wrap_up: false,
         };
         write_meeting(&self.app, &meeting)?;
         notices::clear(&self.app, NoticeSource::Meeting);
@@ -800,7 +806,7 @@ pub(crate) fn read_meeting(dir: &Path) -> Result<Meeting> {
 
 /// Replaces `meeting.json` whole: written aside and renamed, so a crash
 /// mid-write never leaves half a record.
-fn write_meeting_json(meeting: &Meeting) -> Result<()> {
+pub(crate) fn write_meeting_json(meeting: &Meeting) -> Result<()> {
     let path = meeting.dir.join("meeting.json");
     let partial = meeting.dir.join("meeting.json.partial");
     std::fs::write(&partial, serde_json::to_vec_pretty(meeting)?)
@@ -874,6 +880,7 @@ mod tests {
             diar_model: None,
             language: None,
             attempts: 0,
+            wrap_up: false,
         };
         assert!(check_tracks(&meeting).is_ok());
         // Imported with its transcript only: a rerun would empty it.
@@ -913,6 +920,7 @@ mod tests {
             diar_model: None,
             language: None,
             attempts: 1,
+            wrap_up: false,
         };
         write_meeting_json(&meeting).unwrap();
         wav(&dir.join("mic.wav"), 16_000, 1);
@@ -999,6 +1007,7 @@ mod tests {
         std::fs::write(dir.path().join("meeting.json"), json).unwrap();
         let meeting = read_meeting(dir.path()).unwrap();
         assert_eq!((meeting.attempts, meeting.language.as_deref()), (0, None));
+        assert!(!meeting.wrap_up);
         write_meeting_json(&meeting).unwrap();
         assert_eq!(
             read_meeting(dir.path()).unwrap().status,

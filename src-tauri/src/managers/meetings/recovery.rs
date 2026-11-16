@@ -1,6 +1,7 @@
 //! Meetings the last run left unfinished: one still recording when the
-//! process died gets its WAV headers repaired, and one mid-transcription is
-//! queued again, up to [`MAX_ATTEMPTS`] times.
+//! process died gets its WAV headers repaired, one mid-transcription is
+//! queued again, up to [`MAX_ATTEMPTS`] times, and one transcribed without
+//! its summary and note gets them.
 
 use anyhow::{bail, Context, Result};
 use log::{error, info, warn};
@@ -30,6 +31,8 @@ pub(super) enum Recovery {
     Requeue,
     /// It used up its attempts.
     GiveUp,
+    /// It is transcribed; its summary and note are still to be made.
+    WrapUp,
 }
 
 pub(super) fn recovery(meeting: &Meeting) -> Option<Recovery> {
@@ -37,6 +40,7 @@ pub(super) fn recovery(meeting: &Meeting) -> Option<Recovery> {
         MeetingStatus::Recording => Some(Recovery::Repair),
         MeetingStatus::Transcribing if meeting.attempts < MAX_ATTEMPTS => Some(Recovery::Requeue),
         MeetingStatus::Transcribing => Some(Recovery::GiveUp),
+        MeetingStatus::Done if meeting.wrap_up => Some(Recovery::WrapUp),
         MeetingStatus::Done | MeetingStatus::Failed => None,
     }
 }
@@ -78,7 +82,10 @@ pub fn reconcile(app: &AppHandle) {
                 repair_meeting(&mut meeting, &folder);
                 write_meeting(app, &meeting)
             }),
-            Recovery::Requeue => jobs.queue_meeting(&id, Rerun::All, || Ok(())),
+            // The job sees it is transcribed and only wraps it up.
+            Recovery::Requeue | Recovery::WrapUp => {
+                jobs.queue_meeting(&id, Rerun::All, || Ok(()))
+            }
             Recovery::GiveUp => {
                 meeting.status = MeetingStatus::Failed;
                 notices::raise(
@@ -211,6 +218,7 @@ mod tests {
             diar_model: None,
             language: None,
             attempts,
+            wrap_up: false,
         }
     }
 
@@ -327,5 +335,23 @@ mod tests {
         assert_eq!(recovery(&crashing), Some(Recovery::GiveUp));
         assert_eq!(recovery(&meeting(MeetingStatus::Done, 0)), None);
         assert_eq!(recovery(&meeting(MeetingStatus::Failed, 5)), None);
+    }
+
+    #[test]
+    fn a_meeting_quit_before_its_summary_and_note_is_wrapped_up() {
+        // The app quit while the summary request was out: the meeting is
+        // done on disk, with the mark that its note is still to come.
+        let mut waiting = meeting(MeetingStatus::Done, 1);
+        waiting.wrap_up = true;
+        assert_eq!(recovery(&waiting), Some(Recovery::WrapUp));
+        // Only a marked meeting: older ones without a note stay as they are.
+        waiting.wrap_up = false;
+        assert_eq!(recovery(&waiting), None);
+        // A failed or running one is not wrapped up, whatever the mark says.
+        for status in [MeetingStatus::Failed, MeetingStatus::Transcribing] {
+            let mut other = meeting(status, MAX_ATTEMPTS);
+            other.wrap_up = true;
+            assert_ne!(recovery(&other), Some(Recovery::WrapUp), "{status:?}");
+        }
     }
 }

@@ -18,8 +18,8 @@ use super::transcript::{
     assign_speakers, merge_minor_speakers, merge_utterances, render_transcript, Turn,
 };
 use super::{
-    meetings_dir, read_meeting, store, write_meeting, Meeting, MeetingManager, MeetingProgress,
-    MeetingStatus, MeetingStep, Rerun, Speaker, TrackKind,
+    meetings_dir, read_meeting, store, write_meeting, write_meeting_json, Meeting, MeetingManager,
+    MeetingProgress, MeetingStatus, MeetingStep, Rerun, Speaker, TrackKind,
 };
 use crate::engine_supervisor::EngineError;
 use crate::managers::history::HistoryManager;
@@ -49,6 +49,13 @@ pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn Chu
         Ok(meeting) => meeting,
         Err(e) => return fail_job(app, id, &format!("{e:#}")),
     };
+    if meeting.status == MeetingStatus::Done && meeting.wrap_up {
+        // The last run ended between the transcript and the note. The mark
+        // goes first: this gets one more try, not one on every start.
+        info!("Meeting {id}: making the summary and note the last run left out");
+        clear_wrap_up(&mut meeting);
+        return wrap_up(app, id);
+    }
     meeting.begin_attempt();
     if let Err(e) = write_meeting(app, &meeting) {
         error!("Failed to save meeting {id}: {e:#}");
@@ -56,6 +63,20 @@ pub(crate) fn run_job(app: &AppHandle, id: &str, rerun: Rerun, control: &dyn Chu
     info!("Meeting {id}: attempt {} ({rerun:?})", meeting.attempts);
     crate::overlay::show_meeting_transcribing_overlay(app);
     transcribe(app, meeting, rerun, control);
+}
+
+/// What follows a transcript: the summary, then the note, which is written
+/// once and takes the summary there is by then.
+fn wrap_up(app: &AppHandle, id: &str) {
+    super::summary::on_done(app, id);
+    super::notes::on_done(app, id);
+}
+
+fn clear_wrap_up(meeting: &mut Meeting) {
+    meeting.wrap_up = false;
+    if let Err(e) = write_meeting_json(meeting) {
+        error!("Failed to save meeting {}: {e:#}", meeting.id);
+    }
 }
 
 /// Marks the meeting `id` failed and says why, as when its job panicked.
@@ -178,6 +199,9 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
         Ok(false) if meeting.dir.join("transcript.md").exists() => MeetingStatus::Done,
         Ok(false) | Err(_) => MeetingStatus::Failed,
     };
+    // In the same write as the status: the summary can take minutes, and a
+    // quit while it is out must not leave a done meeting without its note.
+    meeting.wrap_up = matches!(result, Ok(true));
     if let Err(e) = write_meeting(app, &meeting) {
         error!("Failed to save meeting {}: {e:#}", meeting.id);
     }
@@ -186,10 +210,8 @@ fn transcribe(app: &AppHandle, mut meeting: Meeting, rerun: Rerun, control: &dyn
             notices::clear(app, NoticeSource::Meeting);
             if written {
                 info!("Meeting {} transcribed", meeting.id);
-                // Before the note, which is written once and takes the
-                // summary there is by then.
-                super::summary::on_done(app, &meeting.id);
-                super::notes::on_done(app, &meeting.id);
+                wrap_up(app, &meeting.id);
+                clear_wrap_up(&mut meeting);
             } else {
                 info!(
                     "Meeting {}: speakers not told apart; kept its transcript",

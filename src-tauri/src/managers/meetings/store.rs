@@ -413,6 +413,7 @@ mod tests {
             diar_model: Some("diar_streaming_sortformer_4spk-v2.1".into()),
             language: Some("en".into()),
             attempts: 0,
+            wrap_up: false,
         }
     }
 

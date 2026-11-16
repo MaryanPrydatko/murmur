@@ -308,6 +308,7 @@ mod tests {
             diar_model: None,
             language: None,
             attempts: 0,
+            wrap_up: false,
         };
         let utterances = [
             said(83_000, 84_000, Speaker::Me, "hi"),

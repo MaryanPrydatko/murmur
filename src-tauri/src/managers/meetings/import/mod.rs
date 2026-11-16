@@ -607,6 +607,7 @@ fn apply(
         diar_model: None,
         language: None,
         attempts: 0,
+        wrap_up: false,
     };
     db::insert(conn, planned, &meeting)?;
     write(&meeting)?;
