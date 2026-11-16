@@ -777,6 +777,42 @@ fn break_line(out: &mut String, add: usize, at_least: usize) {
     }
 }
 
+/// Abbreviations a name follows: their full stop never ends a sentence.
+const TITLES: [&str; 6] = ["mr", "mrs", "ms", "dr", "prof", "st"];
+
+/// Whether the full stop after `word` is part of an abbreviation: "Dr.",
+/// "p.m.", "U.S.", "etc."
+fn is_abbreviated(word: &SpokenToken) -> bool {
+    let core = word.core.as_str();
+    word.tail.starts_with('.')
+        && (core.contains('.') || matches!(core, "etc" | "vs") || TITLES.contains(&core))
+}
+
+/// Whether a sentence ends at `words[i]`. After an abbreviation it only
+/// does when a capital follows: "at 5 p.m. tomorrow" goes on.
+fn ends_sentence(words: &[&str], i: usize) -> bool {
+    let Some(word) = words.get(i).map(|word| SpokenToken::new(word)) else {
+        return false;
+    };
+    if !word.ends_with_any(&FULL_STOP) || TITLES.contains(&word.core.as_str()) {
+        return false;
+    }
+    let capital_follows = words
+        .get(i + 1)
+        .is_none_or(|next| next.chars().next().is_some_and(char::is_uppercase));
+    !is_abbreviated(&word) || capital_follows
+}
+
+/// Appends `text` as the start of a line or an item, with a capital, unless
+/// its first word has a spelling of its own: "iPhone", "https://example.com".
+fn push_line_start(out: &mut String, text: &str) {
+    let first = text.split_whitespace().next().unwrap_or_default();
+    let own_spelling = first.chars().skip(1).any(char::is_uppercase)
+        || first.contains("://")
+        || first.contains('@');
+    push_restoring_capital(out, text, &mut !own_spelling);
+}
+
 fn render_spoken(pieces: &[SpokenPiece]) -> String {
     let mut out = String::new();
     let mut capital_owed = false;
@@ -797,9 +833,7 @@ fn render_spoken(pieces: &[SpokenPiece]) -> String {
                 // The last item of a list is its first sentence; what follows
                 // is ordinary text again.
                 let words: Vec<&str> = text.split_whitespace().collect();
-                let stop = words
-                    .iter()
-                    .position(|word| SpokenToken::new(word).ends_with_any(&FULL_STOP));
+                let stop = (0..words.len()).find(|&i| ends_sentence(&words, i));
                 let item_len = stop
                     .filter(|_| !list_goes_on)
                     .map_or(words.len(), |stop| stop + 1);
@@ -809,10 +843,15 @@ fn render_spoken(pieces: &[SpokenPiece]) -> String {
                 break_line(&mut out, 0, 1);
                 out.push_str(&number.map_or("- ".to_string(), |number| format!("{number}. ")));
                 let item = item.trim_end_matches(['.', ',', ';', ':', ' ']);
-                push_restoring_capital(&mut out, item, &mut true);
+                push_line_start(&mut out, item);
+                // The full stop of "etc." or "U.S." is part of the word.
+                let last = item_len.checked_sub(1).and_then(|last| words.get(last));
+                if last.is_some_and(|last| is_abbreviated(&SpokenToken::new(last))) {
+                    out.push('.');
+                }
                 if !rest.is_empty() {
                     break_line(&mut out, 0, 1);
-                    push_restoring_capital(&mut out, &rest, &mut true);
+                    push_line_start(&mut out, &rest);
                 }
                 capital_owed = false;
             }
@@ -820,7 +859,10 @@ fn render_spoken(pieces: &[SpokenPiece]) -> String {
                 if !out.is_empty() && !out.ends_with('\n') {
                     out.push(' ');
                 }
-                push_restoring_capital(&mut out, text, &mut capital_owed);
+                match capital_owed {
+                    true => push_line_start(&mut out, text),
+                    false => out.push_str(text),
+                }
                 capital_owed = false;
             }
         }
@@ -1340,6 +1382,14 @@ My priorities are, number one, speed, number two, cost. => My priorities are,<NL
 Number 1. Fix the login bug. Number 2. Ship it on Friday. => 1. Fix the login bug<NL>2. Ship it on Friday
 Number 1, apples, number 2, pears, number 3, milk, new paragraph, that is all. => 1. Apples<NL>2. Pears<NL>3. Milk<NL><NL>That is all.
 Number 1, call the bank. Number 2, book the flights, number 3, pack. => 1. Call the bank<NL>2. Book the flights<NL>3. Pack
+# A word with a spelling of its own keeps it at the start of a line.
+Bullet point iPhone charger. Bullet point USB cable. => - iPhone charger<NL>- USB cable
+Hello. New line. https://example.com is the link. => Hello.<NL>https://example.com is the link.
+# The full stop of an abbreviation does not end an item.
+Bullet point meet Dr. Smith at 3 p.m. on Friday. Bullet point call the U.S. office. => - Meet Dr. Smith at 3 p.m. on Friday<NL>- Call the U.S. office
+Number one, call Mr. Smith. Number two, meet at 5 p.m. tomorrow. => 1. Call Mr. Smith<NL>2. Meet at 5 p.m. tomorrow
+Number one, milk, eggs, etc. Number two, visit the U.K. That is the plan. => 1. Milk, eggs, etc.<NL>2. Visit the U.K.<NL>That is the plan.
+Number one, fruit, e.g. apples. Number two, pears. Thanks. => 1. Fruit, e.g. apples<NL>2. Pears<NL>Thanks.
 # A count inside an item is not the next item.
 Number one, sizes one, two, and three. Number two, colours. => 1. Sizes one, two, and three<NL>2. Colours
 Number 1, sizes 1, 2, and 3. Number 2, colours. => 1. Sizes 1, 2, and 3<NL>2. Colours
