@@ -988,16 +988,17 @@ pub enum PasteOutcome {
     /// The focused window takes no input from Handy, so nothing arrived.
     Blocked,
     /// On Wayland no tool could send keys to the focused window, so the text
-    /// is on the clipboard instead. `tell_user` is false when the keys may
-    /// have arrived after all and this session's notice was already raised.
+    /// is on the clipboard instead. `tell_user` is true the first time this
+    /// happens in a run.
     OnClipboard {
         tell_user: bool,
     },
 }
 
-/// Whether this run already raised the notice for a paste that may not have
-/// arrived (see [`EnigoReach::Unknown`]); it can be a false alarm, so once.
-static UNSURE_PASTE_TOLD: AtomicBool = AtomicBool::new(false);
+/// Whether this run already raised the notice for a paste left on the
+/// clipboard. It names a setup step, so once is enough; until that step is
+/// done, every paste into such a window ends the same way.
+static PASTE_ON_CLIPBOARD_TOLD: AtomicBool = AtomicBool::new(false);
 
 /// Whether `paste_method` works by sending keystrokes to the focused window.
 fn sends_keys(paste_method: PasteMethod) -> bool {
@@ -1044,8 +1045,7 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<PasteOutcome, String
         return result.map(|delivery| match delivery {
             Delivery::Sent => PasteOutcome::Pasted,
             Delivery::OnClipboard => PasteOutcome::OnClipboard {
-                tell_user: reach == EnigoReach::Misses
-                    || !UNSURE_PASTE_TOLD.swap(true, Ordering::Relaxed),
+                tell_user: !PASTE_ON_CLIPBOARD_TOLD.swap(true, Ordering::Relaxed),
             },
         });
     }
