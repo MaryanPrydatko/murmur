@@ -569,8 +569,13 @@ fn bullet_phrase_end(tokens: &[SpokenToken], i: usize) -> Option<usize> {
         end = i + 2;
     }
     let last = tokens.get(end)?;
+    let next = tokens.get(end + 1)?;
+    // "Bullet point two is wrong" names a bullet; it does not start one.
+    let names_a_bullet = last.tail.is_empty()
+        && (NUMBER_WORDS.contains(&next.core.as_str())
+            || (!next.core.is_empty() && next.core.chars().all(|c| c.is_ascii_digit())));
     let own_phrase = last.tail.is_empty() || last.has_marker_tail();
-    (own_phrase && end + 1 < tokens.len()).then_some(end)
+    (own_phrase && !names_a_bullet).then_some(end)
 }
 
 /// The line or paragraph break spoken at token `i`: how many newlines, and
@@ -633,12 +638,12 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
         words.iter().map(|t| t.raw).collect::<Vec<_>>().join(" ")
     };
 
-    // A lone bullet has to start a sentence. A list that starts after a comma
-    // ("Shopping list, bullet point milk, bullet point eggs") counts once it
-    // has a second bullet.
+    // A bullet list has at least two bullets, each at the start of a clause
+    // ("Shopping list, bullet point milk, bullet point eggs"). One "bullet
+    // point" alone is taken as words: "Bullet point formatting works well."
     let bullets = (0..tokens.len())
         .filter(|&i| starts_after(i, &CLAUSE_END) && bullet_phrase_end(tokens, i).is_some());
-    let mut bullet_seen = bullets.count() >= 2;
+    let bullet_seen = bullets.count() >= 2;
     let mut number_seen = false;
 
     let mut pieces = Vec::new();
@@ -647,7 +652,7 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
     while let Some(token) = tokens.get(i) {
         let clause_start = starts_after(i, &CLAUSE_END);
         let sentence_start = starts_after(i, &SENTENCE_END);
-        let bullet_allowed = sentence_start || (clause_start && bullet_seen);
+        let bullet_allowed = clause_start && bullet_seen;
         // Inside a list only the number as Parakeet writes it counts after a
         // comma ("1. The price is too high, 2. The delivery is too slow"), so
         // "sizes one, two, and three" stays in its item.
@@ -659,7 +664,6 @@ fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
         } else if let Some((breaks, next)) = spoken_break_at(tokens, i, clause_start) {
             Some((SpokenPiece::Break(breaks), next))
         } else if let Some(end) = bullet_phrase_end(tokens, i).filter(|_| bullet_allowed) {
-            bullet_seen = true;
             Some((SpokenPiece::Marker(None, spoken(i, end + 1)), end + 1))
         } else if let Some((number, next)) = spoken_number_at(tokens, i, clause_start, bare_allowed)
         {
@@ -1279,7 +1283,6 @@ Bullet point, milk. Next bullet, eggs. => - Milk<NL>- Eggs
 Bullet point milk, bullet point eggs, bullet point bread. => - Milk<NL>- Eggs<NL>- Bread
 Notes for today: bullet point standup moved, bullet point demo on Friday. => Notes for today:<NL>- Standup moved<NL>- Demo on Friday
 Bullet point call the bank. They close at five. Bullet point book flights. Let me know. => - Call the bank. They close at five<NL>- Book flights<NL>Let me know.
-Bullet point buy milk. => - Buy milk
 To do. Next bullet point call mom. Next bullet point pay rent. => To do.<NL>- Call mom<NL>- Pay rent
 Bullet point are we shipping Friday? Bullet point who is on call? => - Are we shipping Friday?<NL>- Who is on call?
 # Numbered lists.
@@ -1296,8 +1299,6 @@ Hello. New line. Number one, write tests. Number two, ship. => Hello.<NL>1. Writ
 Number one, apples. Number two, pears. Number two, plums. => 1. Apples<NL>2. Pears<NL>Number two, plums.
 Bullet point. New line. Done. => Bullet point.<NL>Done.
 # Known false positives, pinned so they are a decision.
-Bullet point three is wrong. => - Three is wrong
-Bullet point 3 is wrong. => - 3 is wrong
 How many do you want? One. And for her? Two. Okay. => How many do you want?<NL>1. And for her?<NL>2. Okay
 # What Parakeet Ultra wrote for generated speech (six voices, 2026-11-16)
 # where it differs from the forms above: a comma for a short pause,
@@ -1314,7 +1315,11 @@ Dear team, New Paragraph, I will be late tomorrow. => Dear team,<NL><NL>I will b
 Dear team. New paragraph. I will be late tomorrow. New line. Best, Marion. => Dear team.<NL><NL>I will be late tomorrow.<NL>Best, Marion.
 Shopping list, bullet point milk, bullet point eggs, bullet point bread. => Shopping list,<NL>- Milk<NL>- Eggs<NL>- Bread
 Notes for today, bullet point stand-up moved, bullet point demo on Friday. => Notes for today,<NL>- Stand-up moved<NL>- Demo on Friday
-Here is what we need, bullet point a new laptop, bullet point two monitors, bullet point a desk. => Here is what we need,<NL>- A new laptop<NL>- Two monitors<NL>- A desk
+Here is what we need, bullet point a new laptop, bullet point a second monitor, bullet point a desk. => Here is what we need,<NL>- A new laptop<NL>- A second monitor<NL>- A desk
+# A number right after "bullet point" names a bullet, so that one stays in
+# the item before it.
+Here is what we need, bullet point a new laptop, bullet point two monitors, bullet point a desk. => Here is what we need,<NL>- A new laptop, bullet point two monitors<NL>- A desk
+Bullet point, 2 monitors. Bullet point, a desk. => - 2 monitors<NL>- A desk
 Bullet point, milk, next bullet, eggs, new bullet, bread. => - Milk<NL>- Eggs<NL>- Bread
 Bullet point call the bank, they close at five, bullet point book flights, let me know. => - Call the bank, they close at five<NL>- Book flights, let me know
 Next bullet, call the bank. Next bullet, book the flights. => - Call the bank<NL>- Book the flights
@@ -1335,7 +1340,6 @@ I have two points. 1. The price is too high. 2. The delivery is too slow. That i
 I have two points. 1. the price is too high, 2. the delivery is too slow, that is it. => I have two points.<NL>1. The price is too high<NL>2. The delivery is too slow, that is it
 # Observed and only half understood: the later markers have no punctuation
 # before them, so they stay in the item.
-Bullet point milk bullet point eggs. => - Milk bullet point eggs
 Number 1, call the bank, number 2, book the flights, number 3 pack. => 1. Call the bank<NL>2. Book the flights, number 3 pack
 "#;
 
@@ -1363,6 +1367,21 @@ One, I agree. Three, I do not.
 The answers can now be up to 2,000 characters.
 Bullet points are useful.
 He dodged a bullet point blank.
+# One "bullet point" is not a list: a list has two.
+Bullet point buy milk.
+Bullet point milk bullet point eggs.
+Bullet point formatting works well in this doc.
+I like it. Bullet point formatting works well in this doc.
+Next bullet train leaves at five.
+New bullet points were added to the deck.
+Next bullet point is about pricing.
+Bullet Point drei ist falsch.
+# "Bullet point" with a number names a bullet.
+Bullet point three is wrong.
+Bullet point 3 is wrong.
+Bullet point two needs rewording.
+Bullet point three on the slide is wrong, bullet point four is fine.
+On slide five, bullet point two is wrong, bullet point three is fine.
 Das ist eine neue Zeile. Erstens gehen wir.
 # Known miss: no comma after the numeral.
 Number one apples. Number two pears.

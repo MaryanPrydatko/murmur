@@ -1420,7 +1420,7 @@ mod tests {
         for (spoken, pasted) in [
             ("Hello there. New line.", "Hello there."),
             ("Hello there. New paragraph. New line.", "Hello there."),
-            ("Bullet point milk. New line.", "- Milk"),
+            ("Bullet point milk. Bullet point eggs. New line.", "- Milk\n- Eggs"),
         ] {
             assert_eq!(
                 apply_spoken_formatting(&settings, None, false, spoken.to_string()),
