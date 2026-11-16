@@ -978,6 +978,7 @@
     "pasteFailed": "تعذر لصق النص في التطبيق النشط.",
     "pasteBlockedElevatedTitle": "تعذر اللصق في تطبيقات المسؤول",
     "pasteBlockedElevated": "التطبيق النشط يعمل بصلاحيات المسؤول، لذا لا يستطيع Murmur اللصق فيه. يمكنك نسخ النص من السجل.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "لُصق بدون معالجة لاحقة",
     "postProcessFailed": "لم تكتمل المعالجة اللاحقة، لذا لُصق النص المنسوخ كما هو.",
     "filePostProcessFailedTitle": "نُسخ بدون معالجة لاحقة",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "فشل التفريغ النصي"
   },
   "notices": {

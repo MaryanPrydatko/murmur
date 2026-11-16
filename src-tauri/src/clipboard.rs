@@ -5,6 +5,7 @@ use crate::settings::{get_settings, AppSettings, AutoSubmitKey, ClipboardHandlin
 use enigo::{Direction, Enigo, Key, Keyboard};
 use log::info;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 use std::sync::{mpsc, Mutex, PoisonError};
@@ -47,6 +48,74 @@ fn with_enigo<T: Send + 'static>(
         .map_err(|_| "Main thread dropped the input request".to_string())?
 }
 
+/// Whether the keys enigo sends reach the focused window. On Linux they go
+/// through XTest, which on a Wayland session only reaches XWayland windows: a
+/// native Wayland window gets nothing, and nothing reports it.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EnigoReach {
+    Reaches,
+    /// A native Wayland window has focus.
+    Misses,
+    /// A Wayland session where Handy cannot ask which kind of window has focus.
+    Unknown,
+}
+
+/// Read before the paste starts: wl-copy takes the focus for a moment each
+/// time it runs.
+fn enigo_reach(app_handle: &AppHandle) -> EnigoReach {
+    #[cfg(target_os = "linux")]
+    if is_wayland() {
+        // Only an X11 connection can name the active X window.
+        if !crate::utils::gtk_uses_x11() {
+            return EnigoReach::Unknown;
+        }
+        // GDK belongs to the main thread.
+        let (tx, rx) = mpsc::sync_channel(1);
+        let asked = app_handle.run_on_main_thread(move || {
+            let _ = tx.send(x_window_is_active());
+        });
+        return match asked.map(|()| rx.recv()) {
+            Ok(Ok(true)) => EnigoReach::Reaches,
+            Ok(Ok(false)) => EnigoReach::Misses,
+            _ => EnigoReach::Unknown,
+        };
+    }
+    let _ = app_handle;
+    EnigoReach::Reaches
+}
+
+/// Whether the window X calls active is a real one. While a native Wayland
+/// window has focus, compositors name none, or (Mutter) a 1x1 placeholder of
+/// their own.
+#[cfg(target_os = "linux")]
+fn x_window_is_active() -> bool {
+    use gtk::glib::translate::{from_glib_full, ToGlibPtr};
+
+    let Some(screen) = gtk::gdk::Screen::default() else {
+        return false;
+    };
+    // The crate has no wrapper for this deprecated call, and GDK has no
+    // newer way to read _NET_ACTIVE_WINDOW.
+    // SAFETY: called on the main thread with a live screen; GDK returns a
+    // new reference or null.
+    let active: Option<gtk::gdk::Window> = unsafe {
+        from_glib_full(gtk::gdk::ffi::gdk_screen_get_active_window(
+            screen.to_glib_none().0,
+        ))
+    };
+    active.is_some_and(|window| window.width() > 1 && window.height() > 1)
+}
+
+/// How far a paste got.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Delivery {
+    Sent,
+    /// Nothing could send keys to the focused window, so the text waits on
+    /// the clipboard for the user to paste.
+    OnClipboard,
+}
+
 fn write_text_to_clipboard(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     if is_wayland() && is_wl_copy_available() {
@@ -77,7 +146,8 @@ fn paste_via_clipboard(
     paste_method: &PasteMethod,
     paste_delay_ms: u64,
     paste_delay_after_ms: u64,
-) -> Result<(), String> {
+    reach: EnigoReach,
+) -> Result<Delivery, String> {
     let clipboard = app_handle.clipboard();
     let saved_text = clipboard.read_text().ok().filter(|t| !t.is_empty());
     // Only probe for an image when there is no text to restore. Text is by far the
@@ -118,8 +188,8 @@ fn paste_via_clipboard(
     std::thread::sleep(Duration::from_millis(paste_delay_ms));
 
     // Capture key injection errors so the original clipboard is restored before
-    // propagating them to the caller.
-    let paste_result = (|| -> Result<(), String> {
+    // propagating them to the caller. `Ok(true)` when a native tool sent the keys.
+    let paste_result = (|| -> Result<bool, String> {
         // Send paste key combo
         #[cfg(target_os = "linux")]
         let key_combo_sent = try_send_key_combo_linux(paste_method);
@@ -140,9 +210,18 @@ fn paste_via_clipboard(
             })?;
         }
 
-        Ok(())
+        Ok(key_combo_sent)
     })();
 
+    // Only enigo sent the keys, and they did not reach the window, or Handy
+    // cannot tell. The transcript stays on the clipboard (and the primary
+    // selection, with Shift+Insert) so the user can paste it by hand.
+    if paste_result == Ok(false) && reach != EnigoReach::Reaches {
+        log::warn!("No tool could send the paste keys to a Wayland window ({reach:?}); the text is left on the clipboard");
+        return Ok(Delivery::OnClipboard);
+    }
+
+    let paste_result = paste_result.map(|_| ());
     finish_clipboard_paste(paste_result, paste_delay_after_ms, || {
         // Restore original clipboard content even when key injection failed.
         // Text takes priority so this path stays identical to the previous behavior;
@@ -162,6 +241,7 @@ fn paste_via_clipboard(
             crate::primary_selection::restore(saved);
         }
     })
+    .map(|()| Delivery::Sent)
 }
 
 /// Sends the paste key combination with the first Linux-native tool that works.
@@ -829,19 +909,29 @@ fn paste_direct(
     text: &str,
     app_handle: &AppHandle,
     #[cfg(target_os = "linux")] typing_tool: TypingTool,
-) -> Result<(), String> {
+    reach: EnigoReach,
+) -> Result<Delivery, String> {
     #[cfg(target_os = "linux")]
     {
         if try_direct_typing_linux(text, typing_tool)? {
-            return Ok(());
+            return Ok(Delivery::Sent);
         }
         info!("Falling back to enigo for direct text input");
     }
 
-    let text = text.to_string();
+    let typed = text.to_string();
     with_enigo(app_handle, move |enigo| {
-        input::paste_text_direct(enigo, &text)
-    })
+        input::paste_text_direct(enigo, &typed)
+    })?;
+
+    // enigo's keys did not reach the window, or Handy cannot tell. Put the
+    // text where the user can paste it from.
+    if reach != EnigoReach::Reaches {
+        log::warn!("No tool could type into a Wayland window ({reach:?}); the text is put on the clipboard");
+        write_text_to_clipboard(app_handle, text)?;
+        return Ok(Delivery::OnClipboard);
+    }
+    Ok(Delivery::Sent)
 }
 
 pub(crate) fn send_return_key(enigo: &mut Enigo, key_type: AutoSubmitKey) -> Result<(), String> {
@@ -897,7 +987,17 @@ pub enum PasteOutcome {
     Pasted,
     /// The focused window takes no input from Handy, so nothing arrived.
     Blocked,
+    /// On Wayland no tool could send keys to the focused window, so the text
+    /// is on the clipboard instead. `tell_user` is false when the keys may
+    /// have arrived after all and this session's notice was already raised.
+    OnClipboard {
+        tell_user: bool,
+    },
 }
+
+/// Whether this run already raised the notice for a paste that may not have
+/// arrived (see [`EnigoReach::Unknown`]); it can be a false alarm, so once.
+static UNSURE_PASTE_TOLD: AtomicBool = AtomicBool::new(false);
 
 /// Whether `paste_method` works by sending keystrokes to the focused window.
 fn sends_keys(paste_method: PasteMethod) -> bool {
@@ -934,9 +1034,20 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<PasteOutcome, String
     // paste still runs as usual; only what Handy reports changes.
     let blocked =
         sends_keys(settings.paste_method) && crate::utils::foreground_window_is_elevated();
-    let result = paste_as_configured(text, app_handle, settings);
+    let reach = if sends_keys(settings.paste_method) {
+        enigo_reach(&app_handle)
+    } else {
+        EnigoReach::Reaches
+    };
+    let result = paste_as_configured(text, app_handle, settings, reach);
     if !blocked {
-        return result.map(|()| PasteOutcome::Pasted);
+        return result.map(|delivery| match delivery {
+            Delivery::Sent => PasteOutcome::Pasted,
+            Delivery::OnClipboard => PasteOutcome::OnClipboard {
+                tell_user: reach == EnigoReach::Misses
+                    || !UNSURE_PASTE_TOLD.swap(true, Ordering::Relaxed),
+            },
+        });
     }
     if let Err(e) = result {
         log::warn!("Paste into an elevated window failed: {e}");
@@ -948,7 +1059,8 @@ fn paste_as_configured(
     text: String,
     app_handle: AppHandle,
     settings: AppSettings,
-) -> Result<(), String> {
+    reach: EnigoReach,
+) -> Result<Delivery, String> {
     let paste_method = settings.paste_method;
     let paste_delay_ms = settings.paste_delay_ms;
     let paste_delay_after_ms = settings.paste_delay_after_ms;
@@ -966,18 +1078,18 @@ fn paste_as_configured(
     );
 
     // Perform the paste operation
-    match paste_method {
+    let delivery = match paste_method {
         PasteMethod::None => {
             info!("PasteMethod::None selected - skipping paste action");
+            Delivery::Sent
         }
-        PasteMethod::Direct => {
-            paste_direct(
-                &text,
-                &app_handle,
-                #[cfg(target_os = "linux")]
-                settings.typing_tool,
-            )?;
-        }
+        PasteMethod::Direct => paste_direct(
+            &text,
+            &app_handle,
+            #[cfg(target_os = "linux")]
+            settings.typing_tool,
+            reach,
+        )?,
         PasteMethod::CtrlV | PasteMethod::CtrlShiftV | PasteMethod::ShiftInsert => {
             // Debug-gated receipt-sequenced paste (#502): restore the clipboard
             // after the target actually reads the transcript, not on a timer.
@@ -1005,7 +1117,7 @@ fn paste_as_configured(
                     )
                 });
                 match reliable_result {
-                    Ok(()) => return Ok(()),
+                    Ok(()) => return Ok(Delivery::Sent),
                     Err(e) => {
                         log::warn!("Reliable paste unavailable ({e}); falling back to legacy paste")
                     }
@@ -1017,6 +1129,7 @@ fn paste_as_configured(
                 &paste_method,
                 paste_delay_ms,
                 paste_delay_after_ms,
+                reach,
             )?
         }
         PasteMethod::ExternalScript => {
@@ -1026,7 +1139,14 @@ fn paste_as_configured(
                 .filter(|p| !p.is_empty())
                 .ok_or("External script path is not configured")?;
             paste_via_external_script(&text, script_path)?;
+            Delivery::Sent
         }
+    };
+
+    // The submit key would go the way the paste keys went, and the clipboard
+    // already holds the text.
+    if delivery == Delivery::OnClipboard {
+        return Ok(delivery);
     }
 
     if should_send_auto_submit(settings.auto_submit, paste_method) {
@@ -1044,7 +1164,7 @@ fn paste_as_configured(
         write_text_to_clipboard(&app_handle, &text)?;
     }
 
-    Ok(())
+    Ok(Delivery::Sent)
 }
 
 #[cfg(test)]

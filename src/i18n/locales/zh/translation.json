@@ -978,6 +978,7 @@
     "pasteFailed": "无法将文本粘贴到当前活动的应用程序中。",
     "pasteBlockedElevatedTitle": "无法粘贴到管理员应用",
     "pasteBlockedElevated": "当前活动的应用程序以管理员身份运行，因此 Murmur 无法粘贴到其中。可以从历史记录中复制转录内容。",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "已粘贴，未经后处理",
     "postProcessFailed": "后处理未完成，因此按原样粘贴转录内容。",
     "filePostProcessFailedTitle": "已转录，未经后处理",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "转录失败"
   },
   "notices": {

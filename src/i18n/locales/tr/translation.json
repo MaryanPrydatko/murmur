@@ -978,6 +978,7 @@
     "pasteFailed": "Metin etkin uygulamaya yapıştırılamadı.",
     "pasteBlockedElevatedTitle": "Yapıştırma engellendi",
     "pasteBlockedElevated": "Etkin uygulama yönetici olarak çalışıyor, bu yüzden Murmur içine yapıştıramıyor. Metni Geçmiş'ten kopyalayabilirsiniz.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Son işlem olmadan yapıştırıldı",
     "postProcessFailed": "Son işlem tamamlanmadı, bu yüzden metin olduğu gibi yapıştırıldı.",
     "filePostProcessFailedTitle": "Son işlem olmadan yazıya döküldü",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transkripsiyon başarısız oldu"
   },
   "notices": {

@@ -978,6 +978,7 @@
     "pasteFailed": "Не вдалося вставити текст до активної програми.",
     "pasteBlockedElevatedTitle": "Вставлення заблоковано",
     "pasteBlockedElevated": "Активна програма запущена від імені адміністратора, тому Murmur не може вставити в неї текст. Розшифровку можна скопіювати з Історії.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Вставлено без постобробки",
     "postProcessFailed": "Постобробка не завершилася, тому розшифровку вставлено як є.",
     "filePostProcessFailedTitle": "Розшифровано без постобробки",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Помилка транскрипції"
   },
   "notices": {

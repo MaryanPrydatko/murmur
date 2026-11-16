@@ -978,6 +978,7 @@
     "pasteFailed": "सक्रिय एपमा टेक्स्ट पेस्ट गर्न सकिएन।",
     "pasteBlockedElevatedTitle": "एडमिन एपमा पेस्ट गर्न सकिँदैन",
     "pasteBlockedElevated": "सक्रिय एप प्रशासकको रूपमा चलिरहेको छ, त्यसैले Murmur ले त्यसमा पेस्ट गर्न सक्दैन। तपाईं हिस्ट्रीबाट ट्रान्सक्रिप्ट कपी गर्न सक्नुहुन्छ।",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "पोस्ट प्रोसेस बिना पेस्ट गरियो",
     "postProcessFailed": "पोस्ट प्रोसेस पूरा भएन, त्यसैले ट्रान्सक्रिप्ट जस्तो थियो त्यस्तै पेस्ट गरियो।",
     "filePostProcessFailedTitle": "पोस्ट प्रोसेस बिना ट्रान्सक्राइब गरियो",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "ट्रान्सक्रिप्सन गर्न सकिएन"
   },
   "notices": {

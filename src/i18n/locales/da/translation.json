@@ -978,6 +978,7 @@
     "pasteFailed": "Teksten kunne ikke indsættes i det aktive program.",
     "pasteBlockedElevatedTitle": "Kan ikke indsætte i admin-apps",
     "pasteBlockedElevated": "Det aktive program kører som administrator, så Murmur kan ikke indsætte i det. Du kan kopiere transskriptionen fra Historik.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Indsat uden efterbehandling",
     "postProcessFailed": "Efterbehandlingen blev ikke færdig, så transskriptionen blev indsat, som den er.",
     "filePostProcessFailedTitle": "Transskriberet uden efterbehandling",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transskription mislykkedes"
   },
   "notices": {

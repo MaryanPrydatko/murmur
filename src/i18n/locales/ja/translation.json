@@ -978,6 +978,7 @@
     "pasteFailed": "アクティブなアプリにテキストを貼り付けられませんでした。",
     "pasteBlockedElevatedTitle": "管理者アプリに貼り付けできません",
     "pasteBlockedElevated": "アクティブなアプリが管理者として実行されているため、Murmur は貼り付けできません。文字起こしは履歴からコピーできます。",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "後処理なしで貼り付けました",
     "postProcessFailed": "後処理が完了しなかったため、文字起こしをそのまま貼り付けました。",
     "filePostProcessFailedTitle": "後処理なしで文字起こししました",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "文字起こしに失敗しました"
   },
   "notices": {

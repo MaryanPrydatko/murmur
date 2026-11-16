@@ -978,6 +978,7 @@
     "pasteFailed": "Nie można było wkleić tekstu do aktywnej aplikacji.",
     "pasteBlockedElevatedTitle": "Nie można wkleić do aplikacji admina",
     "pasteBlockedElevated": "Aktywna aplikacja działa jako administrator, więc Murmur nie może do niej wklejać. Transkrypcję możesz skopiować z Historii.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Wklejono bez postprocesu",
     "postProcessFailed": "Postproces nie został ukończony, więc transkrypcja została wklejona bez zmian.",
     "filePostProcessFailedTitle": "Przetranskrybowano bez postprocesu",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transkrypcja nie powiodła się"
   },
   "notices": {

@@ -978,6 +978,7 @@
     "pasteFailed": "Текстът не можа да бъде поставен в активното приложение.",
     "pasteBlockedElevatedTitle": "Поставянето е блокирано",
     "pasteBlockedElevated": "Активното приложение работи като администратор, затова Murmur не може да поставя в него. Можете да копирате транскрипцията от История.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Поставено без постобработка",
     "postProcessFailed": "Постобработката не завърши, затова транскрипцията беше поставена без промени.",
     "filePostProcessFailedTitle": "Транскрибирано без постобработка",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Неуспешна транскрипция"
   },
   "notices": {

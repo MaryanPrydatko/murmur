@@ -978,6 +978,7 @@
     "pasteFailed": "לא ניתן היה להדביק את הטקסט ביישום הפעיל.",
     "pasteBlockedElevatedTitle": "לא ניתן להדביק ביישומי מנהל",
     "pasteBlockedElevated": "היישום הפעיל רץ כמנהל מערכת, ולכן Murmur לא יכול להדביק בו. אפשר להעתיק את התמלול מההיסטוריה.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "הודבק ללא עיבוד משלים",
     "postProcessFailed": "העיבוד המשלים לא הסתיים, ולכן התמלול הודבק כפי שהוא.",
     "filePostProcessFailedTitle": "תומלל ללא עיבוד משלים",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "התמלול נכשל"
   },
   "notices": {

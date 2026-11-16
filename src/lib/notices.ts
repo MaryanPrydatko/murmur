@@ -1,6 +1,8 @@
 import type { TFunction } from "i18next";
 import { platform } from "@tauri-apps/plugin-os";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { commands, type Notice, type NoticeCode } from "@/bindings";
+import { LINUX_SETUP_URL } from "@/lib/constants/links";
 
 /** Download id of the speaker diarizer (`DIARIZER_ID` in Rust). */
 export const DIARIZER_ID = "diarizer";
@@ -25,6 +27,14 @@ const NOTICE_DISPLAY: Record<NoticeCode, NoticeDisplay> = {
   PasteBlockedElevated: {
     title: "errors.pasteBlockedElevatedTitle",
     explanation: (t) => t("errors.pasteBlockedElevated"),
+  },
+  PasteUnreachable: {
+    title: "errors.pasteFailedTitle",
+    explanation: (t) => t("errors.pasteUnreachable"),
+    action: () => ({
+      label: "errors.openLinuxGuide",
+      run: () => void openUrl(LINUX_SETUP_URL).catch(console.error),
+    }),
   },
   NoMicrophone: {
     title: "errors.noInputDeviceTitle",

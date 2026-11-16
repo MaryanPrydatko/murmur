@@ -979,6 +979,17 @@ impl ShortcutAction for TranscribeAction {
                                                         NoticeSource::Dictation,
                                                     )),
                                                 ),
+                                                Ok(utils::PasteOutcome::OnClipboard {
+                                                    tell_user,
+                                                }) => (
+                                                    TranscriptionOutcome::Failed,
+                                                    tell_user.then(|| {
+                                                        Notice::new(
+                                                            NoticeCode::PasteUnreachable,
+                                                            NoticeSource::Dictation,
+                                                        )
+                                                    }),
+                                                ),
                                                 Err(e) => {
                                                     error!("Failed to paste transcription: {}", e);
                                                     (

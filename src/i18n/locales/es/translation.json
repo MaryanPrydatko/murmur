@@ -978,6 +978,7 @@
     "pasteFailed": "No se pudo pegar el texto en la aplicación activa.",
     "pasteBlockedElevatedTitle": "No se puede pegar en apps admin",
     "pasteBlockedElevated": "La aplicación activa se ejecuta como administrador, así que Murmur no puede pegar en ella. Puedes copiar la transcripción desde Historial.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Pegado sin post proceso",
     "postProcessFailed": "El post proceso no terminó, así que la transcripción se pegó tal cual.",
     "filePostProcessFailedTitle": "Transcrito sin post proceso",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Error de transcripción"
   },
   "notices": {

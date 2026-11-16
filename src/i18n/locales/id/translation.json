@@ -978,6 +978,7 @@
     "pasteFailed": "Teks tidak dapat ditempelkan ke aplikasi aktif.",
     "pasteBlockedElevatedTitle": "Gagal Tempel ke Aplikasi Admin",
     "pasteBlockedElevated": "Aplikasi aktif berjalan sebagai administrator, jadi Murmur tidak dapat menempel ke dalamnya. Anda dapat menyalin transkrip dari Riwayat.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Ditempel Tanpa Pascaproses",
     "postProcessFailed": "Pascaproses tidak selesai, jadi transkrip ditempelkan apa adanya.",
     "filePostProcessFailedTitle": "Ditranskripsi Tanpa Pascaproses",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transkripsi Gagal"
   },
   "notices": {

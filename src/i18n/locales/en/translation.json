@@ -978,6 +978,7 @@
     "pasteFailed": "Text could not be pasted into the active application.",
     "pasteBlockedElevatedTitle": "Can't Paste into Admin Apps",
     "pasteBlockedElevated": "The active application is running as administrator, so Murmur can't paste into it. You can copy the transcript from History.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Pasted Without Post-Processing",
     "postProcessFailed": "Post Process didn't finish, so the transcript was pasted as is.",
     "filePostProcessFailedTitle": "Transcribed Without Post-Processing",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transcription Failed"
   },
   "notices": {

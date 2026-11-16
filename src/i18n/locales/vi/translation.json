@@ -978,6 +978,7 @@
     "pasteFailed": "Không thể dán văn bản vào ứng dụng đang hoạt động.",
     "pasteBlockedElevatedTitle": "Không thể dán vào ứng dụng admin",
     "pasteBlockedElevated": "Ứng dụng đang hoạt động chạy với quyền quản trị viên nên Murmur không thể dán vào đó. Bạn có thể sao chép bản chép lời từ Lịch sử.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Đã dán không qua xử lý sau",
     "postProcessFailed": "Xử lý sau chưa hoàn tất nên bản chép lời được dán nguyên trạng.",
     "filePostProcessFailedTitle": "Đã chép lời không qua xử lý sau",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Phiên âm thất bại"
   },
   "notices": {

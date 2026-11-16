@@ -978,6 +978,7 @@
     "pasteFailed": "Tekst kon niet worden geplakt in de actieve applicatie.",
     "pasteBlockedElevatedTitle": "Kan niet plakken in admin-apps",
     "pasteBlockedElevated": "De actieve applicatie draait als administrator, dus Murmur kan er niet in plakken. Je kunt de transcriptie kopiëren vanuit Geschiedenis.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Geplakt zonder naverwerking",
     "postProcessFailed": "De naverwerking is niet voltooid, dus de transcriptie is ongewijzigd geplakt.",
     "filePostProcessFailedTitle": "Getranscribeerd zonder naverwerking",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Transcriptie mislukt"
   },
   "notices": {

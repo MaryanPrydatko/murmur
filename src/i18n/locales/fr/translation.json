@@ -978,6 +978,7 @@
     "pasteFailed": "Le texte n'a pas pu être collé dans l'application active.",
     "pasteBlockedElevatedTitle": "Collage bloqué par une app admin",
     "pasteBlockedElevated": "L'application active s'exécute en tant qu'administrateur, Murmur ne peut donc pas y coller de texte. Vous pouvez copier la transcription depuis Historique.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Collé sans post-traitement",
     "postProcessFailed": "Le post-traitement n'a pas abouti, la transcription a donc été collée telle quelle.",
     "filePostProcessFailedTitle": "Transcrit sans post-traitement",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "Échec de la transcription"
   },
   "notices": {

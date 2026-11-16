@@ -1724,7 +1724,7 @@ detail: string | null }
 /**
  * The frontend maps each code to its text in `src/lib/notices.ts`.
  */
-export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingTrackIncomplete" | "MeetingSystemAudioWithheld" | "MeetingNoteFailed" | "MeetingSummaryFailed"
+export type NoticeCode = "TranscriptionFailed" | "PasteFailed" | "PasteBlockedElevated" | "PasteUnreachable" | "NoMicrophone" | "MicrophoneSilent" | "MicPermissionDenied" | "RecordingFailed" | "ModelLoadFailed" | "NoModelSelected" | "PostProcessFailed" | "FileTranscriptionFailed" | "FilePostProcessFailed" | "MeetingRecordingFailed" | "MeetingTranscriptionFailed" | "MeetingSpeakersNotSeparated" | "MeetingTrackIncomplete" | "MeetingSystemAudioWithheld" | "MeetingNoteFailed" | "MeetingSummaryFailed"
 export type NoticeLevel = 
 /**
  * Nothing came out, or Handy can't do its job.

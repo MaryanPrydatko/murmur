@@ -978,6 +978,7 @@
     "pasteFailed": "활성 애플리케이션에 텍스트를 붙여넣을 수 없습니다.",
     "pasteBlockedElevatedTitle": "관리자 앱에는 붙여넣을 수 없음",
     "pasteBlockedElevated": "활성 애플리케이션이 관리자 권한으로 실행 중이어서 Murmur가 붙여넣을 수 없습니다. 히스토리에서 받아쓰기 결과를 복사할 수 있습니다.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "후처리 없이 붙여넣음",
     "postProcessFailed": "후처리가 완료되지 않아 받아쓰기 결과를 그대로 붙여넣었습니다.",
     "filePostProcessFailedTitle": "후처리 없이 받아씀",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "음성 인식 실패"
   },
   "notices": {

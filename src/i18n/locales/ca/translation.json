@@ -978,6 +978,7 @@
     "pasteFailed": "No s'ha pogut enganxar el text a l'aplicació activa.",
     "pasteBlockedElevatedTitle": "No es pot enganxar en apps admin",
     "pasteBlockedElevated": "L'aplicació activa s'executa com a administrador, així que Murmur no hi pot enganxar. Pots copiar la transcripció des d'Historial.",
+    "pasteUnreachable": "Murmur could not send keys to this window. On Wayland that needs ydotool with its service running. The text is on the clipboard, so you can paste it yourself.",
     "postProcessFailedTitle": "Enganxat sense postprocessament",
     "postProcessFailed": "El postprocessament no ha acabat, així que la transcripció s'ha enganxat tal qual.",
     "filePostProcessFailedTitle": "Transcrit sense postprocessament",
@@ -993,6 +994,7 @@
     "meetingNoteFailedTitle": "Meeting Note Not Saved",
     "meetingSummaryFailedTitle": "Meeting Summary Not Saved",
     "downloadSpeakerModel": "Download the speaker model",
+    "openLinuxGuide": "Open the Linux setup guide",
     "transcriptionFailedTitle": "La transcripció ha fallat"
   },
   "notices": {
