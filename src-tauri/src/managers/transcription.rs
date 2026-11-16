@@ -2192,6 +2192,25 @@ mod tests {
         assert_eq!(result, "我们今天下午一起去学校图书馆看书，然后再去吃晚饭。");
     }
 
+    /// Spoken formatting belongs to what a dictation pastes. History, file
+    /// transcriptions and meeting transcripts take this function's output,
+    /// so there a spoken command has to stay words.
+    #[test]
+    fn spoken_commands_stay_words_in_the_transcript() {
+        let settings = AppSettings::default();
+        assert!(settings.spoken_formatting_enabled);
+        let spoken = "Hi John. New line. Bullet point milk. Number one, apples. Number two, pears.";
+        let result = post_process_transcription_text(
+            spoken.to_string(),
+            &settings,
+            false,
+            &OutputLanguageEvidence::Unknown,
+            &languages(&["en"]),
+        );
+
+        assert_eq!(result, spoken);
+    }
+
     #[test]
     fn portuguese_transcription_does_not_use_english_ui_filler_words() {
         let settings = AppSettings {

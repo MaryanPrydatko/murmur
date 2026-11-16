@@ -634,6 +634,10 @@
         "title": "Премахване на думи паразити",
         "description": "Премахва често срещаните думи за колебание от транскрипциите. Изключете, за да ги запазите."
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "Китайска писменост",
         "description": "Записва транскрипциите на мандарин и кантонски с опростени йероглифи или с традиционни йероглифи, както се пишат в Тайван или Хонконг. Другите езици остават непроменени.",

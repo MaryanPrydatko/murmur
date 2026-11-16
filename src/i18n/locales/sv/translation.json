@@ -634,6 +634,10 @@
         "title": "Ta bort utfyllnadsord",
         "description": "Tar bort vanliga tvekljud från transkriberingar. Stäng av för att behålla dem."
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "Kinesisk skrift",
         "description": "Skriver mandarin- och kantonesiska transkriptioner med förenklade tecken, eller med traditionella tecken som de skrivs i Taiwan eller Hongkong. Andra språk lämnas oförändrade.",

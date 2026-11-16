@@ -634,6 +634,10 @@
         "title": "Loại bỏ từ đệm",
         "description": "Loại bỏ các từ ngập ngừng phổ biến khỏi bản chép lời. Tắt để giữ lại các từ này."
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "Chữ Hán giản thể/phồn thể",
         "description": "Ghi bản chép tiếng Quan Thoại và tiếng Quảng Đông bằng chữ Giản thể, hoặc chữ Phồn thể như được viết ở Đài Loan hay Hồng Kông. Các ngôn ngữ khác không bị thay đổi.",

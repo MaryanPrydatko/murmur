@@ -1,7 +1,7 @@
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
-use crate::audio_toolkit::VadPolicy;
+use crate::audio_toolkit::{format_spoken, VadPolicy};
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -447,6 +447,32 @@ async fn post_process_transcription(
     }
 }
 
+/// What a dictation pastes for `text`: its spoken commands ("new line",
+/// "bullet point") turned into formatting. Line breaks are only written when
+/// the paste method carries them; typed text stays one line. Text the
+/// post-processing model wrote and speech known not to be English are left
+/// alone. An unknown language counts as English: the commands are English
+/// phrases, and Parakeet does not report one.
+fn apply_spoken_formatting(
+    settings: &AppSettings,
+    spoken_language: Option<&str>,
+    post_processed: bool,
+    text: String,
+) -> String {
+    let english = settings.translate_to_english
+        || spoken_language.is_none_or(|language| {
+            language == "en" || language.starts_with("en-") || language.starts_with("en_")
+        });
+    if settings.spoken_formatting_enabled && english && !post_processed {
+        format_spoken(
+            &text,
+            crate::clipboard::pastes_newlines(settings.paste_method),
+        )
+    } else {
+        text
+    }
+}
+
 pub(crate) struct ProcessedTranscription {
     pub final_text: String,
     pub post_processed_text: Option<String>,
@@ -857,6 +883,10 @@ impl ShortcutAction for TranscribeAction {
                                 return;
                             }
 
+                            let spoken_language = language
+                                .as_ref()
+                                .and_then(|decision| decision.language.clone());
+
                             // Save to history if WAV was saved
                             if wav_saved {
                                 if let Err(err) = hm.save_entry(
@@ -871,10 +901,17 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
 
-                            // The user's hook only changes what gets pasted;
-                            // history above keeps the text as produced.
+                            // Spoken formatting and the user's hook only
+                            // change what gets pasted; history above keeps
+                            // the text as produced.
+                            let text = apply_spoken_formatting(
+                                &get_settings(&ah),
+                                spoken_language.as_deref(),
+                                processed.post_processed_text.is_some(),
+                                processed.final_text,
+                            );
                             let Some(final_text) = complete_unless_cancelled(
-                                crate::transcription_hook::apply(&ah, processed.final_text),
+                                crate::transcription_hook::apply(&ah, text),
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
@@ -1113,11 +1150,11 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        complete_unless_cancelled, is_blank_transcription, non_blank_post_processed_text,
-        post_process_transcription, should_use_streaming_overlay, strip_invisible_chars,
-        strip_think_block, PostProcessOutcome,
+        apply_spoken_formatting, complete_unless_cancelled, is_blank_transcription,
+        non_blank_post_processed_text, post_process_transcription, should_use_streaming_overlay,
+        strip_invisible_chars, strip_think_block, PostProcessOutcome,
     };
-    use crate::settings::{get_default_settings, AppSettings, OverlayStyle};
+    use crate::settings::{get_default_settings, AppSettings, OverlayStyle, PasteMethod};
     use std::future;
     use std::io::{Read, Write};
     use std::net::TcpListener;
@@ -1295,6 +1332,109 @@ mod tests {
             strip_think_block("<think>never closed"),
             "<think>never closed"
         );
+    }
+
+    const SPOKEN: &str = "Hi John. New line. Number one, apples. Number two, pears.";
+
+    fn settings_pasting_with(paste_method: PasteMethod) -> AppSettings {
+        AppSettings {
+            paste_method,
+            ..get_default_settings()
+        }
+    }
+
+    #[test]
+    fn spoken_formatting_writes_line_breaks_for_clipboard_pastes() {
+        for paste_method in [
+            PasteMethod::CtrlV,
+            PasteMethod::CtrlShiftV,
+            PasteMethod::ShiftInsert,
+            PasteMethod::None,
+        ] {
+            let settings = settings_pasting_with(paste_method);
+            assert_eq!(
+                apply_spoken_formatting(&settings, None, false, SPOKEN.to_string()),
+                "Hi John.\n1. Apples\n2. Pears",
+                "{paste_method:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn spoken_formatting_stays_on_one_line_when_the_text_is_typed() {
+        for paste_method in [PasteMethod::Direct, PasteMethod::ExternalScript] {
+            let settings = settings_pasting_with(paste_method);
+            assert_eq!(
+                apply_spoken_formatting(&settings, None, false, SPOKEN.to_string()),
+                "Hi John. 1. Apples; 2. Pears",
+                "{paste_method:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn spoken_formatting_never_ends_in_a_line_break() {
+        // Auto submit sends its key right after the paste, so the text has
+        // to end where the words end.
+        let settings = AppSettings {
+            auto_submit: true,
+            ..settings_pasting_with(PasteMethod::ShiftInsert)
+        };
+        for (spoken, pasted) in [
+            ("Hello there. New line.", "Hello there."),
+            ("Hello there. New paragraph. New line.", "Hello there."),
+            ("Bullet point milk. New line.", "- Milk"),
+        ] {
+            assert_eq!(
+                apply_spoken_formatting(&settings, None, false, spoken.to_string()),
+                pasted
+            );
+        }
+    }
+
+    #[test]
+    fn spoken_formatting_off_pastes_the_transcript_as_it_is() {
+        for paste_method in [
+            PasteMethod::CtrlV,
+            PasteMethod::CtrlShiftV,
+            PasteMethod::ShiftInsert,
+            PasteMethod::Direct,
+            PasteMethod::ExternalScript,
+            PasteMethod::None,
+        ] {
+            let settings = AppSettings {
+                spoken_formatting_enabled: false,
+                ..settings_pasting_with(paste_method)
+            };
+            assert_eq!(
+                apply_spoken_formatting(&settings, None, false, SPOKEN.to_string()),
+                SPOKEN
+            );
+        }
+    }
+
+    #[test]
+    fn spoken_formatting_skips_post_processed_and_non_english_text() {
+        let settings = settings_pasting_with(PasteMethod::CtrlV);
+        let format = |settings: &AppSettings, language, post_processed| {
+            apply_spoken_formatting(settings, language, post_processed, SPOKEN.to_string())
+        };
+
+        // The post-processing model wrote the text.
+        assert_eq!(format(&settings, None, true), SPOKEN);
+        // The speech is known not to be English.
+        assert_eq!(format(&settings, Some("de"), false), SPOKEN);
+        assert_eq!(format(&settings, Some("eng-x"), false), SPOKEN);
+        // English, and a language nobody reported, are formatted.
+        for language in [None, Some("en"), Some("en-US"), Some("en_GB")] {
+            assert_ne!(format(&settings, language, false), SPOKEN, "{language:?}");
+        }
+        // Translated to English, the text is English whatever was spoken.
+        let translating = AppSettings {
+            translate_to_english: true,
+            ..settings
+        };
+        assert_ne!(format(&translating, Some("de"), false), SPOKEN);
     }
 
     #[test]

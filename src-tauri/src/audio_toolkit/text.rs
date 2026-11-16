@@ -479,6 +479,373 @@ pub fn normalize_transcription_output(text: &str) -> String {
     normalized.trim().to_string()
 }
 
+/// Punctuation that ends a clause, ends a sentence, or stops one, and what
+/// may follow a spoken list marker ("Number one," or "Bullet point:").
+const CLAUSE_END: [char; 7] = ['.', '!', '?', ',', ';', ':', '…'];
+const SENTENCE_END: [char; 5] = ['.', '!', '?', ':', '…'];
+const FULL_STOP: [char; 4] = ['.', '!', '?', '…'];
+const MARKER_TAIL: [char; 3] = [',', ':', '.'];
+
+const NUMBER_WORDS: [&str; 10] = [
+    "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+];
+
+/// The number a spoken list marker counts: "one" to "ten", or the digits
+/// Parakeet writes when it hears a list.
+fn spoken_number(core: &str) -> Option<usize> {
+    let word = NUMBER_WORDS.iter().position(|word| *word == core);
+    word.map(|index| index + 1).or_else(|| {
+        let number: usize = core.parse().ok()?;
+        ((1..=10).contains(&number) && number.to_string() == core).then_some(number)
+    })
+}
+
+/// One word of a dictation, split from the punctuation around it.
+struct SpokenToken<'a> {
+    raw: &'a str,
+    lead: &'a str,
+    /// The word without its punctuation, lowercased.
+    core: String,
+    tail: &'a str,
+}
+
+impl<'a> SpokenToken<'a> {
+    fn new(raw: &'a str) -> Self {
+        let (lead, tail) = extract_punctuation(raw);
+        let core = raw.strip_prefix(lead).and_then(|w| w.strip_suffix(tail));
+        match core.filter(|core| !core.is_empty()) {
+            Some(core) => Self {
+                raw,
+                lead,
+                core: core.to_lowercase(),
+                tail,
+            },
+            // Punctuation only.
+            None => Self {
+                raw,
+                lead: raw,
+                core: String::new(),
+                tail: "",
+            },
+        }
+    }
+
+    fn ends_with_any(&self, marks: &[char]) -> bool {
+        self.tail.chars().any(|c| marks.contains(&c))
+    }
+
+    /// Whether the punctuation after the word is what follows a list marker.
+    fn has_marker_tail(&self) -> bool {
+        !self.tail.is_empty() && self.tail.chars().all(|c| MARKER_TAIL.contains(&c))
+    }
+}
+
+enum SpokenPiece {
+    Text(String),
+    /// A line break (1) or a paragraph break (2).
+    Break(usize),
+    /// A list marker: its number, or `None` for a bullet, and the words it
+    /// was spoken as.
+    Marker(Option<usize>, String),
+}
+
+/// Where the bullet phrase that starts at token `i` ends: "bullet point",
+/// "next bullet", "new bullet", "next bullet point" or "new bullet point",
+/// with something after it.
+fn bullet_phrase_end(tokens: &[SpokenToken], i: usize) -> Option<usize> {
+    let (first, second) = (tokens.get(i)?, tokens.get(i + 1)?);
+    if !first.lead.is_empty() || !first.tail.is_empty() || !second.lead.is_empty() {
+        return None;
+    }
+    let mut end = match (first.core.as_str(), second.core.as_str()) {
+        ("bullet", "point") | ("next" | "new", "bullet") => i + 1,
+        _ => return None,
+    };
+    let third = tokens.get(i + 2);
+    if second.core == "bullet"
+        && second.tail.is_empty()
+        && third.is_some_and(|third| third.lead.is_empty() && third.core == "point")
+    {
+        end = i + 2;
+    }
+    let last = tokens.get(end)?;
+    let own_phrase = last.tail.is_empty() || last.has_marker_tail();
+    (own_phrase && end + 1 < tokens.len()).then_some(end)
+}
+
+/// The line or paragraph break spoken at token `i`: how many newlines, and
+/// the token after it.
+fn spoken_break_at(tokens: &[SpokenToken], i: usize, clause_start: bool) -> Option<(usize, usize)> {
+    let token = tokens.get(i)?;
+    let is_last = |index: usize| index + 1 == tokens.len();
+    if token.core == "new" {
+        let next = tokens.get(i + 1)?;
+        let breaks = match next.core.as_str() {
+            "line" => 1,
+            "paragraph" => 2,
+            _ => return None,
+        };
+        let own_phrase = is_last(i + 1) || next.ends_with_any(&CLAUSE_END);
+        let found = clause_start && token.tail.is_empty() && next.lead.is_empty() && own_phrase;
+        return found.then_some((breaks, i + 2));
+    }
+    if token.core == "newline" {
+        let own_phrase = token.ends_with_any(&CLAUSE_END);
+        // Said without a pause, Parakeet still sets the command off as one
+        // capitalised word: "Hi John Newline, thanks".
+        let set_off = own_phrase && token.raw.starts_with('N');
+        if (clause_start && (own_phrase || is_last(i))) || set_off {
+            return Some((1, i + 1));
+        }
+    }
+    None
+}
+
+/// The numbered marker spoken at token `i`: its number, and the token after
+/// it. "Number one," counts at any clause start. A bare "One," or "1." has to
+/// start a sentence or follow an earlier marker (`bare_allowed`).
+fn spoken_number_at(
+    tokens: &[SpokenToken],
+    i: usize,
+    clause_start: bool,
+    bare_allowed: bool,
+) -> Option<(usize, usize)> {
+    let token = tokens.get(i)?;
+    let (numeral, next) = if clause_start && token.core == "number" && token.tail.is_empty() {
+        (tokens.get(i + 1).filter(|t| t.lead.is_empty())?, i + 2)
+    } else if bare_allowed {
+        (token, i + 1)
+    } else {
+        return None;
+    };
+    let number = spoken_number(&numeral.core)?;
+    (numeral.has_marker_tail() && next < tokens.len()).then_some((number, next))
+}
+
+/// Splits a dictation into text and the commands spoken as their own phrase.
+fn scan_spoken_commands(tokens: &[SpokenToken]) -> Vec<SpokenPiece> {
+    let starts_after = |i: usize, marks: &[char]| match i.checked_sub(1) {
+        Some(previous) => tokens.get(previous).is_some_and(|t| t.ends_with_any(marks)),
+        None => true,
+    };
+    let spoken = |start: usize, next: usize| {
+        let words = tokens.get(start..next).unwrap_or_default();
+        words.iter().map(|t| t.raw).collect::<Vec<_>>().join(" ")
+    };
+
+    // A lone bullet has to start a sentence. A list that starts after a comma
+    // ("Shopping list, bullet point milk, bullet point eggs") counts once it
+    // has a second bullet.
+    let bullets = (0..tokens.len())
+        .filter(|&i| starts_after(i, &CLAUSE_END) && bullet_phrase_end(tokens, i).is_some());
+    let mut bullet_seen = bullets.count() >= 2;
+    let mut number_seen = false;
+
+    let mut pieces = Vec::new();
+    let mut words: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while let Some(token) = tokens.get(i) {
+        let clause_start = starts_after(i, &CLAUSE_END);
+        let sentence_start = starts_after(i, &SENTENCE_END);
+        let bullet_allowed = sentence_start || (clause_start && bullet_seen);
+        let bare_allowed = sentence_start || (clause_start && number_seen);
+
+        let command = if !token.lead.is_empty() {
+            None
+        } else if let Some((breaks, next)) = spoken_break_at(tokens, i, clause_start) {
+            Some((SpokenPiece::Break(breaks), next))
+        } else if let Some(end) = bullet_phrase_end(tokens, i).filter(|_| bullet_allowed) {
+            bullet_seen = true;
+            Some((SpokenPiece::Marker(None, spoken(i, end + 1)), end + 1))
+        } else if let Some((number, next)) = spoken_number_at(tokens, i, clause_start, bare_allowed)
+        {
+            number_seen = true;
+            Some((SpokenPiece::Marker(Some(number), spoken(i, next)), next))
+        } else {
+            None
+        };
+
+        let Some((piece, next)) = command else {
+            words.push(token.raw);
+            i += 1;
+            continue;
+        };
+        if !words.is_empty() {
+            pieces.push(SpokenPiece::Text(words.join(" ")));
+            words.clear();
+        }
+        pieces.push(piece);
+        i = next;
+    }
+    if !words.is_empty() {
+        pieces.push(SpokenPiece::Text(words.join(" ")));
+    }
+    pieces
+}
+
+/// Turns every marker that is not part of a list back into the words it was
+/// spoken as. A bullet needs text after it. A numbered list counts up from
+/// one, has text after every marker, and has at least two markers.
+fn reject_stray_markers(pieces: Vec<SpokenPiece>) -> Vec<SpokenPiece> {
+    let has_text = |index: usize| match pieces.get(index) {
+        Some(SpokenPiece::Text(text)) => text.chars().any(char::is_alphanumeric),
+        _ => false,
+    };
+    let number_at = |index: usize| match pieces.get(index) {
+        Some(SpokenPiece::Marker(number, _)) => *number,
+        _ => None,
+    };
+
+    let mut stray = Vec::new();
+    let mut j = 0;
+    while let Some(piece) = pieces.get(j) {
+        match piece {
+            SpokenPiece::Marker(None, _) if !has_text(j + 1) => stray.push(j),
+            SpokenPiece::Marker(Some(_), _) => {
+                // The markers from here on that count up from one.
+                let mut run = Vec::new();
+                let mut complete = true;
+                while complete && number_at(j + 2 * run.len()) == Some(run.len() + 1) {
+                    let at = j + 2 * run.len();
+                    run.push(at);
+                    complete = has_text(at + 1);
+                }
+                let last = run.last().copied().unwrap_or(j);
+                if !complete || run.len() < 2 {
+                    stray.push(j);
+                    stray.extend(run);
+                }
+                j = last;
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+
+    let mut merged: Vec<SpokenPiece> = Vec::new();
+    for (index, piece) in pieces.into_iter().enumerate() {
+        let piece = match piece {
+            SpokenPiece::Marker(_, spoken) if stray.contains(&index) => SpokenPiece::Text(spoken),
+            other => other,
+        };
+        match (merged.last_mut(), piece) {
+            (Some(SpokenPiece::Text(previous)), SpokenPiece::Text(more)) => {
+                previous.push(' ');
+                previous.push_str(&more);
+            }
+            (_, piece) => merged.push(piece),
+        }
+    }
+    merged
+}
+
+/// Ends the line `out` is on: `add` more newlines, or enough to have
+/// `at_least`, never more than a blank line. Nothing is added before the
+/// first text.
+fn break_line(out: &mut String, add: usize, at_least: usize) {
+    while out.ends_with(' ') {
+        out.pop();
+    }
+    if out.is_empty() {
+        return;
+    }
+    let have = out.chars().rev().take_while(|c| *c == '\n').count();
+    for _ in have..(have + add).max(at_least).min(2) {
+        out.push('\n');
+    }
+}
+
+fn render_spoken(pieces: &[SpokenPiece]) -> String {
+    let mut out = String::new();
+    let mut capital_owed = false;
+    let mut j = 0;
+    while let Some(piece) = pieces.get(j) {
+        j += 1;
+        match (piece, pieces.get(j)) {
+            (SpokenPiece::Break(breaks), _) => {
+                break_line(&mut out, *breaks, 0);
+                capital_owed = true;
+            }
+            (SpokenPiece::Marker(number, _), Some(SpokenPiece::Text(text))) => {
+                j += 1;
+                let list_goes_on = match pieces.get(j) {
+                    Some(SpokenPiece::Marker(next, _)) => next.is_some() == number.is_some(),
+                    _ => false,
+                };
+                // The last item of a list is its first sentence; what follows
+                // is ordinary text again.
+                let words: Vec<&str> = text.split_whitespace().collect();
+                let stop = words
+                    .iter()
+                    .position(|word| SpokenToken::new(word).ends_with_any(&FULL_STOP));
+                let item_len = stop
+                    .filter(|_| !list_goes_on)
+                    .map_or(words.len(), |stop| stop + 1);
+                let item = words.get(..item_len).unwrap_or_default().join(" ");
+                let rest = words.get(item_len..).unwrap_or_default().join(" ");
+
+                break_line(&mut out, 0, 1);
+                out.push_str(&number.map_or("- ".to_string(), |number| format!("{number}. ")));
+                let item = item.trim_end_matches(['.', ',', ';', ':', ' ']);
+                push_restoring_capital(&mut out, item, &mut true);
+                if !rest.is_empty() {
+                    break_line(&mut out, 0, 1);
+                    push_restoring_capital(&mut out, &rest, &mut true);
+                }
+                capital_owed = false;
+            }
+            (SpokenPiece::Text(text) | SpokenPiece::Marker(_, text), _) => {
+                if !out.is_empty() && !out.ends_with('\n') {
+                    out.push(' ');
+                }
+                push_restoring_capital(&mut out, text, &mut capital_owed);
+                capital_owed = false;
+            }
+        }
+    }
+    out.trim().to_string()
+}
+
+/// Turns the formatting commands of an English dictation into formatting:
+/// "new line", "new paragraph", "bullet point ..." and "number one, ...
+/// number two, ...". A command only counts as its own phrase, set off by the
+/// punctuation the model wrote, so "a new line of products" stays text. Text
+/// without a command comes back byte for byte.
+///
+/// With `multiline` off the result is one line: breaks become a space and
+/// list items are joined with "; ".
+pub fn format_spoken(text: &str, multiline: bool) -> String {
+    if text.contains('\n') {
+        return text.to_string();
+    }
+    let tokens: Vec<SpokenToken> = text.split_whitespace().map(SpokenToken::new).collect();
+    let pieces = reject_stray_markers(scan_spoken_commands(&tokens));
+    if matches!(pieces.as_slice(), [] | [SpokenPiece::Text(_)]) {
+        return text.to_string();
+    }
+    let formatted = render_spoken(&pieces);
+    if formatted.is_empty() {
+        // Nothing but commands ("New line."): paste the words, not nothing.
+        return text.to_string();
+    }
+    if multiline {
+        return formatted;
+    }
+
+    let mut line = String::new();
+    for part in formatted.lines().filter(|part| !part.is_empty()) {
+        if let Some(last) = line.chars().next_back() {
+            line.push_str(if CLAUSE_END.contains(&last) {
+                " "
+            } else {
+                "; "
+            });
+        }
+        line.push_str(part);
+    }
+    line
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -883,5 +1250,233 @@ mod tests {
         let custom_words = vec!["你号".to_string()];
         let result = apply_custom_words(text, &custom_words, 1.0);
         assert_eq!(result, text);
+    }
+
+    /// Dictations with a spoken command, and what is pasted for them when
+    /// the paste can carry line breaks. `<NL>` stands for a line break; a
+    /// line that starts with `#` is a note.
+    const SPOKEN_COMMANDS: &str = r#"
+# Line and paragraph breaks.
+Hi John. New line. Thanks for the update. => Hi John.<NL>Thanks for the update.
+Hi John, new line, thanks for the update. => Hi John,<NL>Thanks for the update.
+The intro is done. New paragraph. The second part starts here. => The intro is done.<NL><NL>The second part starts here.
+Line one is short. Newline. Line two is longer. => Line one is short.<NL>Line two is longer.
+Dear team, new paragraph. I will be late tomorrow. => Dear team,<NL><NL>I will be late tomorrow.
+New line. Hello there. => Hello there.
+Hello there. New line. => Hello there.
+Thanks, new line. => Thanks,
+Alpha is ready. New line. New line. Beta is not. => Alpha is ready.<NL><NL>Beta is not.
+Alpha is ready. New paragraph. New paragraph. Beta is not. => Alpha is ready.<NL><NL>Beta is not.
+Send it to Anna. New line, new line. Best, Maryan. => Send it to Anna.<NL><NL>Best, Maryan.
+Um was removed. New Line. Capital L here. => Um was removed.<NL>Capital L here.
+# Bullets.
+Shopping list. Bullet point milk. Bullet point eggs. Bullet point bread. => Shopping list.<NL>- Milk<NL>- Eggs<NL>- Bread
+Bullet point, milk. Next bullet, eggs. => - Milk<NL>- Eggs
+Bullet point milk, bullet point eggs, bullet point bread. => - Milk<NL>- Eggs<NL>- Bread
+Notes for today: bullet point standup moved, bullet point demo on Friday. => Notes for today:<NL>- Standup moved<NL>- Demo on Friday
+Bullet point call the bank. They close at five. Bullet point book flights. Let me know. => - Call the bank. They close at five<NL>- Book flights<NL>Let me know.
+Bullet point buy milk. => - Buy milk
+To do. Next bullet point call mom. Next bullet point pay rent. => To do.<NL>- Call mom<NL>- Pay rent
+Bullet point are we shipping Friday? Bullet point who is on call? => - Are we shipping Friday?<NL>- Who is on call?
+# Numbered lists.
+Here is the plan. Number one, fix the bug. Number two, ship it. Let me know if that works. => Here is the plan.<NL>1. Fix the bug<NL>2. Ship it<NL>Let me know if that works.
+Number 1, apples. Number 2, pears. Number 3, milk. => 1. Apples<NL>2. Pears<NL>3. Milk
+Number one. Fix the login bug. Number two. Ship it on Friday. => 1. Fix the login bug<NL>2. Ship it on Friday
+One, it is too expensive. Two, nobody asked for it. => 1. It is too expensive<NL>2. Nobody asked for it
+Three reasons. One, speed. Two, cost. Three, it is local. => Three reasons.<NL>1. Speed<NL>2. Cost<NL>3. It is local
+Number one, apples. Two, pears. Three, milk. => 1. Apples<NL>2. Pears<NL>3. Milk
+Agenda: one, budget. Two, hiring. => Agenda:<NL>1. Budget<NL>2. Hiring
+Number one, apples. Number two, pears. New paragraph. That is all. => 1. Apples<NL>2. Pears<NL><NL>That is all.
+We ship on Friday. Number one, tests pass, number two, docs are done. => We ship on Friday.<NL>1. Tests pass<NL>2. Docs are done
+Hello. New line. Number one, write tests. Number two, ship. => Hello.<NL>1. Write tests<NL>2. Ship
+Number one, apples. Number two, pears. Number two, plums. => 1. Apples<NL>2. Pears<NL>Number two, plums.
+Bullet point. New line. Done. => Bullet point.<NL>Done.
+# Known false positives, pinned so they are a decision.
+Bullet point three is wrong. => - Three is wrong
+Bullet point 3 is wrong. => - 3 is wrong
+How many do you want? One. And for her? Two. Okay. => How many do you want?<NL>1. And for her?<NL>2. Okay
+# What Parakeet Ultra wrote for generated speech (six voices, 2026-11-16)
+# where it differs from the forms above: a comma for a short pause,
+# "Newline" as one word, digits for the numbers of a list.
+Hi John, Newline, thanks for the update. => Hi John,<NL>Thanks for the update.
+Hi John Newline, thanks for the update. => Hi John<NL>Thanks for the update.
+Hello there, new line. => Hello there,
+New line, hello there. => Hello there.
+Line 1 is short, new line, line 2 is longer. => Line 1 is short,<NL>Line 2 is longer.
+Alpha is ready, new line, new line, beta is not. => Alpha is ready,<NL><NL>Beta is not.
+See you on Mundy, New Line, Best Regards, New Line, Marion. => See you on Mundy,<NL>Best Regards,<NL>Marion.
+The intro is done, new paragraph, the second part starts here. => The intro is done,<NL><NL>The second part starts here.
+Dear team, New Paragraph, I will be late tomorrow. => Dear team,<NL><NL>I will be late tomorrow.
+Dear team. New paragraph. I will be late tomorrow. New line. Best, Marion. => Dear team.<NL><NL>I will be late tomorrow.<NL>Best, Marion.
+Shopping list, bullet point milk, bullet point eggs, bullet point bread. => Shopping list,<NL>- Milk<NL>- Eggs<NL>- Bread
+Notes for today, bullet point stand-up moved, bullet point demo on Friday. => Notes for today,<NL>- Stand-up moved<NL>- Demo on Friday
+Here is what we need, bullet point a new laptop, bullet point two monitors, bullet point a desk. => Here is what we need,<NL>- A new laptop<NL>- Two monitors<NL>- A desk
+Bullet point, milk, next bullet, eggs, new bullet, bread. => - Milk<NL>- Eggs<NL>- Bread
+Bullet point call the bank, they close at five, bullet point book flights, let me know. => - Call the bank, they close at five<NL>- Book flights, let me know
+Next bullet, call the bank. Next bullet, book the flights. => - Call the bank<NL>- Book the flights
+Number 1, apples. Number 2, pears. => 1. Apples<NL>2. Pears
+Number one, apples, number two, pears. => 1. Apples<NL>2. Pears
+Here is the plan, number one, fix the bug, number two, ship it, let me know if that works. => Here is the plan,<NL>1. Fix the bug<NL>2. Ship it, let me know if that works
+My priorities are, number one, speed, number two, cost. => My priorities are,<NL>1. Speed<NL>2. Cost
+Number 1. Fix the login bug. Number 2. Ship it on Friday. => 1. Fix the login bug<NL>2. Ship it on Friday
+Number 1, apples, number 2, pears, number 3, milk, new paragraph, that is all. => 1. Apples<NL>2. Pears<NL>3. Milk<NL><NL>That is all.
+Number 1, call the bank. Number 2, book the flights, number 3, pack. => 1. Call the bank<NL>2. Book the flights<NL>3. Pack
+1. Speed. 2. Cost. => 1. Speed<NL>2. Cost
+1, speed, 2, cost. => 1. Speed<NL>2. Cost
+Three reasons. 1. It is too expensive. 2. Nobody asked for it. 3. It is local. => Three reasons.<NL>1. It is too expensive<NL>2. Nobody asked for it<NL>3. It is local
+I have two points. 1. The price is too high. 2. The delivery is too slow. That is it. => I have two points.<NL>1. The price is too high<NL>2. The delivery is too slow<NL>That is it.
+I have two points. 1. the price is too high, 2. the delivery is too slow, that is it. => I have two points.<NL>1. The price is too high<NL>2. The delivery is too slow, that is it
+# Observed and only half understood: the later markers have no punctuation
+# before them, so they stay in the item.
+Bullet point milk bullet point eggs. => - Milk bullet point eggs
+Number 1, call the bank, number 2, book the flights, number 3 pack. => 1. Call the bank<NL>2. Book the flights, number 3 pack
+"#;
+
+    /// Dictations that come back byte for byte.
+    const SPOKEN_UNCHANGED: &str = r#"
+We need a new line of products for the spring.
+Start a new paragraph in the document.
+This is a new line.
+New line items were added to the invoice.
+I said new line, not new paragraph.
+Our number one priority is speed.
+Number one priority is speed.
+Number one is done. Number two is next.
+Number two, pears. Number three, milk.
+It was number one, number two was worse.
+Number one, I think, number three, is fine.
+First of all, thanks. The second thing I noticed is the price.
+First, we went to the store. Second, we went home.
+HiveMind builds it as your first feed. Two new brains keep you company.
+One of the things I noticed is the price. Two of them are broken.
+Pick a number. One, two or three.
+One, two, three, go.
+One. Two. Three. Go.
+One, I agree. Three, I do not.
+The answers can now be up to 2,000 characters.
+Bullet points are useful.
+He dodged a bullet point blank.
+Das ist eine neue Zeile. Erstens gehen wir.
+# Known miss: no comma after the numeral.
+Number one apples. Number two pears.
+# Nothing but commands: the words are pasted, not nothing.
+New line.
+New line
+New paragraph
+New line. New paragraph.
+# Ordinary sentences as Parakeet Ultra wrote them.
+Print a new line, then the name.
+Add a new line at the end of the file.
+The function should end with a new line.
+The first bullet point is wrong and the second bullet point is too long.
+Pick a number, 1, 2 or 3.
+1, 2, 3, go.
+1. I agree. 3. I do not.
+One apple, two pears and three bananas.
+The score was 3-1. Two players were injured.
+Line 1 is short. Line 2 is longer.
+# Known misses, as Parakeet Ultra wrote them: a command spoken without a
+# pause has no punctuation around it.
+Thanks for the call new line I will send the notes tomorrow.
+That is the first point new paragraph the second point is cost.
+Dear team New paragraph I will be late to morrow New line Best Marion
+Shopping list bullet point Milk Bullet point Eggs Bullet point Bread
+Number 1 apples number 2 pears number 3 milk
+Number one Call the bank. Number two Book the flights.
+My priorities are number 1, speed, number 2, cost.
+I have two points, 1, the price is too high, 2, the delivery is too slow, that is it.
+Agenda 1, Budget 2, hiring.
+1 speed 2 cost
+"#;
+
+    /// What is typed when the paste cannot carry line breaks.
+    const SPOKEN_SINGLE_LINE: &str = r#"
+Hi John. New line. Thanks for the update. => Hi John. Thanks for the update.
+Dear team, new paragraph. I will be late tomorrow. => Dear team, I will be late tomorrow.
+Alpha is ready. New line. New line. Beta is not. => Alpha is ready. Beta is not.
+Number one, apples. Number two, pears. Let me know. => 1. Apples; 2. Pears; Let me know.
+Shopping list. Bullet point milk. Bullet point eggs. => Shopping list. - Milk; - Eggs
+Hi John Newline, thanks for the update. => Hi John; Thanks for the update.
+"#;
+
+    fn spoken_rows(table: &'static str) -> impl Iterator<Item = &'static str> {
+        table
+            .lines()
+            .filter(|row| !row.is_empty() && !row.starts_with('#'))
+    }
+
+    fn spoken_cases(table: &'static str) -> impl Iterator<Item = (&'static str, String)> {
+        spoken_rows(table).map(|row| {
+            let (input, expected) = row.split_once(" => ").expect("input => output");
+            (input, expected.replace("<NL>", "\n"))
+        })
+    }
+
+    #[test]
+    fn test_format_spoken_commands() {
+        for (input, expected) in spoken_cases(SPOKEN_COMMANDS) {
+            assert_eq!(format_spoken(input, true), expected, "input: {input}");
+        }
+    }
+
+    #[test]
+    fn test_format_spoken_leaves_ordinary_text_alone() {
+        for input in spoken_rows(SPOKEN_UNCHANGED).chain([""]) {
+            assert_eq!(format_spoken(input, true), input);
+            assert_eq!(format_spoken(input, false), input);
+        }
+        // Text that already has line breaks is not touched either.
+        let lines = "Hi John.\nNew line. Thanks.";
+        assert_eq!(format_spoken(lines, true), lines);
+        // Spacing survives when there is no command.
+        let spaced = " We need a  new line of products. ";
+        assert_eq!(format_spoken(spaced, true), spaced);
+    }
+
+    #[test]
+    fn test_format_spoken_single_line() {
+        for (input, expected) in spoken_cases(SPOKEN_SINGLE_LINE) {
+            assert_eq!(format_spoken(input, false), expected, "input: {input}");
+        }
+    }
+
+    #[test]
+    fn test_format_spoken_output_shape() {
+        let inputs = spoken_cases(SPOKEN_COMMANDS)
+            .chain(spoken_cases(SPOKEN_SINGLE_LINE))
+            .map(|(input, _)| input)
+            .chain(spoken_rows(SPOKEN_UNCHANGED));
+        let mut count = 0;
+        for input in inputs {
+            count += 1;
+            let lines = format_spoken(input, true);
+            assert_eq!(lines, lines.trim(), "input: {input}");
+            assert!(!lines.is_empty(), "input: {input}");
+            assert!(!lines.contains("\n\n\n"), "input: {input}");
+            assert!(!lines.contains(" \n"), "input: {input}");
+
+            let line = format_spoken(input, false);
+            assert_eq!(line, line.trim(), "input: {input}");
+            assert!(!line.contains('\n'), "input: {input}");
+            // The same input always gives the same output.
+            assert_eq!(format_spoken(input, true), lines);
+        }
+        assert!(count > 100, "the tables were read: {count} rows");
+    }
+
+    #[test]
+    fn test_format_spoken_survives_odd_input() {
+        for input in [
+            "…",
+            "... New line. ...",
+            "Bullet point … .",
+            "Number one, . Number two, !",
+            "New line. 你好。 Bullet point 牛奶。",
+            "Number 1, ß. Number 2, éa.",
+            "new\u{a0}line.",
+        ] {
+            let _ = format_spoken(input, true);
+            let _ = format_spoken(input, false);
+        }
     }
 }

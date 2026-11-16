@@ -897,6 +897,19 @@ fn sends_keys(paste_method: PasteMethod) -> bool {
     }
 }
 
+/// Whether a line break in the text arrives as a line break. A clipboard
+/// paste carries it. Typed, it would be an Enter key, which sends the message
+/// in a chat box; what an external script does with it is unknown.
+pub(crate) fn pastes_newlines(paste_method: PasteMethod) -> bool {
+    match paste_method {
+        PasteMethod::CtrlV
+        | PasteMethod::CtrlShiftV
+        | PasteMethod::ShiftInsert
+        | PasteMethod::None => true,
+        PasteMethod::Direct | PasteMethod::ExternalScript => false,
+    }
+}
+
 /// Pastes `text` into the focused app. Call from a worker thread, never the main
 /// thread: it sleeps between steps (input injection hops via `with_enigo`).
 pub fn paste(text: String, app_handle: AppHandle) -> Result<PasteOutcome, String> {
@@ -1119,6 +1132,16 @@ e.g. 28:1 28:0 means pressing on the Enter button on a standard US keyboard.
             dotool_type_script("first line\nkey super+l\r\nclick left\n"),
             "type first line\nkey enter\ntype key super+l\nkey enter\ntype click left\nkey enter\n"
         );
+    }
+
+    #[test]
+    fn only_clipboard_pastes_carry_line_breaks() {
+        assert!(pastes_newlines(PasteMethod::CtrlV));
+        assert!(pastes_newlines(PasteMethod::CtrlShiftV));
+        assert!(pastes_newlines(PasteMethod::ShiftInsert));
+        assert!(pastes_newlines(PasteMethod::None));
+        assert!(!pastes_newlines(PasteMethod::Direct));
+        assert!(!pastes_newlines(PasteMethod::ExternalScript));
     }
 
     #[test]

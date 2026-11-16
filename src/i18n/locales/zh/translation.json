@@ -634,6 +634,10 @@
         "title": "移除语气词",
         "description": "从转录中移除常见的语气词。关闭此选项即可保留这些词。"
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "简繁转换",
         "description": "将普通话和粤语的转录结果输出为简体字，或台湾、香港通行的繁体字。其他语言保持不变。",

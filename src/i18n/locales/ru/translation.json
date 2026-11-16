@@ -634,6 +634,10 @@
         "title": "Удалять слова-паразиты",
         "description": "Удаляет распространённые слова-заминки из расшифровок. Отключите, чтобы сохранить их."
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "Китайская письменность",
         "description": "Записывает транскрипции на путунхуа и кантонском упрощёнными иероглифами или традиционными, как их пишут на Тайване или в Гонконге. Другие языки не изменяются.",
