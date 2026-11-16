@@ -19,7 +19,7 @@ first thing to read and the last thing to update.
 
 For the owner to paste. They make a session follow the rule above.
 
-Start on the Mac (in `~/murmur`):
+Start on the Mac (in `~/Developer/murmur`):
 
 ```
 Murmur, my dictation and meeting app. Run git pull, then read docs/STATUS.md and AGENTS.md. That file is the whole context: state, open bugs, rules for tests and releases. Tell me in a few lines where things stand, then wait for what I want to do.
@@ -45,8 +45,17 @@ Murmur. I worked on the Mac in between. Run git fetch and git pull, read docs/ST
   wipes its transcript there.
 - Installed: 0.2.0 on the PC (package `murmur`) and on the Mac
   (`/Applications/Murmur.app`).
-- No open branch. `next` on GitHub is the same commit as `v0.2.0`.
-- Paused. Nothing is half done.
+- Open branch `fix/meeting-echo` (Mac, not pushed, not merged): a meeting
+  recorded without headphones had the other side's words twice, once on the
+  system track and again on the mic, which hears the speakers. The merge now
+  drops the mic's echo of the system track (`find_echo` in
+  `managers/meetings/transcript.rs`). Verified: 24 transcript tests, the
+  full Rust suite, and a local replay on the kept words of the real meeting
+  (not in the repo): about 1,170 of 1,480 mic words dropped as echo, every
+  sentence of the owner's own kept, about 17 one-word leftovers. Not
+  verified: a two-track meeting with headphones (none recorded; a meeting
+  only counts as having echo when 25% of the system words match), and the
+  app build on screen.
 
 ### Never seen working by a person
 
@@ -70,6 +79,9 @@ The owner tries these first. What breaks there decides 0.2.1.
 - No "Summarising..." line while the automatic summary runs.
 - "Summarise again" replaces an imported summary and keeps no copy.
 - Overlapping speech becomes one-word turns.
+- Without headphones, the owner's own one to three words said over the other
+  side next to echo can be dropped when they are fillers or spelled like a
+  system word nobody took; a few misheard echo words stay as one-word turns.
 - The tray icon does not change during a meeting.
 - `murmur --toggle-meeting` does nothing when the app is not running.
 - A cancelled model download leaves a partial file.
@@ -126,7 +138,7 @@ Only what a session needs to know. Paths are the defaults.
 
 |                    | PC (Ubuntu 26.04, GNOME Wayland)                                             | Mac (Apple Silicon)                                                         |
 | ------------------ | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Checkout           | `~/Desktop/projects/murmur`                                                  | `~/murmur`                                                                  |
+| Checkout           | `~/Desktop/projects/murmur`                                                  | `~/Developer/murmur`                                                        |
 | App data           | `~/.local/share/com.maryan.murmur`                                           | `~/Library/Application Support/com.maryan.murmur`                           |
 | Speech             | Parakeet Ultra through Vulkan                                                | Parakeet Ultra through Metal                                                |
 | System audio       | PipeWire sink monitor                                                        | Core Audio process tap (macOS 14.2+), vendored crates in `src-tauri/vendor` |
@@ -143,6 +155,9 @@ model loaded.
 ## Log
 
 Newest first. One line per session: date, machine, what changed.
+
+- 16.11.2026, Mac: first real meeting showed the mic's echo of the call;
+  branch `fix/meeting-echo` drops it. Checkout moved to `~/Developer/murmur`.
 
 - 16.11.2026, PC: this file added, with the prompts for switching machines.
 - 16.11.2026, PC and Mac: 0.2.0 released. Delete a meeting, speaker model
