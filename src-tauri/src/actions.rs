@@ -1,7 +1,7 @@
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 use crate::apple_intelligence;
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
-use crate::audio_toolkit::{format_spoken, VadPolicy};
+use crate::audio_toolkit::{detect_output_language, format_spoken, VadPolicy};
 use crate::managers::audio::{recording_notice_code, AudioRecordingManager};
 use crate::managers::history::HistoryManager;
 use crate::managers::model::ModelManager;
@@ -460,20 +460,33 @@ async fn post_process_transcription(
 /// What a dictation pastes for `text`: its spoken commands ("new line",
 /// "bullet point") turned into formatting. Line breaks are only written when
 /// the paste method carries them; typed text stays one line. Text the
-/// post-processing model wrote and speech known not to be English are left
-/// alone. An unknown language counts as English: the commands are English
-/// phrases, and Parakeet does not report one.
+/// post-processing model wrote and text that is not English are left alone.
+///
+/// Parakeet reports no language, so then the text decides: it is left alone
+/// when it clearly reads as another language, and formatted when it reads as
+/// English or is too short to tell. Speech known not to be English is only
+/// formatted when Translate to English is on and the text reads as English:
+/// the setting alone does not say the model translated.
 fn apply_spoken_formatting(
     settings: &AppSettings,
     spoken_language: Option<&str>,
     post_processed: bool,
     text: String,
 ) -> String {
-    let english = settings.translate_to_english
-        || spoken_language.is_none_or(|language| {
-            language == "en" || language.starts_with("en-") || language.starts_with("en_")
-        });
-    if settings.spoken_formatting_enabled && english && !post_processed {
+    if !settings.spoken_formatting_enabled || post_processed {
+        return text;
+    }
+    let reads_as = || detect_output_language(&text, &[]);
+    let english = match spoken_language {
+        Some(language)
+            if language == "en" || language.starts_with("en-") || language.starts_with("en_") =>
+        {
+            true
+        }
+        Some(_) => settings.translate_to_english && reads_as().as_deref() == Some("en"),
+        None => reads_as().is_none_or(|language| language == "en"),
+    };
+    if english {
         format_spoken(
             &text,
             crate::clipboard::pastes_newlines(settings.paste_method),
@@ -1470,12 +1483,27 @@ mod tests {
         for language in [None, Some("en"), Some("en-US"), Some("en_GB")] {
             assert_ne!(format(&settings, language, false), SPOKEN, "{language:?}");
         }
-        // Translated to English, the text is English whatever was spoken.
+
+        // No language reported (Parakeet): text that clearly reads as
+        // another language is left alone.
+        let german = "Die Termine stehen fest. 1. Der Vertrag wird am Montag unterschrieben. 2. Die Rechnung kommt am Freitag.";
+        assert_ne!(crate::audio_toolkit::format_spoken(german, true), german);
+        let format_text = |settings: &AppSettings, language, text: &str| {
+            apply_spoken_formatting(settings, language, false, text.to_string())
+        };
+        assert_eq!(format_text(&settings, None, german), german);
+
+        // Translate to English is on: German speech is formatted when the
+        // text came out English, and left alone when the model did not
+        // translate it.
+        let english = "Here is the plan for the week. New line. Let me know if that works for you.";
         let translating = AppSettings {
             translate_to_english: true,
-            ..settings
+            ..settings.clone()
         };
-        assert_ne!(format(&translating, Some("de"), false), SPOKEN);
+        assert_ne!(format_text(&translating, Some("de"), english), english);
+        assert_eq!(format_text(&translating, Some("de"), german), german);
+        assert_eq!(format_text(&settings, Some("de"), english), english);
     }
 
     #[test]

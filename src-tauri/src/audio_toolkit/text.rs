@@ -1518,6 +1518,19 @@ Shopping list. Bullet point milk. Bullet point eggs. => Shopping list. - Milk; -
     }
 
     #[test]
+    fn test_spoken_commands_never_read_as_another_language() {
+        // A dictation of unknown language is formatted unless its text
+        // clearly reads as another language, so no command form may.
+        for (input, _) in spoken_cases(SPOKEN_COMMANDS).chain(spoken_cases(SPOKEN_SINGLE_LINE)) {
+            let read_as = crate::audio_toolkit::detect_output_language(input, &[]);
+            assert!(
+                read_as.as_deref().is_none_or(|language| language == "en"),
+                "{read_as:?}: {input}"
+            );
+        }
+    }
+
+    #[test]
     fn test_format_spoken_survives_odd_input() {
         for input in [
             "…",
