@@ -737,8 +737,8 @@ async downloadLanguageDetector() : Promise<Result<null, string>> {
 }
 },
 /**
- * Download the speaker diarizer meetings use. Reports like
- * [`download_language_detector`], under `DIARIZER_ID`.
+ * Download the speaker diarizer meetings use. The model manager reports
+ * how it ended, under `DIARIZER_ID`.
  */
 async downloadDiarizer() : Promise<Result<null, string>> {
     try {

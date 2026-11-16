@@ -23,6 +23,8 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/Button";
 import { ProgressLine } from "@/components/shared/ProgressLine";
+import { DIARIZER_ID } from "@/lib/notices";
+import { useModelStore } from "@/stores/modelStore";
 import { notify } from "@/stores/noticeStore";
 import { copyToClipboard } from "../history/clipboard";
 import { DeleteMeetingDialog } from "./DeleteMeetingDialog";
@@ -297,6 +299,21 @@ const SpeakerChip: React.FC<{
   );
 };
 
+/** Says so while the speaker model downloads, which a meeting starts. */
+const SpeakerModelLine: React.FC = () => {
+  const { t } = useTranslation();
+  const progress = useModelStore((s) => s.downloadProgress[DIARIZER_ID]);
+  if (!progress || progress.total <= 0) return null;
+  return (
+    <p className="hintline" role="status">
+      {t("meetings.speakerModelDownloading", {
+        size: Math.round(progress.total / 1e6),
+        percent: Math.round(progress.percentage),
+      })}
+    </p>
+  );
+};
+
 /** A recording meeting: the time, both sides' levels, and Stop. */
 const RecordingView: React.FC<{ row: MeetingRow }> = ({ row }) => {
   const { t } = useTranslation();
@@ -342,6 +359,7 @@ const RecordingView: React.FC<{ row: MeetingRow }> = ({ row }) => {
         {meter(levels.others, "s1")}
       </div>
       <p>{t("meetings.recordingBody")}</p>
+      <SpeakerModelLine />
       <StartStopButton size="md" />
     </div>
   );
@@ -381,6 +399,7 @@ const TranscribingStatus: React.FC<{ id: string }> = ({ id }) => {
         ))}
       </ol>
       <p>{t("meetings.transcribingBody")}</p>
+      <SpeakerModelLine />
     </div>
   );
 };

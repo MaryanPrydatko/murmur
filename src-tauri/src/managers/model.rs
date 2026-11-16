@@ -531,6 +531,11 @@ pub const LANGUAGE_DETECTOR_ID: &str = "language-detector";
 /// Download id of the speaker diarizer, like [`LANGUAGE_DETECTOR_ID`].
 pub const DIARIZER_ID: &str = "diarizer";
 
+/// Whether someone holds `lock` now.
+fn is_held(lock: &tokio::sync::Mutex<()>) -> bool {
+    lock.try_lock().is_err()
+}
+
 /// Where one file's download progress is reported: under `model_id`, its bytes
 /// counted from `offset`, out of `total` (default: `offset` + the file's own
 /// size). Lets two files (the language detector, then a model) fill one bar.
@@ -1997,8 +2002,35 @@ impl ModelManager {
     }
 
     /// Download the speaker diarizer, tracked and cancelled under
-    /// [`DIARIZER_ID`] like a model. Does nothing if it's on disk.
+    /// [`DIARIZER_ID`] like a model. Does nothing if it's on disk. Reports
+    /// how it ended itself: a meeting starts this download as well as the
+    /// command, and a progress line only goes away on an event.
     pub async fn download_diarizer(&self) -> Result<()> {
+        let fetched = self.fetch_diarizer().await;
+        match &fetched {
+            Ok(true) => {
+                let _ = self.app_handle.emit("model-download-complete", DIARIZER_ID);
+            }
+            Ok(false) => {}
+            Err(e) => {
+                let _ = self.app_handle.emit(
+                    "model-download-failed",
+                    serde_json::json!({ "model_id": DIARIZER_ID, "error": e.to_string() }),
+                );
+            }
+        }
+        fetched.map(|_| ())
+    }
+
+    /// Whether a transfer of the speaker diarizer is under way: the lock is
+    /// held for all of it.
+    pub fn diarizer_downloading(&self) -> bool {
+        is_held(&self.diarizer_download)
+    }
+
+    /// Fetch the speaker diarizer unless it's on disk, one transfer at a
+    /// time. `Ok(false)` if cancelled.
+    async fn fetch_diarizer(&self) -> Result<bool> {
         let diarizer = crate::catalog::DIARIZER
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("The catalog names no diarizer"))?;
@@ -2027,10 +2059,7 @@ impl ModelManager {
         }
         .await;
         self.cancel_flags.lock().unwrap().remove(DIARIZER_ID);
-        if fetched? {
-            let _ = self.app_handle.emit("model-download-complete", DIARIZER_ID);
-        }
-        Ok(())
+        fetched
     }
 
     /// Fetch one file from Hugging Face into the shared cache, retrying, then
@@ -3192,6 +3221,16 @@ mod tests {
 
         // No new models should be added
         assert_eq!(models.len(), count_before);
+    }
+
+    #[test]
+    fn a_download_shows_as_under_way_while_its_lock_is_held() {
+        let lock = tokio::sync::Mutex::new(());
+        assert!(!is_held(&lock));
+        let transfer = lock.try_lock().unwrap();
+        assert!(is_held(&lock));
+        drop(transfer);
+        assert!(!is_held(&lock));
     }
 
     #[test]

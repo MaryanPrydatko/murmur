@@ -6,7 +6,7 @@ use log::{debug, error, info, warn};
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use transcribe_cpp::{
@@ -29,6 +29,11 @@ use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 
 /// Tries at diarizing when a dictation's cancel interrupts it.
 const MAX_DIARIZE_ATTEMPTS: usize = 3;
+
+/// How long the speaker step waits for a download of the speaker model
+/// that's under way, and how often it looks.
+const DIARIZER_WAIT: Duration = Duration::from_secs(10 * 60);
+const DIARIZER_POLL: Duration = Duration::from_millis(500);
 
 /// Why the system track's speakers weren't told apart.
 enum Unseparated {
@@ -328,6 +333,27 @@ fn read_track(file: &Path) -> Result<(impl Iterator<Item = f32>, usize, bool)> {
     Ok((samples, total, held < said))
 }
 
+/// Waits while the speaker model is still downloading, at most `wait`: a
+/// meeting starts the download, and a short one is transcribed before it
+/// ends. Returns once the model is `ready`, nothing is `downloading`, or the
+/// time is up; fails only when `control` stopped the transcription.
+fn await_diarizer(
+    ready: impl Fn() -> bool,
+    downloading: impl Fn() -> bool,
+    control: &dyn ChunkControl,
+    wait: Duration,
+    poll: Duration,
+) -> Result<()> {
+    let started = Instant::now();
+    while !ready() && downloading() && started.elapsed() < wait {
+        if !control.proceed() {
+            bail!("Transcription was stopped");
+        }
+        std::thread::sleep(poll);
+    }
+    Ok(())
+}
+
 /// Who spoke when on the system track, in one run over all of it, or why
 /// not. Fails only when `control` stopped the transcription.
 fn diarize_track(
@@ -335,7 +361,15 @@ fn diarize_track(
     file: &Path,
     control: &dyn ChunkControl,
 ) -> Result<Result<Vec<Turn>, Unseparated>> {
-    let Some(model) = app.state::<Arc<ModelManager>>().diarizer_path() else {
+    let models = app.state::<Arc<ModelManager>>();
+    await_diarizer(
+        || models.diarizer_path().is_some(),
+        || models.diarizer_downloading(),
+        control,
+        DIARIZER_WAIT,
+        DIARIZER_POLL,
+    )?;
+    let Some(model) = models.diarizer_path() else {
         return Ok(Err(Unseparated::NoModel));
     };
     let tm = app.state::<Arc<TranscriptionManager>>();
@@ -395,6 +429,81 @@ mod tests {
             }],
             language: Some("en".into()),
         }
+    }
+
+    /// A job's control that counts how often it's asked, and stops when told.
+    struct Asked {
+        times: Cell<u32>,
+        go_on: bool,
+    }
+
+    impl ChunkControl for Asked {
+        fn proceed(&self) -> bool {
+            self.times.set(self.times.get() + 1);
+            self.go_on
+        }
+
+        fn progress(&self, _done: usize, _total: usize) {}
+    }
+
+    fn asked(go_on: bool) -> Asked {
+        Asked {
+            times: Cell::new(0),
+            go_on,
+        }
+    }
+
+    const POLL: Duration = Duration::from_millis(1);
+    const LONG: Duration = Duration::from_secs(60);
+
+    #[test]
+    fn the_speaker_step_does_not_wait_for_a_model_that_is_there_or_not_coming() {
+        let control = asked(true);
+        let downloading = Cell::new(0);
+        let count = || {
+            downloading.set(downloading.get() + 1);
+            true
+        };
+        // On disk: nothing to wait for, whatever is downloading.
+        await_diarizer(|| true, count, &control, LONG, POLL).unwrap();
+        assert!(downloading.get() <= 1);
+        // Missing and not downloading: straight on to the fallback.
+        let started = Instant::now();
+        await_diarizer(|| false, || false, &control, LONG, LONG).unwrap();
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(control.times.get(), 0);
+    }
+
+    #[test]
+    fn the_speaker_step_waits_for_a_download_to_finish() {
+        let control = asked(true);
+        let polls = Cell::new(0);
+        let ready = || polls.get() == 3;
+        let downloading = || {
+            polls.set(polls.get() + 1);
+            true
+        };
+        await_diarizer(ready, downloading, &control, LONG, POLL).unwrap();
+        assert_eq!(polls.get(), 3);
+        assert_eq!(control.times.get(), 3);
+    }
+
+    #[test]
+    fn the_speaker_step_gives_up_on_a_download_that_takes_too_long() {
+        let control = asked(true);
+        let wait = Duration::from_millis(30);
+        let started = Instant::now();
+        await_diarizer(|| false, || true, &control, wait, Duration::from_millis(5)).unwrap();
+        let took = started.elapsed();
+        assert!(took >= wait && took < Duration::from_secs(5), "{took:?}");
+    }
+
+    #[test]
+    fn a_stopped_transcription_stops_waiting_for_the_speaker_model() {
+        let control = asked(false);
+        let e = await_diarizer(|| false, || true, &control, LONG, POLL).unwrap_err();
+        assert_eq!(e.to_string(), "Transcription was stopped");
+        assert_eq!(control.times.get(), 1);
     }
 
     #[test]

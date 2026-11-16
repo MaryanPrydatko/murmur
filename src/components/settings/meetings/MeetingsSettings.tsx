@@ -28,6 +28,7 @@ const Empty: React.FC = () => {
       </div>
       <h3>{t("meetings.emptyTitle")}</h3>
       <p>{t("meetings.emptyBody")}</p>
+      <p>{t("meetings.emptyModel")}</p>
       <StartStopButton size="md" />
       <small>
         <Trans i18nKey="meetings.emptyHint" components={{ kbd: <kbd /> }} />

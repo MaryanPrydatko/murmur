@@ -32,6 +32,7 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
 use crate::managers::history::HistoryManager;
+use crate::managers::model::ModelManager;
 use crate::managers::transcription_jobs::TranscriptionJobManager;
 use crate::notices::{self, Notice, NoticeCode, NoticeSource};
 use crate::settings::get_settings;
@@ -256,6 +257,7 @@ impl MeetingManager {
             self.start().map(|active| {
                 *self.lock() = Some(active);
                 self.recording.store(true, Ordering::Release);
+                self.fetch_speaker_model();
             })
         };
         if let Err(e) = result {
@@ -267,6 +269,23 @@ impl MeetingManager {
             );
         }
         crate::tray::update_tray_menu(&self.app);
+    }
+
+    /// Starts downloading the speaker model when it isn't on disk, so the
+    /// meeting that just started can have its speakers told apart. On its
+    /// own task: the recording never waits for it. A download that fails is
+    /// tried again by the next meeting.
+    fn fetch_speaker_model(&self) {
+        let models = Arc::clone(&self.app.state::<Arc<ModelManager>>());
+        if crate::catalog::DIARIZER.is_none() || models.diarizer_path().is_some() {
+            return;
+        }
+        info!("Downloading the speaker model for this meeting");
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = models.download_diarizer().await {
+                warn!("Speaker model download failed: {e:#}");
+            }
+        });
     }
 
     /// Queues the meeting in `id`'s folder to be transcribed again from its
