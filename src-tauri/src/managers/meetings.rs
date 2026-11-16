@@ -298,9 +298,7 @@ impl MeetingManager {
             bail!("Meeting {id} is still recording");
         }
         let mut meeting = read_meeting(&meetings_dir(&self.app)?.join(id))?;
-        for track in &meeting.tracks {
-            check_track(&track.file)?;
-        }
+        check_tracks(&meeting)?;
         info!("Meeting {id} queued again ({rerun:?})");
         self.app
             .state::<Arc<TranscriptionJobManager>>()
@@ -630,6 +628,20 @@ fn remove_meeting(conn: &mut rusqlite::Connection, meetings_dir: &Path, id: &str
 }
 
 /// Fails unless `file` is a WAV a meeting can be transcribed from.
+/// Whether the meeting can be transcribed again: it has recordings, and
+/// each is a track as Murmur records them. One imported with only its
+/// transcript has none, and a run over no tracks would replace that
+/// transcript with an empty one.
+fn check_tracks(meeting: &Meeting) -> Result<()> {
+    if meeting.tracks.is_empty() {
+        bail!("This meeting has no recording to transcribe from; its transcript was kept");
+    }
+    meeting
+        .tracks
+        .iter()
+        .try_for_each(|track| check_track(&track.file))
+}
+
 fn check_track(file: &Path) -> Result<()> {
     let spec = hound::WavReader::open(file)
         .with_context(|| format!("Failed to open {}", file.display()))?
@@ -840,6 +852,34 @@ mod tests {
         let e = check_track(&stereo).unwrap_err().to_string();
         assert!(e.contains("44100 Hz, 2 channel"), "{e}");
         assert!(check_track(&dir.path().join("system.wav")).is_err());
+    }
+
+    #[test]
+    fn a_meeting_without_recordings_is_not_transcribed_again() {
+        let dir = tempfile::tempdir().unwrap();
+        wav(&dir.path().join("mic.wav"), 16_000, 1);
+        let mut meeting = Meeting {
+            id: "2026-10-21_16-30-00-wf".into(),
+            started_at: "2026-10-21T16:30:00+02:00".into(),
+            duration_ms: 1000,
+            status: MeetingStatus::Done,
+            dir: dir.path().to_path_buf(),
+            tracks: vec![MeetingTrack {
+                kind: TrackKind::Mic,
+                file: dir.path().join("mic.wav"),
+                start_offset_ms: 0,
+                duration_ms: 1000,
+            }],
+            asr_model: None,
+            diar_model: None,
+            language: None,
+            attempts: 0,
+        };
+        assert!(check_tracks(&meeting).is_ok());
+        // Imported with its transcript only: a rerun would empty it.
+        meeting.tracks.clear();
+        let e = check_tracks(&meeting).unwrap_err().to_string();
+        assert!(e.contains("no recording"), "{e}");
     }
 
     #[test]
