@@ -25,7 +25,8 @@ pub async fn import_meetings(
 }
 
 /// Writes a transcribed meeting's note into the vault, unless its note is
-/// there already. The note's path.
+/// there already. The note's path. Refuses while the meeting's summary is
+/// being asked for: the note is written once and would miss it.
 #[tauri::command]
 #[specta::specta]
 pub fn export_meeting_note(
@@ -33,6 +34,11 @@ pub fn export_meeting_note(
     history: State<'_, Arc<HistoryManager>>,
     id: String,
 ) -> Result<String, String> {
+    if summary::in_progress(&id) {
+        return Err(
+            "This meeting is being summarised. Write the note when the summary is there.".into(),
+        );
+    }
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
     let folder = notes::notes_folder(&get_settings(&app), &home)
         .map_err(|e| format!("{e:#}"))?

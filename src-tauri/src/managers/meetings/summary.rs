@@ -4,9 +4,10 @@
 //! anywhere. An import brings the summary the other app wrote the same way.
 
 use log::{info, warn};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
@@ -179,8 +180,37 @@ async fn save(settings: &AppSettings, detail: &MeetingDetail, dir: &Path) -> Res
         .map_err(|e| format!("Failed to save the summary in {}: {e}", dir.display()))
 }
 
+/// The meetings a summary is being asked for right now.
+static ASKING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+/// Holds a meeting's place in [`ASKING`] until it's dropped.
+struct Asking(String);
+
+impl Asking {
+    /// `None` while another request for the meeting `id` is out.
+    fn begin(id: &str) -> Option<Self> {
+        let mut asking = ASKING.lock().unwrap_or_else(PoisonError::into_inner);
+        asking.insert(id.to_string()).then(|| Self(id.to_string()))
+    }
+}
+
+impl Drop for Asking {
+    fn drop(&mut self) {
+        let mut asking = ASKING.lock().unwrap_or_else(PoisonError::into_inner);
+        asking.remove(&self.0);
+    }
+}
+
+/// Whether a summary of the meeting `id` is being asked for right now. Its
+/// note waits for that: a note is written once, with the summary there is.
+pub fn in_progress(id: &str) -> bool {
+    let asking = ASKING.lock().unwrap_or_else(PoisonError::into_inner);
+    asking.contains(id)
+}
+
 /// Summarises the transcribed meeting `id`, replacing the summary it has.
-/// Refuses while Summarise Meetings is off, whoever asks.
+/// Refuses while Summarise Meetings is off, whoever asks, and while another
+/// request for the same meeting is out: the transcript is sent once.
 pub async fn summarise(app: &AppHandle, id: &str) -> Result<(), String> {
     let settings = get_settings(app);
     if !settings.summarise_meetings {
@@ -189,6 +219,7 @@ pub async fn summarise(app: &AppHandle, id: &str) -> Result<(), String> {
     if !is_meeting_id(id) {
         return Err(format!("{id:?} is not a meeting"));
     }
+    let _asking = Asking::begin(id).ok_or("This meeting is already being summarised")?;
     let dir = meetings_dir(app).map_err(|e| format!("{e:#}"))?.join(id);
     let detail = app
         .state::<Arc<HistoryManager>>()
@@ -557,6 +588,19 @@ mod tests {
         assert_eq!(saved, "## Decisions\n- Ship\n");
         assert_eq!(read(dir.path()).as_deref(), Some("## Decisions\n- Ship"));
         assert!(!dir.path().join("summary.md.partial").exists());
+    }
+
+    #[test]
+    fn one_summary_request_per_meeting_at_a_time() {
+        let id = "2026-11-15_09-09-09";
+        let first = Asking::begin(id).expect("nothing is out yet");
+        assert!(in_progress(id));
+        assert!(Asking::begin(id).is_none());
+        // Another meeting is not held up.
+        assert!(Asking::begin("2026-11-15_09-09-10").is_some());
+        drop(first);
+        assert!(!in_progress(id));
+        assert!(Asking::begin(id).is_some());
     }
 
     #[test]
