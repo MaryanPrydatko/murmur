@@ -638,6 +638,10 @@
         "title": "إزالة كلمات الحشو",
         "description": "يزيل كلمات التردد الشائعة من النصوص. عطّل هذا الخيار للاحتفاظ بها."
       },
+      "spokenFormatting": {
+        "title": "Spoken Formatting",
+        "description": "Turns spoken commands into formatting when you dictate in English: \"new line\", \"new paragraph\", \"bullet point\" and \"number one, ... number two, ...\". A command only counts as its own phrase, so \"a new line of code\" stays as it is. Turn off to keep every word."
+      },
       "chineseScript": {
         "title": "الكتابة الصينية",
         "description": "يكتب تفريغ الماندرين والكانتونية بالحروف المبسّطة، أو بالحروف التقليدية كما تُكتب في تايوان أو هونغ كونغ. تبقى اللغات الأخرى دون تغيير.",
