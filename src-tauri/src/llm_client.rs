@@ -187,11 +187,11 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     headers.insert(
         REFERER,
-        HeaderValue::from_static("https://github.com/cjpais/Handy"),
+        HeaderValue::from_static("https://github.com/MaryanPrydatko/murmur"),
     );
     headers.insert(
         USER_AGENT,
-        HeaderValue::from_static("Handy/1.0 (+https://github.com/cjpais/Handy)"),
+        HeaderValue::from_static(concat!("Murmur/", env!("CARGO_PKG_VERSION"))),
     );
     headers.insert("X-Title", HeaderValue::from_static("Murmur"));
 
@@ -841,6 +841,19 @@ mod tests {
         assert!(json.get("reasoning_effort").is_none());
         assert!(json.get("reasoning").is_none());
         assert!(json.get("thinking").is_none());
+    }
+
+    #[test]
+    fn requests_identify_the_app_as_murmur() {
+        let headers = build_headers(&provider("custom", "http://localhost:1/v1"), "").unwrap();
+
+        assert_eq!(
+            headers[USER_AGENT],
+            concat!("Murmur/", env!("CARGO_PKG_VERSION"))
+        );
+        assert_eq!(headers[REFERER], "https://github.com/MaryanPrydatko/murmur");
+        assert_eq!(headers["X-Title"], "Murmur");
+        assert!(!headers.contains_key(AUTHORIZATION));
     }
 
     #[test]
