@@ -43,7 +43,8 @@ Murmur. I worked on the Mac in between. Run git fetch and git pull, read docs/ST
   The release has a `.deb` (Ubuntu 26.04+) and a `.dmg` (Apple Silicon). Do
   not use 0.1.0: "Transcribe again" on an imported meeting without audio
   wipes its transcript there.
-- Installed: 0.2.0 on the PC (package `murmur`). On the Mac
+- Installed: on the PC a build of `fix/meeting-echo` at `99761791` (package
+  `murmur`, still numbered 0.2.0), since 16.11 afternoon. On the Mac
   (`/Applications/Murmur.app`) a build of `fix/meeting-echo`, see below.
 - Open branch `fix/meeting-echo` (Mac, not pushed, not merged): a meeting
   recorded without headphones had the other side's words twice, once on the
@@ -158,6 +159,9 @@ model loaded.
 
 Newest first. One line per session: date, machine, what changed.
 
+- 16.11.2026, PC: `fix/meeting-echo` built and installed on the PC. 483 Rust
+  tests pass. The app starts and registers its shortcut; no meeting was
+  recorded or redone with it there.
 - 16.11.2026, Mac: first real meeting showed the mic's echo of the call;
   branch `fix/meeting-echo` drops it. Checkout moved to `~/Developer/murmur`.
 
